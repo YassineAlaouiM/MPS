@@ -434,8 +434,8 @@ def create_operator():
     arabic_name = data.get('arabic_name')
     status = data.get('status', 'active')
 
-    if not operator_id or not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Operator ID, name, and Arabic name are required'})
+    if not name or not arabic_name:
+        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
 
     connection = get_db_connection()
     try:
