@@ -55,7 +55,7 @@ mysql -u your_mysql_username -p < schema.sql
 
 1. Start the Flask development server:
 ```bash
-python app.py
+python main.py
 ```
 
 2. Open your web browser and navigate to:
