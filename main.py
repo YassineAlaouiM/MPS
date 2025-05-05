@@ -425,28 +425,22 @@ def delete_machine(machine_id):
     finally:
         connection.close()
 
+# Removed the requirement to provide operator_id during operator creation
 @app.route('/api/operators', methods=['POST'])
 @login_required
 def create_operator():
     data = request.get_json()
-    operator_id = data.get('id')
     name = data.get('name')
     arabic_name = data.get('arabic_name')
     status = data.get('status', 'active')
 
     if not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
+        return jsonify({'success': False, 'message': 'Name and Arabic name are required'})
 
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Check if operator ID already exists
-            sql = "SELECT name FROM operators WHERE name = %s"
-            cursor.execute(sql, (name,))
-            if cursor.fetchone():
-                return jsonify({'success': False, 'message': 'Operator Name already exists'})
-
-            # Insert new operator with required Arabic name
+            # Insert new operator without requiring operator_id
             sql = "INSERT INTO operators (name, arabic_name, status) VALUES (%s, %s, %s)"
             cursor.execute(sql, (name, arabic_name, status))
             connection.commit()
@@ -476,25 +470,26 @@ def get_operator(operator_id):
 @login_required
 def update_operator(operator_id):
     data = request.get_json()
+    new_id = data.get('id')
     name = data.get('name')
     arabic_name = data.get('arabic_name')
     status = data.get('status')
 
-    if not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
+    if not new_id or not name or not arabic_name:
+        return jsonify({'success': False, 'message': 'Operator ID, name, and Arabic name are required'})
 
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
             # Check if operator exists
-            sql = "SELECT name FROM operators WHERE name = %s"
-            cursor.execute(sql, (name,))
+            sql = "SELECT id FROM operators WHERE id = %s"
+            cursor.execute(sql, (operator_id,))
             if not cursor.fetchone():
                 return jsonify({'success': False, 'message': 'Operator not found'})
 
             # Update operator details with required Arabic name
-            sql = "UPDATE operators SET name = %s, arabic_name = %s, status = %s WHERE id = %s"
-            cursor.execute(sql, (name, arabic_name, status, operator_id))
+            sql = "UPDATE operators SET id = %s, name = %s, arabic_name = %s, status = %s WHERE id = %s"
+            cursor.execute(sql, (new_id, name, arabic_name, status, operator_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Operator updated successfully'})
     except pymysql.Error as e:
@@ -1098,24 +1093,23 @@ def get_operators():
             with conn.cursor() as cursor:
                 # Get operators with their current absence status
                 cursor.execute("""
-                    SELECT 
-                        o.*,
-                        MAX(a.start_date) as start_date,
-                        MAX(a.end_date) as end_date,
-                        CASE 
-                            WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
-                                CASE 
-                                    WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7 THEN 'long_absence'
-                                    WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date) THEN 'current_absence'
-                                    ELSE 'no_absence'
-                                END
-                            ELSE 'no_absence'
-                        END as absence_status
+                    SELECT o.*, 
+                           a.start_date, 
+                           a.end_date,
+                           CASE 
+                               WHEN a.start_date IS NOT NULL AND a.end_date IS NOT NULL THEN
+                                   CASE 
+                                       WHEN DATEDIFF(a.end_date, a.start_date) > 7 THEN 'long_absence'
+                                       WHEN CURDATE() BETWEEN a.start_date AND a.end_date THEN 'current_absence'
+                                       ELSE 'no_absence'
+                                   END
+                               ELSE 'no_absence'
+                           END as absence_status
                     FROM operators o
                     LEFT JOIN absences a ON o.id = a.operator_id 
                         AND CURDATE() BETWEEN a.start_date AND a.end_date
                     WHERE o.status != 'inactive'
-                    GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
+                    GROUP BY o.id
                 """)
                 return cursor.fetchall()
     except Exception as e:
@@ -1593,6 +1587,7 @@ def export_schedule():
         except Exception as e:
             print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'  # Fallback to built-in font
+        
         # Helper function to handle Arabic text
         def process_text(text):
             if name_type == 'arabic' and text and any(ord(char) in range(0x0600, 0x06FF) for char in str(text)):
