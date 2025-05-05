@@ -1100,7 +1100,7 @@ def get_operators():
                             WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
                                 CASE 
                                     WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
-                                        AND CURDATE() BETWEEN a.start_date AND a.end_date    
+                                        AND CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)    
                                     THEN 'long_absence'
                                     WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)
                                     THEN 'current_absence'
