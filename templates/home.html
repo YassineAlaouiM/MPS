@@ -375,10 +375,6 @@
             <div class="modal-body">
                 <form id="addOperatorForm">
                     <div class="mb-3">
-                        <label for="operatorId" class="form-label">ID de l'opérateur</label>
-                        <input type="text" class="form-control" id="operatorId" required>
-                    </div>
-                    <div class="mb-3">
                         <label for="operatorName" class="form-label">Nom de l'opérateur</label>
                         <input type="text" class="form-control" id="operatorName" required>
                     </div>
@@ -717,10 +713,6 @@
             <div class="modal-body">
                 <form id="editOperatorForm">
                     <input type="hidden" id="editOperatorId">
-                    <div class="mb-3">
-                        <label for="editOperatorIdField" class="form-label">ID de l'opérateur</label>
-                        <input type="text" class="form-control" id="editOperatorIdField" required>
-                    </div>
                     <div class="mb-3">
                         <label for="editOperatorName" class="form-label">Nom de l'opérateur</label>
                         <input type="text" class="form-control" id="editOperatorName" required>
@@ -1338,7 +1330,6 @@ function saveOperator() {
     }
     
     const data = {
-        id: document.getElementById('operatorId').value,
         name: document.getElementById('operatorName').value,
         arabic_name: arabicName,
         status: document.getElementById('operatorStatus').value
@@ -1369,7 +1360,6 @@ function editOperator(id) {
         .then(response => response.json())
         .then(operator => {
             document.getElementById('editOperatorId').value = operator.id;
-            document.getElementById('editOperatorIdField').value = operator.id;
             document.getElementById('editOperatorName').value = operator.name;
             document.getElementById('editOperatorArabicName').value = operator.arabic_name;
             document.getElementById('editOperatorStatus').value = operator.status;
@@ -1391,7 +1381,6 @@ function saveOperatorEdit() {
     
     const id = document.getElementById('editOperatorId').value;
     const data = {
-        id: document.getElementById('editOperatorIdField').value,
         name: document.getElementById('editOperatorName').value,
         arabic_name: arabicName,
         status: document.getElementById('editOperatorStatus').value
