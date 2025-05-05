@@ -1099,23 +1099,24 @@ def get_operators():
             with conn.cursor() as cursor:
                 # Get operators with their current absence status
                 cursor.execute("""
-                    SELECT o.*, 
-                           a.start_date, 
-                           a.end_date,
-                           CASE 
-                               WHEN a.start_date IS NOT NULL AND a.end_date IS NOT NULL THEN
-                                   CASE 
-                                       WHEN DATEDIFF(a.end_date, a.start_date) > 7 THEN 'long_absence'
-                                       WHEN CURDATE() BETWEEN a.start_date AND a.end_date THEN 'current_absence'
-                                       ELSE 'no_absence'
-                                   END
-                               ELSE 'no_absence'
-                           END as absence_status
+                    SELECT 
+                        o.*,
+                        MAX(a.start_date) as start_date,
+                        MAX(a.end_date) as end_date,
+                        CASE 
+                            WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
+                                CASE 
+                                    WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7 THEN 'long_absence'
+                                    WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date) THEN 'current_absence'
+                                    ELSE 'no_absence'
+                                END
+                            ELSE 'no_absence'
+                        END as absence_status
                     FROM operators o
                     LEFT JOIN absences a ON o.id = a.operator_id 
                         AND CURDATE() BETWEEN a.start_date AND a.end_date
                     WHERE o.status != 'inactive'
-                    GROUP BY o.id
+                    GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """)
                 return cursor.fetchall()
     except Exception as e:
