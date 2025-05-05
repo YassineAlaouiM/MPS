@@ -1,0 +1,771 @@
+{% extends "base.html" %}
+{% block title %}Horaire{% endblock %}
+
+{% block content %}
+<div class="container">
+    
+    <!-- Week Navigation -->
+    <div class="week-navigation">
+        <button onclick="previousWeek()">Semaine précédente</button>
+        <span id="current-week">Semaine {{ week }}, {{ year }}</span>
+        <button onclick="nextWeek()">Semaine suivante</button>
+    </div>
+
+    <!-- Schedule Grid -->
+    <div class="assignments-table">
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all-machines" onclick="toggleAllMachines(this)"></th>
+                    <th>Machine</th>
+                    <th>7h->15h</th>
+                    <th>15h->23h</th>
+                    <th>23h->7h</th>
+                    <th>7h->19h</th>
+                    <th>19h->7h</th>
+                    <th>9h->17h</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for machine in machines %}
+                <tr>
+                    <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}"></td>
+                    <td>{{ machine.name }}</td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="1">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="1" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                               
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="2">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="2" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 2) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 2) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                                
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="3">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="3" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 3) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 3) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                                
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="4">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="4" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 4) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 4) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="5">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="5" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 5) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 5) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                              
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="6">
+                        <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="6" onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 6) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 6) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                               
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="actions-container" style="margin-top: 20px;">
+            <div class="button-group">
+                <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
+                <div class="export-buttons">
+                    <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
+                    <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
+                </div>
+                <div class="button-pair">
+                    <button id="remove-display-button" onclick="removeFromDisplay()">Réinitialiser</button>
+                    <button id="confirm-button" onclick="confirmAssignments()">Confirmer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.assignments-table {
+    margin-bottom: 30px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+th, td {
+    font-weight: 500;
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #f5f5f5;
+}
+
+button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    color: white;
+    background-color: #2196F3;
+    transition: background-color 0.3s;
+}
+
+#confirm-button {
+    background-color: #4CAF50;
+}
+
+#confirm-button:hover {
+    background-color: #45a049;
+}
+
+#remove-display-button {
+    background-color: transparent;
+    border: 2px solid #da190b;
+    color: #da190b;
+}
+
+#remove-display-button:hover {
+    background-color: #da190b;
+    color: white;
+}
+
+#random-assignment-button {
+    background-color: #FF9800;
+}
+
+#random-assignment-button:hover {
+    background-color: #F57C00;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+    display: inline-block;
+}
+
+.select-wrapper::after {
+    content: "×";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    color: #f44336;
+    cursor: pointer;
+    pointer-events: auto;
+    display: none;
+    font-weight: bold;
+    z-index: 2;
+}
+
+.select-wrapper:hover::after {
+    display: block;
+}
+
+select {
+    width: 100%;
+    padding: 8px 30px 8px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none;
+    position: relative;
+}
+
+.actions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.button-pair {
+    display: flex;
+    gap: 10px;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+table input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+table th:first-child,
+table td:first-child {
+    width: 40px;
+    text-align: center;
+    padding: 10px 5px;
+}
+
+#select-all-machines {
+    margin: 0;
+}
+
+.export-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.export-btn {
+    padding: 8px 15px;
+    border: 2px solid #2196F3;
+    background-color: #2196F3;
+    color: white;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.export-btn:hover {
+    background-color: #1982d8;
+}
+
+#export-arabic-pdf-button {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script>
+function exportToPDF(nameType) {
+    // Get current week and year from the page
+    const week = {{ week }};
+    const year = {{ year }};
+    
+    // Create a loading state
+    const button = document.getElementById(`export-${nameType}-pdf-button`);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = nameType === 'latin' ? 'Génération du PDF...' : 'جاري التصدير...';
+    
+    // Open the export URL in a new tab with the name type parameter
+    window.open(`/export_schedule?week=${week}&year=${year}&name_type=${nameType}`, '_blank');
+    
+    // Restore button state after a short delay
+    setTimeout(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+    }, 1000);
+}
+
+function previousWeek() {
+    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
+}
+
+function nextWeek() {
+    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+}
+
+const selectedOperators = new Set();
+
+function handleOperatorSelection(selectElement) {
+    const operatorId = selectElement.value;
+    const wrapper = selectElement.parentElement;
+
+    // Remove previously selected operator from the set
+    const previousOperator = selectElement.dataset.selectedOperator;
+    if (previousOperator) {
+        selectedOperators.delete(previousOperator);
+    }
+
+    // Add the new operator to the set
+    if (operatorId) {
+        if (selectedOperators.has(operatorId)) {
+            alert('Cet opérateur est déjà affecté à un autre poste.');
+            selectElement.value = ""; // Reset the selection
+            return;
+        }
+        selectedOperators.add(operatorId);
+    }
+
+    // Update the dataset to track the selected operator
+    selectElement.dataset.selectedOperator = operatorId;
+
+    // Disable the selected operator in other dropdowns
+    updateOperatorDropdowns();
+}
+
+function updateOperatorDropdowns() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        const currentOperator = dropdown.dataset.selectedOperator;
+        const currentShiftId = parseInt(dropdown.dataset.shiftId);
+        const options = Array.from(dropdown.querySelectorAll('option'));
+        
+        // Clear the dropdown
+        dropdown.innerHTML = '';
+        
+        // Add the default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Sélectionner un opérateur';
+        dropdown.appendChild(defaultOption);
+        
+        // Add enabled options first
+        options.forEach(option => {
+            if (option.value && !selectedOperators.has(option.value) && !option.disabled) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
+                }
+                
+                // Check if this is the operator's next expected shift
+                const lastShift = parseInt(option.dataset.lastShift);
+                const nextShift = parseInt(option.dataset.nextShift);
+                const isNextExpectedShift = nextShift === currentShiftId;
+                
+                option.disabled = false;
+                option.style.color = isNextExpectedShift ? '#4CAF50' : 'black';
+                option.style.fontWeight = isNextExpectedShift ? 'bold' : 'normal';
+                dropdown.appendChild(option);
+            }
+        });
+        
+        // Add disabled options at the bottom
+        options.forEach(option => {
+            if (option.value && (selectedOperators.has(option.value) || option.disabled)) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
+                }
+                option.disabled = true;
+                option.style.color = '#b3b3b3';
+                dropdown.appendChild(option);
+            }
+        });
+        
+        // Restore the current selection
+        if (currentOperator) {
+            dropdown.value = currentOperator;
+        }
+    });
+}
+
+function confirmAssignments() {
+    // Remove any existing messages first
+    const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
+    existingMessages.forEach(message => message.remove());
+
+    const assignments = [];
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    const totalCells = allDropdowns.length;
+
+    allDropdowns.forEach(dropdown => {
+        const operatorId = dropdown.value;
+        const machineId = dropdown.dataset.machineId;
+        const shiftId = dropdown.dataset.shiftId;
+
+        if (operatorId) {
+            assignments.push({
+                machine_id: machineId,
+                shift_id: shiftId,
+                operator_id: operatorId
+            });
+        }
+    });
+
+    if (assignments.length === 0) {
+        alert('Aucune affectation sélectionnée.');
+        return;
+    }
+
+    // Send the assignments to the backend
+    fetch('/api/schedule/confirm', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            assignments: assignments,
+            week_number: {{ week }},
+            year: {{ year }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store assignments in session storage
+            const weekKey = `week_{{ week }}_year_{{ year }}`;
+            sessionStorage.setItem(weekKey, JSON.stringify(assignments));
+            sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
+            
+            const successMessage = document.createElement('div');
+            successMessage.className = 'alert-success';
+            successMessage.textContent = 'Affectations confirmées avec succès.';
+            document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+            
+        } else {
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = 'Erreur : ' + data.message;
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+            
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = 'Erreur lors de la confirmation des affectations.';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    });
+}
+
+function loadStoredAssignments() {
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    const storedAssignments = sessionStorage.getItem(weekKey);
+    const isConfirmed = sessionStorage.getItem(`${weekKey}_confirmed`);
+    
+    if (storedAssignments && isConfirmed) {
+        const assignments = JSON.parse(storedAssignments);
+        const allDropdowns = document.querySelectorAll('.operator-select');
+        
+        // Apply stored assignments
+        assignments.forEach(assignment => {
+            const dropdown = Array.from(allDropdowns).find(d => 
+                d.dataset.machineId === assignment.machine_id.toString() && 
+                d.dataset.shiftId === assignment.shift_id.toString()
+            );
+            if (dropdown) {
+                dropdown.value = assignment.operator_id;
+                handleOperatorSelection(dropdown);
+            }
+        });
+        
+        // Show confirmation message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'alert-success';
+        successMessage.textContent = 'Affectations confirmées avec succès.';
+        document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    }
+}
+
+// Initialize select containers and clear icons
+function initializeSelects() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    
+    allDropdowns.forEach(dropdown => {
+        // Create container
+        const container = document.createElement('div');
+        container.className = 'select-wrapper';
+        
+        // Wrap the select
+        dropdown.parentNode.insertBefore(container, dropdown);
+        container.appendChild(dropdown);
+        
+        // Add click handler for the wrapper
+        container.addEventListener('click', function(e) {
+            if (e.target === container && dropdown.value) {
+                e.stopPropagation();
+                const operatorId = dropdown.value;
+                selectedOperators.delete(operatorId);
+                dropdown.value = '';
+                delete dropdown.dataset.selectedOperator;
+                updateOperatorDropdowns();
+            }
+        });
+        
+        // Initialize if has value
+        if (dropdown.value) {
+            selectedOperators.add(dropdown.value);
+            dropdown.dataset.selectedOperator = dropdown.value;
+        }
+    });
+}
+
+// Update DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+    loadStoredAssignments();
+    initializeSelects();
+    updateOperatorDropdowns();
+});
+
+function removeFromDisplay() {
+    // Get checked machines
+    const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+        .map(checkbox => checkbox.dataset.machineId);
+    
+    // Clear session storage for current week
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    sessionStorage.removeItem(weekKey);
+    sessionStorage.removeItem(`${weekKey}_confirmed`);
+    
+    // Clear all dropdowns for checked machines
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        if (checkedMachines.length === 0 || checkedMachines.includes(dropdown.dataset.machineId)) {
+            dropdown.value = '';
+            const previousOperator = dropdown.dataset.selectedOperator;
+            if (previousOperator) {
+                selectedOperators.delete(previousOperator);
+                delete dropdown.dataset.selectedOperator;
+            }
+        }
+    });
+    
+    // Update dropdowns
+    updateOperatorDropdowns();
+    
+    // Show success message
+    const successMessage = document.createElement('div');
+    successMessage.className = 'alert-success';
+    successMessage.textContent = checkedMachines.length > 0 
+        ? 'Affectations effacées pour les machines sélectionnées.' 
+        : 'Toutes les affectations ont été réinitialisées.';
+    document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    
+    // Remove success message after 3 seconds
+    setTimeout(() => {
+        successMessage.remove();
+    }, 3000);
+}
+
+function randomAssignment() {
+    const button = document.getElementById('random-assignment-button');
+    const originalText = button.textContent;
+    
+    // Show loading state
+    button.disabled = true;
+    button.textContent = 'Génération des affectations aléatoires...';
+    
+    try {
+        // Get checked machines
+        const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+            .map(checkbox => checkbox.dataset.machineId);
+        
+        if (checkedMachines.length === 0) {
+            throw new Error('Veuillez sélectionner au moins une machine');
+        }
+        
+        // Make API call to backend
+        fetch('/api/schedule/random', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                week_number: {{ week }},
+                year: {{ year }},
+                machine_ids: checkedMachines
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the UI with new assignments
+                const allDropdowns = document.querySelectorAll('.operator-select');
+                
+                // Clear existing selections for checked machines
+                allDropdowns.forEach(dropdown => {
+                    if (checkedMachines.includes(dropdown.dataset.machineId)) {
+                        dropdown.value = '';
+                        delete dropdown.dataset.selectedOperator;
+                    }
+                });
+                
+                // Apply new assignments
+                data.assignments.forEach(assignment => {
+                    const dropdown = Array.from(allDropdowns).find(d => 
+                        d.dataset.machineId === assignment.machine_id.toString() && 
+                        d.dataset.shiftId === assignment.shift_id.toString()
+                    );
+                    
+                    if (dropdown) {
+                        if (assignment.operator_id === null) {
+                            dropdown.value = '';
+                            delete dropdown.dataset.selectedOperator;
+                        } else {
+                            dropdown.value = assignment.operator_id;
+                            dropdown.dataset.selectedOperator = assignment.operator_id;
+                        }
+                    }
+                });
+                
+                // Update the UI
+                updateOperatorDropdowns();
+                
+                // Show success message
+                const successMessage = document.createElement('div');
+                successMessage.className = 'alert-success';
+                successMessage.textContent = data.message || 'Affectations aléatoires générées avec succès';
+                document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+                
+                // Remove success message after 3 seconds
+                setTimeout(() => {
+                    successMessage.remove();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Erreur lors de la génération des affectations aléatoires');
+            }
+        })
+        .catch(error => {
+            // Show error message
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+            
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        });
+        
+    } catch (error) {
+        // Show error message
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+function toggleAllMachines(checkbox) {
+    const machineCheckboxes = document.querySelectorAll('.machine-checkbox');
+    machineCheckboxes.forEach(box => {
+        box.checked = checkbox.checked;
+    });
+}
+</script>
+{% endblock %}

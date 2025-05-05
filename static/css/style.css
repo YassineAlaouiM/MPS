@@ -1,0 +1,105 @@
+/* General Styles */
+body {
+    background-color: #f8f9fa;
+}
+
+.card {
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Table Styles */
+.table th {
+    background-color: #f8f9fa;
+    vertical-align: middle;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Operator Assignment Styles */
+.operator-assignment {
+    padding: 10px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.operator-selection {
+    padding: 10px;
+}
+
+/* Badge Styles */
+.badge {
+    font-size: 0.9em;
+    padding: 5px 10px;
+}
+
+/* Button Styles */
+.btn-sm {
+    margin: 2px;
+}
+
+/* Icon Styles */
+.btn i {
+    font-size: 1.5em; /* Adjust the size of the icons */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.btn {
+    padding: 5px 5px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+/* Modal Styles */
+.modal-content {
+    border-radius: 0;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Form Styles */
+.form-control, .form-select {
+    border-radius: 0;
+}
+
+.form-control:focus, .form-select:focus {
+    box-shadow: none;
+    border-color: #80bdff;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.9em;
+    }
+    
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Schedule Table Styles */
+.table-bordered td {
+    min-width: 150px;
+}
+
+/* Navigation Styles */
+.navbar {
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Alert Styles */
+.alert {
+    border-radius: 0;
+    margin-bottom: 20px;
+}

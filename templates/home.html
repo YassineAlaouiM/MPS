@@ -1,0 +1,1491 @@
+{% extends "base.html" %}
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Machines</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMachineModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="machineSearch" placeholder="Rechercher des machines...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Statut</th>
+                                    <th>Type</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="machinesBody">
+                                {% for machine in machines %}
+                                <tr>
+                                    <td>{{ machine.name }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if machine.status == 'operational' else 'warning' if machine.status == 'maintenance' else 'danger' }}">
+                                            {{ machine.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {{ 'Service' if machine.type else 'Machine' }}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="editMachine('{{ machine.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteMachine('{{ machine.id }}')"><i class='bx bx-x'></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noMachinesFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucune machine trouvée correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Opérateurs</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOperatorModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="operatorSearch" placeholder="Rechercher des opérateurs...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nom</th>
+                                    <th>Nom Arabe</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operatorsBody">
+                                {% for operator in operators %}
+                                <tr>
+                                    <td>{{ operator.id }}</td>
+                                    <td>{{ operator.name }}</td>
+                                    <td class="text-end arabic-text">{{ operator.arabic_name }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if operator.status == 'active' else 'secondary' if operator.status == 'inactive' else 'danger' }}">
+                                            {{ operator.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="editOperator('{{ operator.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteOperator('{{ operator.id }}')"><i class='bx bx-x'></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noOperatorsFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucun opérateur trouvé correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Machines en panne</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addNonFunctioningMachineModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="nonFunctioningMachineSearch" placeholder="Rechercher des machines en panne...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Problème</th>
+                                    <th>Date de signalement</th>
+                                    <th>Date de réparation</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nonFunctioningMachinesBody">
+                                {% for machine in non_functioning_machines %}
+                                <tr>
+                                    <td>{{ machine.name }}</td>
+                                    <td>{{ machine.issue }}</td>
+                                    <td>{{ machine.reported_date }}</td>
+                                    <td>
+                                        {% if not machine.fixed_date %}
+                                            <button class="btn btn-sm btn-success" onclick="markMachineFixed('{{ machine.id }}')">Marquer réparée</button>
+                                        {% else %}
+                                            {{ machine.fixed_date.strftime('%Y-%m-%d %H:%M:%S') }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noNonFunctioningMachinesFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucune machine en panne trouvée correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Absences des opérateurs</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAbsenceModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="absenceSearch" placeholder="Rechercher des absences...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Opérateur</th>
+                                    <th>Date de début</th>
+                                    <th>Date de fin</th>
+                                    <th>Raison</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="absencesBody">
+                                {% for absence in absences %}
+                                <tr>
+                                    <td>{{ absence.operator_name }}</td>
+                                    <td>{{ absence.start_date }}</td>
+                                    <td>{{ absence.end_date }}</td>
+                                    <td>{{ absence.reason }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="editAbsence('{{ absence.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noAbsencesFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucune absence trouvée correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Articles</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addArticleModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="articleSearch" placeholder="Rechercher des articles...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="articlesBody">
+                                {% for article in articles %}
+                                <tr>
+                                    <td>{{ article.name }}</td>
+                                    <td>{{ article.description }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="editArticle('{{ article.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteArticle('{{ article.id }}')"><i class='bx bx-x'></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noArticlesFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucun article trouvé correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Production</h3>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductionModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="dateSearchToggle" onchange="toggleDateSearch()">
+                        <label class="form-check-label" for="dateSearchToggle">Rechercher par date</label>
+                    </div>
+                    <div id="dateSearchInputs" style="display: none;" class="mb-2">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="startDateSearch" placeholder="Date de début">
+                            </div>
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="endDateSearch" placeholder="Date de fin">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-secondary w-100" onclick="clearDateSearch()">Effacer</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control" id="productionSearch" placeholder="Rechercher la production...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>Type</th>
+                                    <th>Article</th>
+                                    <th>Quantité</th>
+                                    <th>Date de début</th>
+                                    <th>Date de fin</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productionBody">
+                                {% for prod in production %}
+                                <tr>
+                                    <td>{{ prod.machine_name }}</td>
+                                    <td>{{ 'Service' if prod.machine_type else 'Machine' }}</td>
+                                    <td>{{ prod.article_name if not prod.machine_type else '-' }}</td>
+                                    <td>{{ prod.quantity if not prod.machine_type else '-' }}</td>
+                                    <td>{{ prod.start_date }}</td>
+                                    <td>{{ prod.end_date if prod.end_date else '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if prod.status == 'active' else 'secondary' if prod.status == 'completed' else 'danger' }}">
+                                            {{ prod.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="editProduction('{{ prod.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteProduction('{{ prod.id }}')"><i class='bx bx-x'></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noProductionFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucun enregistrement de production trouvé correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Machine Modal -->
+<div class="modal fade" id="addMachineModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une machine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMachineForm">
+                    <div class="mb-3">
+                        <label for="machineName" class="form-label">Nom de la machine</label>
+                        <input type="text" class="form-control" id="machineName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="machineStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="machineStatus" disabled>
+                            <option value="operational">Opérationnelle</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="machineType" class="form-label">Type</label>
+                        <select class="form-select" id="machineType" required>
+                            <option value="false">Machine</option>
+                            <option value="true">Service</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveMachine()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Operator Modal -->
+<div class="modal fade" id="addOperatorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un opérateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addOperatorForm">
+                    <div class="mb-3">
+                        <label for="operatorId" class="form-label">ID de l'opérateur</label>
+                        <input type="text" class="form-control" id="operatorId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorName" class="form-label">Nom de l'opérateur</label>
+                        <input type="text" class="form-control" id="operatorName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorArabicName" class="form-label">Nom Arabe</label>
+                        <input type="text" class="form-control text-end" id="operatorArabicName" dir="rtl" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="operatorStatus" required>
+                            <option value="active">Actif</option>
+                            <option value="inactive">Inactif</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveOperator()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Non-Functioning Machine Modal -->
+<div class="modal fade" id="addNonFunctioningMachineModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une machine en</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addNonFunctioningMachineForm">
+                    <div class="mb-3">
+                        <label for="machineSelect" class="form-label">Machine</label>
+                        <select class="form-select" id="machineSelect" required>
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in machines %}
+                            <option value="{{ machine.id }}">{{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="issueDescription" class="form-label">Description du problème</label>
+                        <select class="form-select" id="issueDescription" required>
+                            <option value="">Sélectionner un problème</option>
+                            <option value="Mechanical Failure">Panne mécanique</option>
+                            <option value="Electrical Failure">Panne électrique</option>
+                            <option value="Software Issue">Problème logiciel</option>
+                            <option value="Other">Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reportedDate" class="form-label">Date de signalement</label>
+                        <input type="date" class="form-control" id="reportedDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reportedTime" class="form-label">Heure de signalement</label>
+                        <input type="time" class="form-control" id="reportedTime" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveNonFunctioningMachine()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Absence Modal -->
+<div class="modal fade" id="addAbsenceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une absence</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAbsenceForm">
+                    <div class="mb-3">
+                        <label for="operatorSelect" class="form-label">Opérateur</label>
+                        <select class="form-select" id="operatorSelect" required>
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}">{{ operator.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="startDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="startDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="endDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="absenceReason" class="form-label">Raison</label>
+                        <select class="form-select" id="absenceReason" required>
+                            <option value="">Sélectionner une raison</option>
+                            <option value="Sick Leave">Congé maladie</option>
+                            <option value="Vacation">Vacances</option>
+                            <option value="Personal Leave">Congé personnel</option>
+                            <option value="Other">Autre</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveAbsence()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Absence Modal -->
+<div class="modal fade" id="editAbsenceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier l'absence</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAbsenceForm">
+                    <input type="hidden" id="editAbsenceId">
+                    <div class="mb-3">
+                        <label for="editOperatorName" class="form-label">Opérateur</label>
+                        <select class="form-select" id="editOperatorName" required>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}">{{ operator.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="editStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="editEndDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editReason" class="form-label">Raison</label>
+                        <input type="text" class="form-control" id="editReason" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveAbsenceEdit()">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Article Modal -->
+<div class="modal fade" id="addArticleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un article</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addArticleForm">
+                    <div class="mb-3">
+                        <label for="articleName" class="form-label">Nom de l'article</label>
+                        <input type="text" class="form-control" id="articleName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="articleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="articleDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Production Modal -->
+<div class="modal fade" id="addProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProductionForm">
+                    <div class="mb-3">
+                        <label for="productionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="productionMachine" required onchange="toggleArticleFields()">
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in machines %}
+                            {% if machine.status == 'operational' %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="productionArticle">
+                            <option value="">Sélectionner un article</option>
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="productionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="productionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="productionEndDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveProduction()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Article Modal -->
+<div class="modal fade" id="editArticleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier l'article</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editArticleForm">
+                    <input type="hidden" id="editArticleId">
+                    <div class="mb-3">
+                        <label for="editArticleName" class="form-label">Nom de l'article</label>
+                        <input type="text" class="form-control" id="editArticleName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editArticleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editArticleDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveArticleEdit()">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Production Modal -->
+<div class="modal fade" id="editProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier la production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductionForm">
+                    <input type="hidden" id="editProductionId">
+                    <div class="mb-3">
+                        <label for="editProductionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="editProductionMachine" required onchange="toggleEditArticleFields()">
+                            {% for machine in machines %}
+                            {% if machine.status == 'operational' %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 edit-article-field">
+                        <label for="editProductionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="editProductionArticle">
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 edit-article-field">
+                        <label for="editProductionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="editProductionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="editProductionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="editProductionEndDate">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="editProductionStatus" required>
+                            <option value="active">Actif</option>
+                            <option value="completed">Terminé</option>
+                            <option value="cancelled">Annulé</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveProductionEdit()">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Operator Modal -->
+<div class="modal fade" id="editOperatorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier l'opérateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editOperatorForm">
+                    <input type="hidden" id="editOperatorId">
+                    <div class="mb-3">
+                        <label for="editOperatorIdField" class="form-label">ID de l'opérateur</label>
+                        <input type="text" class="form-control" id="editOperatorIdField" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editOperatorName" class="form-label">Nom de l'opérateur</label>
+                        <input type="text" class="form-control" id="editOperatorName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editOperatorArabicName" class="form-label">Nom Arabe</label>
+                        <input type="text" class="form-control text-end" id="editOperatorArabicName" dir="rtl" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editOperatorStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="editOperatorStatus" required>
+                            <option value="active">Actif</option>
+                            <option value="inactive">Inactif</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveOperatorEdit()">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.scrollable-section {
+    max-height: 284px;
+    overflow-y: auto;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.card {
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-body {
+    padding: 15px;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .card-header h3 {
+        font-size: 1.25rem;
+    }
+
+    .btn {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 992px) {
+    
+    .col-md-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    .col-md-12 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Arabic text support */
+@font-face {
+    font-family: 'Noto Naskh Arabic';
+    src: url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
+}
+
+.text-end {
+    text-align: left !important;
+}
+
+[dir="rtl"] {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+}
+
+.arabic-text {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+    text-align: right;
+}
+
+/* Ensure proper alignment in tables */
+td.text-end {
+    direction: rtl;
+    unicode-bidi: bidi-override;
+}
+
+/* Modal RTL support */
+.modal-body input[dir="rtl"] {
+    text-align: right;
+    padding-right: 12px;
+}
+
+/* Search box bi-directional support */
+input.search-bilingual {
+    padding-right: 12px;
+    padding-left: 12px;
+}
+
+@media print {
+    .arabic-text {
+        font-family: 'Noto Naskh Arabic', Arial, sans-serif !important;
+    }
+}
+</style>
+
+<script>
+// Search functionality for each section
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize article fields visibility
+    toggleArticleFields();
+    toggleEditArticleFields();
+    
+    // Machine search
+    const machineSearch = document.getElementById('machineSearch');
+    machineSearch.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#machinesBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const name = row.querySelector('td:first-child').textContent.toLowerCase();
+            const isVisible = name.includes(searchText);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noMachinesFound').style.display = hasVisibleRows ? 'none' : 'block';
+    });
+
+    // Operator search
+    const operatorSearch = document.getElementById('operatorSearch');
+    operatorSearch.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#operatorsBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const id = row.querySelector('td:first-child').textContent.toLowerCase();
+            const name = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const arabicName = row.querySelector('td:nth-child(3)').textContent;
+            const isVisible = id.includes(searchText) || 
+                            name.includes(searchText) || 
+                            arabicName.includes(searchText);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noOperatorsFound').style.display = hasVisibleRows ? 'none' : 'block';
+    });
+
+    // Non-functioning machine search
+    const nonFunctioningMachineSearch = document.getElementById('nonFunctioningMachineSearch');
+    nonFunctioningMachineSearch.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#nonFunctioningMachinesBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const name = row.querySelector('td:first-child').textContent.toLowerCase();
+            const issue = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const isVisible = name.includes(searchText) || issue.includes(searchText);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noNonFunctioningMachinesFound').style.display = hasVisibleRows ? 'none' : 'block';
+    });
+
+    // Absence search
+    const absenceSearch = document.getElementById('absenceSearch');
+    absenceSearch.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#absencesBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const operatorName = row.querySelector('td:first-child').textContent.toLowerCase();
+            const reason = row.querySelector('td:last-child').textContent.toLowerCase();
+            const isVisible = operatorName.includes(searchText) || reason.includes(searchText);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noAbsencesFound').style.display = hasVisibleRows ? 'none' : 'block';
+    });
+
+    // Article search
+    const articleSearch = document.getElementById('articleSearch');
+    articleSearch.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#articlesBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const name = row.querySelector('td:first-child').textContent.toLowerCase();
+            const description = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const isVisible = name.includes(searchText) || description.includes(searchText);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noArticlesFound').style.display = hasVisibleRows ? 'none' : 'block';
+    });
+
+    // Production search
+    const productionSearch = document.getElementById('productionSearch');
+    productionSearch.addEventListener('input', function() {
+        filterProduction();
+    });
+
+    // Add event listeners for date inputs
+    document.getElementById('startDateSearch').addEventListener('change', filterProduction);
+    document.getElementById('endDateSearch').addEventListener('change', filterProduction);
+});
+
+function toggleDateSearch() {
+    const dateInputs = document.getElementById('dateSearchInputs');
+    const isChecked = document.getElementById('dateSearchToggle').checked;
+    dateInputs.style.display = isChecked ? 'block' : 'none';
+    
+    if (!isChecked) {
+        clearDateSearch();
+    }
+}
+
+function clearDateSearch() {
+    document.getElementById('startDateSearch').value = '';
+    document.getElementById('endDateSearch').value = '';
+    filterProduction();
+}
+
+function filterProduction() {
+    const searchText = document.getElementById('productionSearch').value.toLowerCase();
+    const startDate = document.getElementById('startDateSearch').value;
+    const endDate = document.getElementById('endDateSearch').value;
+    const isDateSearchEnabled = document.getElementById('dateSearchToggle').checked;
+        const rows = document.querySelectorAll('#productionBody tr');
+        let hasVisibleRows = false;
+        
+        rows.forEach(row => {
+            const machineName = row.querySelector('td:first-child').textContent.toLowerCase();
+        const articleName = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        const rowStartDate = row.querySelector('td:nth-child(5)').textContent;
+        const rowEndDate = row.querySelector('td:nth-child(6)').textContent;
+        
+        let matchesText = machineName.includes(searchText) || articleName.includes(searchText);
+        let matchesDate = true;
+
+        if (isDateSearchEnabled && (startDate || endDate)) {
+            if (startDate && endDate) {
+                matchesDate = (rowStartDate >= startDate && (rowEndDate === '-' || rowEndDate <= endDate));
+            } else if (startDate) {
+                matchesDate = (rowStartDate >= startDate);
+            } else if (endDate) {
+                matchesDate = (rowEndDate === '-' || rowEndDate <= endDate);
+            }
+        }
+
+        const isVisible = matchesText && matchesDate;
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRows = true;
+        });
+        
+        document.getElementById('noProductionFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+function editAbsence(id) {
+    // Fetch absence details and populate the edit modal
+    fetch(`/api/absences/${id}`)
+        .then(response => response.json())
+        .then(absence => {
+            document.getElementById('editAbsenceId').value = absence.id;
+            document.getElementById('editOperatorName').value = absence.operator_id;
+            if (absence.start_date) {
+                const startDate = new Date(absence.start_date);
+                document.getElementById('editStartDate').value = startDate.toISOString().split('T')[0];
+            }
+            if (absence.end_date) {
+                const endDate = new Date(absence.end_date);
+                document.getElementById('editEndDate').value = endDate.toISOString().split('T')[0];
+            }
+
+            document.getElementById('editReason').value = absence.reason;
+            
+            // Show the modal
+            new bootstrap.Modal(document.getElementById('editAbsenceModal')).show();
+        })
+        .catch(error => {
+            console.error('Error fetching absence details:', error);
+            alert('Error fetching absence details');
+        });
+}
+
+function saveAbsenceEdit() {
+    const id = document.getElementById('editAbsenceId').value;
+    const data = {
+        operator_id: document.getElementById('editOperatorName').value,
+        start_date: document.getElementById('editStartDate').value,
+        end_date: document.getElementById('editEndDate').value,
+        reason: document.getElementById('editReason').value
+    };
+
+    fetch(`/api/absences/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to update absence');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating absence:', error);
+        alert('Error updating absence');
+    });
+}
+
+// Article management functions
+function saveArticle() {
+    const data = {
+        name: document.getElementById('articleName').value,
+        description: document.getElementById('articleDescription').value
+    };
+
+    fetch('/api/articles', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to create article');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating article:', error);
+        alert('Error creating article');
+    });
+}
+
+function editArticle(id) {
+    fetch(`/api/articles/${id}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch article details');
+            }
+            return response.json();
+        })
+        .then(article => {
+            document.getElementById('editArticleId').value = article.id;
+            document.getElementById('editArticleName').value = article.name;
+            document.getElementById('editArticleDescription').value = article.description;
+            new bootstrap.Modal(document.getElementById('editArticleModal')).show();
+        })
+        .catch(error => {
+            console.error('Error fetching article details:', error);
+            alert('Error fetching article details');
+        });
+}
+
+function saveArticleEdit() {
+    const id = document.getElementById('editArticleId').value;
+    const data = {
+        name: document.getElementById('editArticleName').value,
+        description: document.getElementById('editArticleDescription').value
+    };
+
+    fetch(`/api/articles/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to update article');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating article:', error);
+        alert('Error updating article');
+    });
+}
+
+function deleteArticle(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
+        fetch(`/api/articles/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                throw new Error('Failed to delete article');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting article:', error);
+            alert('Error deleting article');
+        });
+    }
+}
+
+// Production management functions
+function saveProduction() {
+    const machineSelect = document.getElementById('productionMachine');
+    const machineId = machineSelect.value;
+    
+    // Check if the selected machine is a service (type = true)
+    const isService = machineSelect.selectedIndex > 0 && 
+                     machineSelect.options[machineSelect.selectedIndex].getAttribute('data-type') === 'true';
+    
+    const data = {
+        machine_id: machineId,
+        start_date: document.getElementById('productionStartDate').value,
+        end_date: document.getElementById('productionEndDate').value
+    };
+    
+    // Only include article and quantity if not a service
+    if (!isService) {
+        data.article_id = document.getElementById('productionArticle').value;
+        data.quantity = document.getElementById('productionQuantity').value;
+    }
+
+    fetch('/api/production', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Error creating production');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating production:', error);
+        alert('Error creating production: ' + error.message);
+    });
+}
+
+function editProduction(id) {
+    fetch(`/api/production/${id}`)
+        .then(response => response.json())
+        .then(production => {
+            document.getElementById('editProductionId').value = production.id;
+            
+            // Ensure the machine is properly selected in the dropdown
+            const machineSelect = document.getElementById('editProductionMachine');
+            
+            // Check if the machine exists in the dropdown
+            let machineExists = false;
+            for (let i = 0; i < machineSelect.options.length; i++) {
+                if (machineSelect.options[i].value == production.machine_id) {
+                    machineExists = true;
+                    break;
+                }
+            }
+            
+            // If machine doesn't exist in dropdown, add it
+            if (!machineExists && production.machine_name) {
+                const option = document.createElement('option');
+                option.value = production.machine_id;
+                option.textContent = production.machine_name;
+                option.setAttribute('data-type', production.machine_type ? 'true' : 'false');
+                machineSelect.appendChild(option);
+            }
+            
+            // Now set the value
+            machineSelect.value = production.machine_id;
+            
+            document.getElementById('editProductionArticle').value = production.article_id || '';
+            document.getElementById('editProductionQuantity').value = production.quantity || '';
+            
+            // Format start date to YYYY-MM-DD if it exists
+            if (production.start_date) {
+                // If the date is already in YYYY-MM-DD format, use it directly
+                // Otherwise, convert it to that format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(production.start_date)) {
+                    document.getElementById('editProductionStartDate').value = production.start_date;
+                } else {
+                    // Parse the date and format it as YYYY-MM-DD
+                const startDate = new Date(production.start_date);
+                    const formattedStartDate = startDate.toISOString().split('T')[0];
+                    document.getElementById('editProductionStartDate').value = formattedStartDate;
+            }
+            } else {
+                document.getElementById('editProductionStartDate').value = '';
+            }
+            
+            // Format end date to YYYY-MM-DD if it exists
+            if (production.end_date) {
+                // If the date is already in YYYY-MM-DD format, use it directly
+                // Otherwise, convert it to that format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(production.end_date)) {
+                    document.getElementById('editProductionEndDate').value = production.end_date;
+                } else {
+                    // Parse the date and format it as YYYY-MM-DD
+                const endDate = new Date(production.end_date);
+                    const formattedEndDate = endDate.toISOString().split('T')[0];
+                    document.getElementById('editProductionEndDate').value = formattedEndDate;
+                }
+            } else {
+                document.getElementById('editProductionEndDate').value = '';
+            }
+            
+            document.getElementById('editProductionStatus').value = production.status;
+            
+            // Toggle visibility of article and quantity fields based on machine type
+            toggleEditArticleFields();
+            
+            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
+        })
+        .catch(error => {
+            console.error('Error fetching production details:', error);
+            alert('Error fetching production details');
+        });
+}
+
+function saveProductionEdit() {
+    const id = document.getElementById('editProductionId').value;
+    const machineSelect = document.getElementById('editProductionMachine');
+    
+    // Check if the selected machine is a service (type = true)
+    const isService = machineSelect.selectedIndex > 0 && 
+                     machineSelect.options[machineSelect.selectedIndex].getAttribute('data-type') === 'true';
+    
+    const data = {
+        machine_id: machineSelect.value,
+        start_date: document.getElementById('editProductionStartDate').value,
+        end_date: document.getElementById('editProductionEndDate').value || null,
+        status: document.getElementById('editProductionStatus').value
+    };
+    
+    // Only include article and quantity if not a service
+    if (!isService) {
+        data.article_id = document.getElementById('editProductionArticle').value;
+        data.quantity = document.getElementById('editProductionQuantity').value;
+    }
+
+    fetch(`/api/production/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to update production');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating production:', error);
+        alert('Error updating production');
+    });
+}
+
+function deleteProduction(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet enregistrement de production ?')) {
+        fetch(`/api/production/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                throw new Error('Failed to delete production');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting production:', error);
+            alert('Error deleting production');
+        });
+    }
+}
+
+// Operator management functions
+function saveOperator() {
+    const arabicName = document.getElementById('operatorArabicName').value.trim();
+    if (!arabicName) {
+        alert('Le nom arabe est requis');
+        return;
+    }
+    
+    const data = {
+        id: document.getElementById('operatorId').value,
+        name: document.getElementById('operatorName').value,
+        arabic_name: arabicName,
+        status: document.getElementById('operatorStatus').value
+    };
+    
+    fetch('/api/operators', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to add operator');
+        }
+    })
+    .catch(error => {
+        console.error('Error adding operator:', error);
+        alert('Error adding operator');
+    });
+}
+
+function editOperator(id) {
+    fetch(`/api/operators/${id}`)
+        .then(response => response.json())
+        .then(operator => {
+            document.getElementById('editOperatorId').value = operator.id;
+            document.getElementById('editOperatorIdField').value = operator.id;
+            document.getElementById('editOperatorName').value = operator.name;
+            document.getElementById('editOperatorArabicName').value = operator.arabic_name;
+            document.getElementById('editOperatorStatus').value = operator.status;
+            
+            new bootstrap.Modal(document.getElementById('editOperatorModal')).show();
+        })
+        .catch(error => {
+            console.error('Error fetching operator details:', error);
+            alert('Error fetching operator details');
+        });
+}
+
+function saveOperatorEdit() {
+    const arabicName = document.getElementById('editOperatorArabicName').value.trim();
+    if (!arabicName) {
+        alert('Le nom arabe est requis');
+        return;
+    }
+    
+    const id = document.getElementById('editOperatorId').value;
+    const data = {
+        id: document.getElementById('editOperatorIdField').value,
+        name: document.getElementById('editOperatorName').value,
+        arabic_name: arabicName,
+        status: document.getElementById('editOperatorStatus').value
+    };
+
+    fetch(`/api/operators/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to update operator');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating operator:', error);
+        alert('Error updating operator');
+    });
+}
+
+function deleteOperator(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet opérateur ?')) {
+        fetch(`/api/operators/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                throw new Error('Failed to delete operator');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting operator:', error);
+            alert('Error deleting operator');
+        });
+    }
+}
+
+// Function to toggle article and quantity fields based on machine type
+function toggleArticleFields() {
+    const machineSelect = document.getElementById('productionMachine');
+    const articleFields = document.querySelectorAll('.article-field');
+    
+    if (machineSelect.selectedIndex > 0) {
+        const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+        const machineType = selectedOption.getAttribute('data-type') === 'true'; // true = Service
+        
+        articleFields.forEach(field => {
+            field.style.display = machineType ? 'none' : 'block';
+        });
+        
+        // If machine is a service, clear article and quantity values
+        if (machineType) {
+            document.getElementById('productionArticle').value = '';
+            document.getElementById('productionQuantity').value = '';
+        }
+    } else {
+        // Show fields by default when no machine is selected
+        articleFields.forEach(field => {
+            field.style.display = 'block';
+        });
+    }
+}
+
+// Function to toggle article and quantity fields in edit modal
+function toggleEditArticleFields() {
+    const machineSelect = document.getElementById('editProductionMachine');
+    const articleFields = document.querySelectorAll('.edit-article-field');
+    
+    if (machineSelect.selectedIndex > 0) {
+        const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+        const machineType = selectedOption.getAttribute('data-type') === 'true'; // true = Service
+        
+        articleFields.forEach(field => {
+            field.style.display = machineType ? 'none' : 'block';
+        });
+        
+        // If machine is a service, clear article and quantity values
+        if (machineType) {
+            document.getElementById('editProductionArticle').value = '';
+            document.getElementById('editProductionQuantity').value = '';
+        }
+    } else {
+        // Show fields by default when no machine is selected
+        articleFields.forEach(field => {
+            field.style.display = 'block';
+        });
+    }
+}
+</script>
+{% endblock %}
