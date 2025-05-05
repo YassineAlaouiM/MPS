@@ -1574,8 +1574,8 @@ def export_schedule():
                     # If no specific Arabic font found, try to use DejaVuSans which often has Arabic support
                     pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
                     font_name = 'Arabic'
-        except:
-        font_name = 'Helvetica'  # Fallback to built-in font
+            except:
+            font_name = 'Helvetica'  # Fallback to built-in font
     
         # Helper function to handle Arabic text
         def process_text(text):
