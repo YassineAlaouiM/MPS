@@ -1574,9 +1574,26 @@ def export_schedule():
                     # If no specific Arabic font found, try to use DejaVuSans which often has Arabic support
                     pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
                     font_name = 'Arabic'
-        except:
+            else:
+                # For Latin text
+                font_paths = [
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Common on Ubuntu
+                    'C:\\Windows\\Fonts\\arial.ttf'  # Windows path
+                ]
+                
+                font_found = False
+                for path in font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arial', path))
+                        font_name = 'Arial'
+                        font_found = True
+                        break
+                
+                if not font_found:
+                    font_name = 'Helvetica'  # Fallback
+        except Exception as e:
+            print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'  # Fallback to built-in font
-    
         # Helper function to handle Arabic text
         def process_text(text):
             if name_type == 'arabic' and text and any(ord(char) in range(0x0600, 0x06FF) for char in str(text)):
