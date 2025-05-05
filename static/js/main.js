@@ -126,13 +126,12 @@ function deleteMachine(id) {
 
 // Operator Management
 function saveOperator() {
-    const id = document.getElementById('operatorId').value;
     const name = document.getElementById('operatorName').value;
     const arabic_name = document.getElementById('operatorArabicName').value;
     const status = document.getElementById('operatorStatus').value;
 
-    if (!id || !name || !arabic_name) {
-        alert('Veuillez entrer l\'ID et le nom de l\'opérateur');
+    if (!name || !arabic_name) {
+        alert('Veuillez entrer le nom et le nom arabe de l\'opérateur');
         return;
     }
 
@@ -141,7 +140,7 @@ function saveOperator() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id, name, arabic_name, status })
+        body: JSON.stringify({ name, arabic_name, status })
     })
     .then(response => response.json())
     .then(data => {
@@ -166,7 +165,6 @@ function editOperator(id) {
         if (data.success) {
             const operator = data.operator;
             // Populate the modal form
-            document.getElementById('operatorId').value = operator.id;
             document.getElementById('operatorName').value = operator.name;
             document.getElementById('operatorArabicName').value = operator.arabic_name;
             document.getElementById('operatorStatus').value = operator.status;
@@ -182,7 +180,6 @@ function editOperator(id) {
 
             // Add event listener to reset form when modal is hidden
             document.getElementById('addOperatorModal').addEventListener('hidden.bs.modal', function () {
-                document.getElementById('operatorId').value = '';
                 document.getElementById('operatorName').value = '';
                 document.getElementById('operatorArabicName').value = '';
                 document.getElementById('operatorStatus').value = 'active';
@@ -201,13 +198,12 @@ function editOperator(id) {
 }
 
 function updateOperator(id) {
-    const operatorId = document.getElementById('operatorId').value;
     const name = document.getElementById('operatorName').value;
     const arabic_name = document.getElementById('operatorArabicName').value;
     const status = document.getElementById('operatorStatus').value;
 
-    if (!operatorId || !name || !arabic_name) {
-        alert('Veuillez entrer l\'ID et le nom de l\'opérateur');
+    if (!name || !arabic_name) {
+        alert('Veuillez entrer le nom et le nom arabe de l\'opérateur');
         return;
     }
 
@@ -216,7 +212,7 @@ function updateOperator(id) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: operatorId, name, arabic_name, status })
+        body: JSON.stringify({ name, arabic_name, status })
     })
     .then(response => response.json())
     .then(data => {
@@ -256,13 +252,14 @@ function deleteOperator(id) {
 
 // Schedule Management
 function assignOperator(machineId, shiftId, weekNumber, year) {
-    const operatorId = document.getElementById(`operator-select-${machineId}-${shiftId}`).value;
-    
+    const operatorSelect = document.getElementById(`operator-select-${machineId}-${shiftId}`);
+    const operatorId = operatorSelect ? operatorSelect.value : null;
+
     if (!operatorId) {
         alert('Veuillez sélectionner un opérateur');
         return;
     }
-    
+
     fetch('/api/schedule', {
         method: 'POST',
         headers: {
@@ -652,7 +649,8 @@ function deleteShift(id) {
 
 // Absences Management
 function saveAbsence() {
-    const operatorId = document.getElementById('operatorSelect').value;
+    const operatorSelect = document.getElementById('operatorSelect');
+    const operatorId = operatorSelect ? operatorSelect.value : null;
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const reason = document.getElementById('absenceReason').value;
