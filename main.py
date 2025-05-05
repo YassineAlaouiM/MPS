@@ -470,13 +470,12 @@ def get_operator(operator_id):
 @login_required
 def update_operator(operator_id):
     data = request.get_json()
-    new_id = data.get('id')
     name = data.get('name')
     arabic_name = data.get('arabic_name')
     status = data.get('status')
 
-    if not new_id or not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Operator ID, name, and Arabic name are required'})
+    if not name or not arabic_name:
+        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
 
     connection = get_db_connection()
     try:
@@ -488,8 +487,8 @@ def update_operator(operator_id):
                 return jsonify({'success': False, 'message': 'Operator not found'})
 
             # Update operator details with required Arabic name
-            sql = "UPDATE operators SET id = %s, name = %s, arabic_name = %s, status = %s WHERE id = %s"
-            cursor.execute(sql, (new_id, name, arabic_name, status, operator_id))
+            sql = "UPDATE operators SET name = %s, arabic_name = %s, status = %s WHERE id = %s"
+            cursor.execute(sql, (name, arabic_name, status, operator_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Operator updated successfully'})
     except pymysql.Error as e:
