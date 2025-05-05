@@ -37,12 +37,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                                
@@ -56,12 +55,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 2) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 2) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                                 
@@ -75,12 +73,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 3) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 3) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                                 
@@ -94,12 +91,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 4) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 4) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                             </option>
@@ -112,12 +108,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 5) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 5) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                               
@@ -131,12 +126,11 @@
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 6) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 6) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'long_absence' %}style="display: none;"{% endif %}
-                                    {% if operator.absence_status == 'current_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' %}
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% endif %}
                                
