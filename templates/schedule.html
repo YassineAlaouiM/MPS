@@ -382,7 +382,6 @@ function nextWeek() {
 const selectedOperators = new Set();
 
 function handleOperatorSelection(selectElement) {
-    const operatorId = selectElement.value;
     const wrapper = selectElement.parentElement;
 
     // Remove previously selected operator from the set
@@ -392,17 +391,17 @@ function handleOperatorSelection(selectElement) {
     }
 
     // Add the new operator to the set
-    if (operatorId) {
-        if (selectedOperators.has(operatorId)) {
+    if (selectElement.value) {
+        if (selectedOperators.has(selectElement.value)) {
             alert('Cet opérateur est déjà affecté à un autre poste.');
             selectElement.value = ""; // Reset the selection
             return;
         }
-        selectedOperators.add(operatorId);
+        selectedOperators.add(selectElement.value);
     }
 
     // Update the dataset to track the selected operator
-    selectElement.dataset.selectedOperator = operatorId;
+    selectElement.dataset.selectedOperator = selectElement.value;
 
     // Disable the selected operator in other dropdowns
     updateOperatorDropdowns();
@@ -474,15 +473,11 @@ function confirmAssignments() {
     const totalCells = allDropdowns.length;
 
     allDropdowns.forEach(dropdown => {
-        const operatorId = dropdown.value;
-        const machineId = dropdown.dataset.machineId;
-        const shiftId = dropdown.dataset.shiftId;
-
-        if (operatorId) {
+        if (dropdown.value) {
             assignments.push({
-                machine_id: machineId,
-                shift_id: shiftId,
-                operator_id: operatorId
+                machine_id: dropdown.dataset.machineId,
+                shift_id: dropdown.dataset.shiftId,
+                operator_id: dropdown.value
             });
         }
     });
@@ -589,8 +584,7 @@ function initializeSelects() {
         container.addEventListener('click', function(e) {
             if (e.target === container && dropdown.value) {
                 e.stopPropagation();
-                const operatorId = dropdown.value;
-                selectedOperators.delete(operatorId);
+                selectedOperators.delete(dropdown.value);
                 dropdown.value = '';
                 delete dropdown.dataset.selectedOperator;
                 updateOperatorDropdowns();
