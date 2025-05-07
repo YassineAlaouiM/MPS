@@ -1598,7 +1598,7 @@ def export_schedule():
                 lines = []
                 for i in range(0, len(words), 2):
                     line_words = words[i:i+2]
-                    line = ' '.join(line_words)
+                    line = ''.join(line_words)
                     reshaped = arabic_reshaper.reshape(line)
                     bidi_line = get_display(reshaped)
                     lines.append(bidi_line)
