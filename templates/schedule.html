@@ -340,6 +340,23 @@ table td:first-child {
 #export-arabic-pdf-button {
     font-family: 'Noto Naskh Arabic', Arial, sans-serif;
 }
+
+.error-row {
+    background-color: #ffebee !important;
+    animation: error-pulse 2s infinite;
+}
+
+@keyframes error-pulse {
+    0% {
+        background-color: #ffebee;
+    }
+    50% {
+        background-color: #ffcdd2;
+    }
+    100% {
+        background-color: #ffebee;
+    }
+}
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
@@ -458,9 +475,14 @@ function updateOperatorDropdowns() {
 }
 
 function confirmAssignments() {
-    // Remove any existing messages first
+    // Remove any existing messages and error highlights first
     const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
     existingMessages.forEach(message => message.remove());
+    
+    // Remove any existing error highlights
+    document.querySelectorAll('.error-row').forEach(row => {
+        row.classList.remove('error-row');
+    });
 
     const assignments = [];
     const allDropdowns = document.querySelectorAll('.operator-select');
@@ -512,9 +534,24 @@ function confirmAssignments() {
             errorMessage.textContent = 'Erreur : ' + data.message;
             document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
             
+            // Highlight problematic rows based on error message
+            if (data.message.includes('Machine')) {
+                const machineId = data.message.match(/Machine (\d+)/)[1];
+                const rows = document.querySelectorAll(`tr[data-machine-id="${machineId}"]`);
+                rows.forEach(row => row.classList.add('error-row'));
+            } else if (data.message.includes('Operator')) {
+                const operatorId = data.message.match(/Operator (\d+)/)[1];
+                const cells = document.querySelectorAll(`select[value="${operatorId}"]`);
+                cells.forEach(cell => cell.closest('tr').classList.add('error-row'));
+            }
+            
             // Remove error message after 5 seconds
             setTimeout(() => {
                 errorMessage.remove();
+                // Remove error highlights
+                document.querySelectorAll('.error-row').forEach(row => {
+                    row.classList.remove('error-row');
+                });
             }, 5000);
         }
     })
