@@ -1623,10 +1623,10 @@ def export_schedule():
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title
-            canvas.setFont(font_name, 24)
+            canvas.setFont(font_name, 20)
             canvas.setFillColor(header_color)
             title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
-            canvas.drawCentredString(page_width/2, page_height - 50, process_text(title_text))
+            canvas.drawCentredString(page_width/2, page_height - 75, process_text(title_text))
             
             # Add week dates
             def get_week_dates(year, week):
@@ -1714,6 +1714,7 @@ def export_schedule():
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
