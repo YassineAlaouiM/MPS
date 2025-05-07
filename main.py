@@ -1612,7 +1612,7 @@ def export_schedule():
                 words = text.split()
                 # Capitalize first letter of each word, rest lowercase
                 words = [word.strip().capitalize() for word in words]
-                return ' '.join(words)
+                return '\n'.join(words)
             return text
         
         # Set colors
@@ -1638,7 +1638,7 @@ def export_schedule():
 
             week_start, week_end = get_week_dates(year, week)
             if name_type == 'arabic':
-                week_dates = f"إلى {week_end.strftime('%d/%m/%Y')}من {week_start.strftime('%d/%m/%Y')}"
+                week_dates = f"إلى {week_end.strftime('%d/%m/%Y')} من {week_start.strftime('%d/%m/%Y')}"
             else:
                 week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
             
