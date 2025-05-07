@@ -1689,29 +1689,18 @@ def export_schedule():
 
             # Prepare table data for this page
             table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
-            
-            # Calculate row heights based on content
-            row_heights = [row_height]  # Header row height
             for row in page_data:
-                # Check if any cell in the row has content
-                has_content = False
                 table_row = [process_text(row['machine_name'], is_machine=True)]
                 for shift_key, _ in active_shifts:
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
-                    if cell_text:
-                        has_content = True
-                
-                # Add row to table data
                 table_data.append(table_row)
-                # Set row height based on content
-                row_heights.append(row_height if has_content else row_height * 0.6)
 
-            # Create table with dynamic row heights
+            # Create table with appropriate styling
             table = Table(
                 table_data,
                 colWidths=[col_width] * num_columns,
-                rowHeights=row_heights
+                rowHeights=[row_height] * len(table_data)
             )
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
