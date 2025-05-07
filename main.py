@@ -1636,9 +1636,9 @@ def export_schedule():
 
             week_start, week_end = get_week_dates(year, week)
             if name_type == 'arabic':
-                week_dates = f"من {week_start.strftime('%d/%m/%Y')} إلى {week_end.strftime('%d/%m/%Y')}"
+                week_dates = f"{week_end.strftime('%d/%m/%Y')} إلى {week_start.strftime('%d/%m/%Y')} من"
             else:
-                week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
+                week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
             
             canvas.setFont(font_name, 14)
             canvas.setFillColor(text_color)
@@ -1646,7 +1646,7 @@ def export_schedule():
             
             # Add page number
             canvas.setFont(font_name, 10)
-            canvas.drawRightString(page_width - 30, 30, f"Page {page_num} of {total_pages}")
+            canvas.drawRightString(page_width - 30, 30, f"Page {page_num} / {total_pages}")
 
         # Prepare shift headers
         shift_headers = {
@@ -1747,7 +1747,7 @@ def export_schedule():
             p.setFont(font_name, 8)
             p.setFillColor(colors.gray)
             if name_type == 'arabic':
-                footer_text = f"تم إنشاؤه في {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                footer_text = f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} تم إنشاؤه في"
             else:
                 footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             p.drawCentredString(page_width/2, 20, process_text(footer_text))
