@@ -1637,7 +1637,10 @@ def export_schedule():
                 return target_monday, target_sunday
 
             week_start, week_end = get_week_dates(year, week)
-            week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
+            if name_type == 'arabic':
+                week_dates = f"{week_start.strftime('%d/%m/%Y')} -> {week_end.strftime('%d/%m/%Y')}"
+            else:
+                week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
             
             canvas.setFont(font_name, 14)
             canvas.setFillColor(text_color)
