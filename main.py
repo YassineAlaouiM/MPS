@@ -1669,7 +1669,7 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (9 rows + 1 header row = 10 total)
-        rows_per_page = 9
+        rows_per_page = 11
         row_height = min((page_height - 75) / 8, 35)  # Ensure minimum spacing, max height of 45
 
         # Split data into pages (9 rows per page)
