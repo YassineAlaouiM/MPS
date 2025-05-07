@@ -1748,10 +1748,7 @@ def export_schedule():
             # Add footer
             p.setFont(font_name, 8)
             p.setFillColor(colors.gray)
-            if name_type == 'arabic':
-                footer_text = f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} تم إنشاؤه في"
-            else:
-                footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            footer_text = f"Généré le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             p.drawCentredString(page_width/2, 20, process_text(footer_text))
 
         # Save the PDF
