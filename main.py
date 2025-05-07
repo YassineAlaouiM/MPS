@@ -1635,7 +1635,7 @@ def export_schedule():
         # Add title
             canvas.setFont(font_name, 24)
             canvas.setFillColor(header_color)
-        title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
+            title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
             canvas.drawCentredString(page_width/2, page_height - 50, process_text(title_text))
         
         # Add week dates
