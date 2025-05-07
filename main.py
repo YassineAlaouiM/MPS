@@ -1227,9 +1227,8 @@ def confirm_assignments():
             operator_assignments = set()
             for assignment in assignments:
                 operator_id = assignment['operator_id']
-                operator_name = assignment['operator_name']
                 if operator_id in operator_assignments:
-                    return jsonify({'success': False, 'message': f'Operator {operator_name} is assigned to multiple shifts.'}), 400
+                    return jsonify({'success': False, 'message': f'Operator {operator_id} is assigned to multiple shifts.'}), 400
                 operator_assignments.add(operator_id)
 
             # Define shift models
