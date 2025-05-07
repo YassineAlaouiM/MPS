@@ -1738,7 +1738,7 @@ def export_schedule():
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
-            table_y = page_height - 100 - (len(table_data) * row_height)
+            table_y = page_height - 85 - (len(table_data) * row_height)
             table.drawOn(p, margin, table_y)
 
         # Save the PDF
