@@ -1588,13 +1588,15 @@ def export_schedule():
             print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'
 
-        def process_text(text, is_header=False):
+        def process_text(text, is_header=False, is_machine=False):
             if not text:
                 return ""
             text = str(text)
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
+            elif is_machine:
+                return text.upper()
             elif not is_header:
                 # For Latin text in cells (not headers), add spaces and capitalize each word
                 words = text.split()
@@ -1688,7 +1690,7 @@ def export_schedule():
             # Prepare table data for this page
             table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
             for row in page_data:
-                table_row = [process_text(row['machine_name'])]
+                table_row = [process_text(row['machine_name'], is_machine=True)]
                 for shift_key, _ in active_shifts:
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
