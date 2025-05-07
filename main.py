@@ -1595,12 +1595,6 @@ def export_schedule():
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
-            elif not is_header:
-                # For Latin text in cells (not headers), add spaces and capitalize each word
-                words = text.split()
-                # Capitalize first letter of each word, rest lowercase
-                words = [word.strip().capitalize() for word in words]
-                return ' '.join(words)
             return text
 
         # Set colors
@@ -1711,7 +1705,7 @@ def export_schedule():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (-1, -1), 10 if name_type == 'latin' else 11),
+                ('FONTSIZE', (0, 1), (-1, -1), 8 if name_type == 'latin' else 11),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
