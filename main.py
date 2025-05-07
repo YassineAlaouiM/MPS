@@ -1593,6 +1593,15 @@ def export_schedule():
                 return ""
             text = str(text)
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
+                # Split text into words and process every two words
+                words = text.split()
+                processed_words = []
+                for i in range(0, len(words), 2):
+                    if i + 1 < len(words):
+                        processed_words.append(words[i] + ' ' + words[i + 1] + '\n')
+                    else:
+                        processed_words.append(words[i])
+                text = ''.join(processed_words)
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
@@ -1604,7 +1613,6 @@ def export_schedule():
                 words = [word.strip().capitalize() for word in words]
                 return ' '.join(words)
             return text
-
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
         table_header_color = colors.HexColor('#23335b')  # Lighter Blue
