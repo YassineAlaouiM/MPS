@@ -1648,20 +1648,23 @@ def export_schedule():
                     'shift_2': '15h à 23h',
                     'shift_3': '23h à 7h'
                 },
-                'description': '3 shifts of 8 hours'
+                'description': '3 shifts of 8 hours',
+                'priority': 1  # Add priority for Model 1
             },
             'Model 2 (2x12)': {
                 'shifts': {
                     'shift_4': '7h à 19h',
                     'shift_5': '19h à 7h'
                 },
-                'description': '2 shifts of 12 hours'
+                'description': '2 shifts of 12 hours',
+                'priority': 2
             },
             'Model 3 (1x8)': {
                 'shifts': {
                     'shift_6': '9h à 17h'
                 },
-                'description': '1 shift of 8 hours'
+                'description': '1 shift of 8 hours',
+                'priority': 3
             }
         }
 
@@ -1676,7 +1679,10 @@ def export_schedule():
         current_page = []
         current_height = 150  # Initial space for header
 
-        for model_name, model_data in shift_models.items():
+        # Sort models by priority
+        sorted_models = sorted(shift_models.items(), key=lambda x: x[1]['priority'])
+
+        for model_name, model_data in sorted_models:
             # Filter data for this model
             model_data_rows = []
             for row in schedule_data:
@@ -1721,15 +1727,30 @@ def export_schedule():
                 model_info = table_data['model_data']
                 rows = table_data['rows']
 
-                # Add model title
-                p.setFont(font_name, 16)
-                p.setFillColor(header_color)
-                p.drawString(margin, current_y, process_text(model_name))
-                
-                # Add model description
-                p.setFont(font_name, 10)
-                p.setFillColor(text_color)
-                p.drawString(margin, current_y - 20, process_text(model_info['description']))
+                # Add model title with special styling for Model 1
+                if model_info['priority'] == 1:
+                    # Larger font and bold for Model 1
+                    p.setFont(font_name, 20)
+                    p.setFillColor(header_color)
+                    # Add a background rectangle for Model 1 title
+                    p.setFillColor(colors.HexColor('#26438c'))
+                    p.rect(margin - 5, current_y - 5, available_width + 10, 30, fill=1)
+                    p.setFillColor(colors.white)
+                    p.drawString(margin, current_y, process_text(model_name))
+                    p.setFillColor(text_color)
+                    
+                    # Add model description with special styling
+                    p.setFont(font_name, 12)
+                    p.drawString(margin, current_y - 25, process_text(model_info['description']))
+                else:
+                    # Regular styling for other models
+                    p.setFont(font_name, 16)
+                    p.setFillColor(header_color)
+                    p.drawString(margin, current_y, process_text(model_name))
+                    
+                    p.setFont(font_name, 10)
+                    p.setFillColor(text_color)
+                    p.drawString(margin, current_y - 20, process_text(model_info['description']))
 
                 # Prepare table data
                 table_data = [['Machine'] + list(model_info['shifts'].values())]
@@ -1752,40 +1773,70 @@ def export_schedule():
                     rowHeights=[row_height] * len(table_data)
                 )
 
-                # Style the table
-                table_style = TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), font_name),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-                    ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                    ('FONTNAME', (0, 1), (-1, -1), font_name),
-                    ('FONTSIZE', (0, 1), (0, -1), 11),
-                    ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
-                    ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 11),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('WORDWRAP', (0, 0), (-1, -1), True),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 3),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ])
+                # Style the table with special styling for Model 1
+                if model_info['priority'] == 1:
+                    table_style = TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#26438c')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), font_name),
+                        ('FONTSIZE', (0, 0), (-1, 0), 14),  # Larger font for Model 1
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                        ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+                        ('FONTNAME', (0, 1), (-1, -1), font_name),
+                        ('FONTSIZE', (0, 1), (0, -1), 12),  # Larger font for Model 1
+                        ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
+                        ('FONTSIZE', (1, 1), (-1, -1), 11),  # Larger font for Model 1
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('WORDWRAP', (0, 0), (-1, -1), True),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                    ])
+                else:
+                    table_style = TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), font_name),
+                        ('FONTSIZE', (0, 0), (-1, 0), 12),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                        ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+                        ('FONTNAME', (0, 1), (-1, -1), font_name),
+                        ('FONTSIZE', (0, 1), (0, -1), 11),
+                        ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
+                        ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 11),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('WORDWRAP', (0, 0), (-1, -1), True),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                    ])
 
                 # Add alternating row colors
                 for i in range(len(table_data)):
                     if i % 2 == 1:  # odd rows
-                        table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
+                        if model_info['priority'] == 1:
+                            table_style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#f0f4f8'))
+                        else:
+                            table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
 
                 table.setStyle(table_style)
 
                 # Draw table
                 table.wrapOn(p, page_width, page_height)
-                table.drawOn(p, margin, current_y - 40)
+                if model_info['priority'] == 1:
+                    table.drawOn(p, margin, current_y - 45)  # More space for Model 1
+                else:
+                    table.drawOn(p, margin, current_y - 40)
 
                 # Update current_y for next table
-                current_y -= (table_height + model_spacing + 60)  # 60 for title and description
+                if model_info['priority'] == 1:
+                    current_y -= (table_height + model_spacing + 70)  # More space after Model 1
+                else:
+                    current_y -= (table_height + model_spacing + 60)
 
             # Add footer
             p.setFont(font_name, 8)
