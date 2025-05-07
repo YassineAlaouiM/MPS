@@ -1658,7 +1658,7 @@ def export_schedule():
 
         # Calculate dimensions
         margin = 30
-        available_width = page_width - (1.5 * margin)
+        available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
         
