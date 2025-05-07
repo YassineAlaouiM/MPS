@@ -1663,14 +1663,14 @@ def export_schedule():
                 active_shifts.append((shift_key, shift_name))
 
         # Calculate dimensions
-        margin = 40
+        margin = 20
         available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (9 rows + 1 header row = 10 total)
         rows_per_page = 12
-        row_height = min((page_height - 30) / 12, 35)  # Ensure minimum spacing, max height of 45
+        row_height = min((page_height - 75) / 12, 35)  # Ensure minimum spacing, max height of 45
 
         # Split data into pages (9 rows per page)
         pages = []
