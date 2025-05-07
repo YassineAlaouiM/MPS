@@ -1732,7 +1732,7 @@ def export_schedule():
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
@@ -1742,8 +1742,8 @@ def export_schedule():
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
-                ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),  # Reduced from 3
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),  # Reduced from 3
             ])
             # Add alternating row colors
             for i in range(len(table_data)):
