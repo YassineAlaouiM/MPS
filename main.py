@@ -1640,152 +1640,154 @@ def export_schedule():
             canvas.setFont(font_name, 10)
             canvas.drawRightString(page_width - 30, 30, f"Page {page_num} of {total_pages}")
 
-        # Prepare shift headers and models
+        # Define shift models
         shift_models = {
-            'model_1': {  # 3-shift model
-                'shift_1': '7h à 15h',
-                'shift_2': '15h à 23h',
-                'shift_3': '23h à 7h'
+            'Model 1 (3x8)': {
+                'shifts': {
+                    'shift_1': '7h à 15h',
+                    'shift_2': '15h à 23h',
+                    'shift_3': '23h à 7h'
+                },
+                'description': '3 shifts of 8 hours'
             },
-            'model_2': {  # 2-shift model
-                'shift_4': '7h à 19h',
-                'shift_5': '19h à 7h'
+            'Model 2 (2x12)': {
+                'shifts': {
+                    'shift_4': '7h à 19h',
+                    'shift_5': '19h à 7h'
+                },
+                'description': '2 shifts of 12 hours'
             },
-            'model_3': {  # 1-shift model
-                'shift_6': '9h à 17h'
+            'Model 3 (1x8)': {
+                'shifts': {
+                    'shift_6': '9h à 17h'
+                },
+                'description': '1 shift of 8 hours'
             }
         }
 
-        # Group data by shift model
-        model_1_data = []
-        model_2_data = []
-        model_3_data = []
-
-        for row in schedule_data:
-            # Check which model this machine belongs to
-            if any(row[shift_key] for shift_key in shift_models['model_1'].keys()):
-                model_1_data.append(row)
-            elif any(row[shift_key] for shift_key in shift_models['model_2'].keys()):
-                model_2_data.append(row)
-            elif any(row[shift_key] for shift_key in shift_models['model_3'].keys()):
-                model_3_data.append(row)
-
-        def create_model_table(model_shifts, model_data, title):
-            if not model_data:  # Skip if no data for this model
-                return None
-                    
-            # Create header
-            table_data = [['Machine'] + list(model_shifts.values())]
-            
-            # Calculate row heights based on content
-            row_heights = [row_height]  # Header row height
-            for row in model_data:
-                has_content = False
-                table_row = [process_text(row['machine_name'], is_machine=True)]
-                for shift_key in model_shifts.keys():
-                    cell_text = row[shift_key] if row[shift_key] else ""
-                    table_row.append(process_text(cell_text))
-                    if cell_text:
-                        has_content = True
-                
-                table_data.append(table_row)
-                row_heights.append(row_height if has_content else row_height * 0.6)
-
-            # Calculate dimensions for this table
-            num_columns = len(model_shifts) + 1
-            col_width = available_width / num_columns
-
-            # Create and style table
-            table = Table(
-                table_data,
-                colWidths=[col_width] * num_columns,
-                rowHeights=row_heights
-            )
-            
-            table_style = TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-                ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (0, -1), 11),
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
-                ('FONTSIZE', (1, 1), (-1, -1), 8 if name_type == 'latin' else 11),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ])
-
-            # Add alternating row colors
-            for i in range(len(table_data)):
-                if i % 2 == 1:
-                    table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
-
-            table.setStyle(table_style)
-            return table, title, len(table_data) * row_height + 40  # Include space between tables
-
-        # Create tables for each model
-        tables = []
-        for model_data, shifts, title in [
-            (model_1_data, shift_models['model_1'], "3-Shift Model"),
-            (model_2_data, shift_models['model_2'], "2-Shift Model"),
-            (model_3_data, shift_models['model_3'], "1-Shift Model")
-        ]:
-            result = create_model_table(shifts, model_data, title)
-            if result:
-                tables.append(result)
-
-        # Calculate dimensions
+        # Calculate dimensions for each table
         margin = 40
         available_width = page_width - (2 * margin)
-        row_height = min((page_height - 150) / 10, 45)  # Ensure minimum spacing, max height of 45
+        row_height = 35  # Fixed row height
+        model_spacing = 50  # Space between tables
 
-        # Split data into pages (9 rows per page)
+        # Split data into pages
         pages = []
         current_page = []
-        for row in schedule_data:
-            if len(current_page) >= 9:
-                pages.append(current_page)
-                current_page = []
-            current_page.append(row)
+        current_height = 150  # Initial space for header
+
+        for model_name, model_data in shift_models.items():
+            # Filter data for this model
+            model_data_rows = []
+            for row in schedule_data:
+                has_shift = any(row[shift_key] for shift_key in model_data['shifts'].keys())
+                if has_shift:
+                    model_data_rows.append(row)
+
+            if model_data_rows:
+                # Calculate table height
+                table_height = (len(model_data_rows) + 1) * row_height  # +1 for header row
+                
+                # Check if we need a new page
+                if current_height + table_height + model_spacing > page_height - 50:
+                    pages.append(current_page)
+                    current_page = []
+                    current_height = 150
+
+                current_page.append({
+                    'model_name': model_name,
+                    'model_data': model_data,
+                    'rows': model_data_rows
+                })
+                current_height += table_height + model_spacing
+
         if current_page:
             pages.append(current_page)
 
         total_pages = len(pages)
 
         # Generate each page
-        current_page = 1
-        p.setFont(font_name, 14)
-        current_y = page_height - 150
-
-        for table, title, table_height in tables:
-            # Check if we need a new page
-            if current_y - table_height < 50:  # 50 is minimum space for footer
+        for page_num, page_data in enumerate(pages, 1):
+            if page_num > 1:
                 p.showPage()
                 p.setPageSize(landscape(A4))
-                current_page += 1
-                add_page_header(p, current_page, len(tables))
-                current_y = page_height - 150
 
-            # Draw title
-            p.setFont(font_name, 14)
-            p.setFillColor(header_color)
-            p.drawString(margin, current_y + 20, title)
+            add_page_header(p, page_num, total_pages)
 
-            # Draw table
-            table.wrapOn(p, page_width, page_height)
-            table.drawOn(p, margin, current_y - table_height + 40)
-            current_y -= table_height
+            current_y = page_height - 150
 
-            # Add footer on last page
+            for table_data in page_data:
+                model_name = table_data['model_name']
+                model_info = table_data['model_data']
+                rows = table_data['rows']
+
+                # Add model title
+                p.setFont(font_name, 16)
+                p.setFillColor(header_color)
+                p.drawString(margin, current_y, process_text(model_name))
+                
+                # Add model description
+                p.setFont(font_name, 10)
+                p.setFillColor(text_color)
+                p.drawString(margin, current_y - 20, process_text(model_info['description']))
+
+                # Prepare table data
+                table_data = [['Machine'] + list(model_info['shifts'].values())]
+                for row in rows:
+                    table_row = [process_text(row['machine_name'], is_machine=True)]
+                    for shift_key in model_info['shifts'].keys():
+                        cell_text = row[shift_key] if row[shift_key] else ""
+                        table_row.append(process_text(cell_text))
+                    table_data.append(table_row)
+
+                # Calculate table dimensions
+                num_columns = len(table_data[0])
+                col_width = available_width / num_columns
+                table_height = (len(table_data)) * row_height
+
+                # Create table
+                table = Table(
+                    table_data,
+                    colWidths=[col_width] * num_columns,
+                    rowHeights=[row_height] * len(table_data)
+                )
+
+                # Style the table
+                table_style = TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), font_name),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                    ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+                    ('FONTNAME', (0, 1), (-1, -1), font_name),
+                    ('FONTSIZE', (0, 1), (0, -1), 11),
+                    ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
+                    ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 11),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('WORDWRAP', (0, 0), (-1, -1), True),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                ])
+
+                # Add alternating row colors
+                for i in range(len(table_data)):
+                    if i % 2 == 1:  # odd rows
+                        table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
+
+                table.setStyle(table_style)
+
+                # Draw table
+                table.wrapOn(p, page_width, page_height)
+                table.drawOn(p, margin, current_y - 40)
+
+                # Update current_y for next table
+                current_y -= (table_height + model_spacing + 60)  # 60 for title and description
+
+            # Add footer
             p.setFont(font_name, 8)
             p.setFillColor(colors.gray)
             if name_type == 'arabic':
