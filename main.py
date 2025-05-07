@@ -1699,9 +1699,10 @@ def export_schedule():
             # Create table with appropriate styling
             table = Table(
                 table_data,
-                colWidths=[col_width] * num_columns,
+                colWidths=col_widths,
                 rowHeights=[row_height] * len(table_data)
             )
+            
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1714,19 +1715,21 @@ def export_schedule():
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
                 # Different font sizes for first column and other columns
                 ('FONTSIZE', (0, 1), (0, -1), 11),  # First column (machine names)
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
-                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 11),  # Other columns
+                ('FONTSIZE', (1, 1), (-1, -1), 8 if name_type == 'latin' else 11),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                # Increased padding for better text spacing
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
             ])
 
-            # Add alternating row colors
+            # Add alternating row colors with slightly more contrast
             for i in range(len(table_data)):
                 if i % 2 == 1:  # odd rows
-                    table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
+                    table_style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e8ecef'))  # Slightly darker for better contrast
 
             table.setStyle(table_style)
 
@@ -1734,7 +1737,7 @@ def export_schedule():
             table.wrapOn(p, page_width, page_height)
             table_y = page_height - 150 - (len(table_data) * row_height)
             table.drawOn(p, margin, table_y)
-
+        
             # Add footer
             p.setFont(font_name, 8)
             p.setFillColor(colors.gray)
@@ -1743,7 +1746,7 @@ def export_schedule():
             else:
                 footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             p.drawCentredString(page_width/2, 20, process_text(footer_text))
-
+        
         # Save the PDF
         p.save()
         
@@ -1758,7 +1761,6 @@ def export_schedule():
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
-
 def get_local_ip():
     # Cette méthode ouvre une connexion fictive pour détecter l'IP locale
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
