@@ -1745,6 +1745,7 @@ def export_schedule():
                 ('TOPPADDING', (0, 0), (-1, -1), 3),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ])
+            
             # Add alternating row colors
             for i in range(len(table_data)):
                 if i % 2 == 1:  # odd rows
