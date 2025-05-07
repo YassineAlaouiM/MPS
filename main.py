@@ -1715,7 +1715,7 @@ def export_schedule():
                 # Different font sizes for first column and other columns
                 ('FONTSIZE', (0, 1), (0, -1), 11),  # First column (machine names)
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
-                ('FONTSIZE', (1, 1), (-1, -1), 8 if name_type == 'latin' else 11),  # Other columns
+                ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 11),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
