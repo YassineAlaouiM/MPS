@@ -1592,66 +1592,46 @@ def export_schedule():
             if not text:
                 return ""
             text = str(text)
-
-            def wrap_text(text, width=15):
-                """Insert newlines to wrap text at word boundaries"""
-                words = text.split()
-                lines = []
-                current_line = []
-                current_length = 0
-
-                for word in words:
-                    if current_length + len(word) + 1 <= width:
-                        current_line.append(word)
-                        current_length += len(word) + 1
-                    else:
-                        if current_line:
-                            lines.append(' '.join(current_line))
-                        current_line = [word]
-                        current_length = len(word)
-
-                if current_line:
-                    lines.append(' '.join(current_line))
-                return '\n'.join(lines)
-
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
+            elif is_machine:
+                return text.upper()
             elif not is_header:
-                # For Latin text in cells, capitalize each word and wrap
+                # For Latin text in cells (not headers), add spaces and capitalize each word
                 words = text.split()
+                # Capitalize first letter of each word, rest lowercase
                 words = [word.strip().capitalize() for word in words]
-                processed_text = ' '.join(words)
-                return wrap_text(processed_text, width=15)
+                return ' '.join(words)
             return text
-        
+
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
         table_header_color = colors.HexColor('#23335b')  # Lighter Blue
         row_color = colors.HexColor('#ecf0f1')  # Light Gray
         text_color = colors.HexColor('#23335b')  # Dark Blue
-        
+
         def add_page_header(canvas, page_num, total_pages):
-        # Add title
+            # Add title
             canvas.setFont(font_name, 24)
             canvas.setFillColor(header_color)
             title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
             canvas.drawCentredString(page_width/2, page_height - 50, process_text(title_text))
-        
-        # Add week dates
-        def get_week_dates(year, week):
-            jan_fourth = datetime(year, 1, 4)
-            monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
-            target_monday = monday_week1 + timedelta(weeks=week-1)
-            target_sunday = target_monday + timedelta(days=6)
-            return target_monday, target_sunday
+            
+            # Add week dates
+            def get_week_dates(year, week):
+                jan_fourth = datetime(year, 1, 4)
+                monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
+                target_monday = monday_week1 + timedelta(weeks=week-1)
+                target_sunday = target_monday + timedelta(days=6)
+                return target_monday, target_sunday
 
-        week_start, week_end = get_week_dates(year, week)
-        if name_type == 'arabic':
-            week_dates = f"من {week_start.strftime('%d/%m/%Y')} إلى {week_end.strftime('%d/%m/%Y')}"
-        else:
-            week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
-        
+            week_start, week_end = get_week_dates(year, week)
+            if name_type == 'arabic':
+                week_dates = f"من {week_start.strftime('%d/%m/%Y')} إلى {week_end.strftime('%d/%m/%Y')}"
+            else:
+                week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
+            
             canvas.setFont(font_name, 14)
             canvas.setFillColor(text_color)
             canvas.drawCentredString(page_width/2, page_height - 80, process_text(week_dates))
@@ -1675,7 +1655,7 @@ def export_schedule():
         for shift_key, shift_name in shift_headers.items():
             if any(row[shift_key] for row in schedule_data):
                 active_shifts.append((shift_key, shift_name))
-        
+
         # Calculate dimensions
         margin = 40
         available_width = page_width - (2 * margin)
@@ -1715,14 +1695,13 @@ def export_schedule():
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
                 table_data.append(table_row)
-        
+
             # Create table with appropriate styling
             table = Table(
                 table_data,
                 colWidths=[col_width] * num_columns,
                 rowHeights=[row_height] * len(table_data)
             )
-            
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1735,17 +1714,15 @@ def export_schedule():
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
                 # Different font sizes for first column and other columns
                 ('FONTSIZE', (0, 1), (0, -1), 11),  # First column (machine names)
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
-                ('FONTSIZE', (1, 1), (-1, -1), 8 if name_type == 'latin' else 11),  # Other columns
+                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
+                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 11),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
                 ('LEFTPADDING', (0, 0), (-1, -1), 3),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ])
-            
+
             # Add alternating row colors
             for i in range(len(table_data)):
                 if i % 2 == 1:  # odd rows
