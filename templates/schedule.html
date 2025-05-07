@@ -33,7 +33,7 @@
                     <td>{{ machine.name }}</td>
                     <td data-machine-id="{{ machine.id }}" data-shift-id="1">
                         <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="1" onchange="handleOperatorSelection(this)">
-                            <option class=error-row value="">Sélectionner un opérateur</option>
+                            <option value="">Sélectionner un opérateur</option>
                             {% for operator in operators %}
                             <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first).operator_id == operator.id %}selected{% endif %}
@@ -511,10 +511,6 @@ function confirmAssignments() {
             errorMessage.className = 'alert-error';
             errorMessage.textContent = 'Erreur : ' + data.message;
             document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
-
-            const style = document.createElement('style');
-            style.textContent = '.error-row{ color: red; }';
-            document.head.appendChild(style);
             
             // Remove error message after 5 seconds
             setTimeout(() => {
