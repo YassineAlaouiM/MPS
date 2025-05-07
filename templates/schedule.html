@@ -33,9 +33,9 @@
                     <td>{{ machine.name }}</td>
                     <td data-machine-id="{{ machine.id }}" data-shift-id="1">
                         <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="1" onchange="handleOperatorSelection(this)">
-                            <option value="">Sélectionner un opérateur</option>
+                            <option class=error-row value="">Sélectionner un opérateur</option>
                             {% for operator in operators %}
-                            <option class=error-row value="{{ operator.id }}" 
+                            <option value="{{ operator.id }}" 
                                     {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("shift_id", "equalto", 1) | first).operator_id == operator.id %}selected{% endif %}
                                     {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                     data-last-shift="{{ operator.last_shift_id }}"
