@@ -1748,7 +1748,7 @@ def export_schedule():
             # Add footer
             p.setFont(font_name, 8)
             p.setFillColor(colors.gray)
-            footer_text = f"Généré le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            footer_text = f"Généré le {datetime.now().strftime('%Y-%m-%d')}"
             p.drawCentredString(page_width/2, 20, process_text(footer_text))
 
         # Save the PDF
