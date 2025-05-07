@@ -1623,10 +1623,10 @@ def export_schedule():
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title
-            canvas.setFont(font_name, 18)
+            canvas.setFont(font_name, 16)
             canvas.setFillColor(header_color)
             title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
-            canvas.drawCentredString(page_width/2, page_height - 45, process_text(title_text))
+            canvas.drawCentredString(page_width/2, page_height - 40, process_text(title_text))
             
             # Add week dates
             def get_week_dates(year, week):
@@ -1642,9 +1642,9 @@ def export_schedule():
             else:
                 week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
             
-            canvas.setFont(font_name, 14)
+            canvas.setFont(font_name, 10)
             canvas.setFillColor(text_color)
-            canvas.drawCentredString(page_width/2, page_height - 80, process_text(week_dates))
+            canvas.drawCentredString(page_width/2, page_height - 60, process_text(week_dates))
 
         # Prepare shift headers
         shift_headers = {
