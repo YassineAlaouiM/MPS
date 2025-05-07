@@ -1657,8 +1657,8 @@ def export_schedule():
                 active_shifts.append((shift_key, shift_name))
 
         # Calculate dimensions
-        margin = 80
-        available_width = page_width - (2 * margin)
+        margin = 30
+        available_width = page_width - (1.5 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
         
