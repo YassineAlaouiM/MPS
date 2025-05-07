@@ -1567,14 +1567,12 @@ def export_schedule():
                         break
                 
                 if not font_found:
-                    # If no specific Arabic font found, try to use DejaVuSans which often has Arabic support
                     pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
                     font_name = 'Arabic'
             else:
-                # For Latin text
                 font_paths = [
-                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Common on Ubuntu
-                    'C:\\Windows\\Fonts\\arial.ttf'  # Windows path
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
                 
                 font_found = False
@@ -1586,49 +1584,53 @@ def export_schedule():
                         break
                 
                 if not font_found:
-                    font_name = 'Helvetica'  # Fallback
+                    font_name = 'Helvetica'
         except Exception as e:
             print(f"Font registration error: {str(e)}")
-            font_name = 'Helvetica'  # Fallback to built-in font
-        
-        # Helper function to handle Arabic text
+            font_name = 'Helvetica'
+
         def process_text(text):
             if name_type == 'arabic' and text and any(ord(char) in range(0x0600, 0x06FF) for char in str(text)):
                 reshaped_text = arabic_reshaper.reshape(str(text))
                 return get_display(reshaped_text)
             return str(text) if text else ""
-        
+
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
         table_header_color = colors.HexColor('#23335b')  # Lighter Blue
         row_color = colors.HexColor('#ecf0f1')  # Light Gray
         text_color = colors.HexColor('#23335b')  # Dark Blue
-        
-        # Add title
-        p.setFont(font_name, 24)
-        p.setFillColor(header_color)
-        title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
-        p.drawCentredString(page_width/2, page_height - 50, process_text(title_text))
-        
-        # Add week dates
-        def get_week_dates(year, week):
-            jan_fourth = datetime(year, 1, 4)
-            monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
-            target_monday = monday_week1 + timedelta(weeks=week-1)
-            target_sunday = target_monday + timedelta(days=6)
-            return target_monday, target_sunday
 
-        week_start, week_end = get_week_dates(year, week)
-        if name_type == 'arabic':
-            week_dates = f"من {week_start.strftime('%d/%m/%Y')} إلى {week_end.strftime('%d/%m/%Y')}"
-        else:
-            week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
-        
-        p.setFont(font_name, 14)
-        p.setFillColor(text_color)
-        p.drawCentredString(page_width/2, page_height - 80, process_text(week_dates))
-        
-        # Prepare table data
+        def add_page_header(canvas, page_num):
+            # Add title
+            canvas.setFont(font_name, 24)
+            canvas.setFillColor(header_color)
+            title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
+            canvas.drawCentredString(page_width/2, page_height - 50, process_text(title_text))
+            
+            # Add week dates
+            def get_week_dates(year, week):
+                jan_fourth = datetime(year, 1, 4)
+                monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
+                target_monday = monday_week1 + timedelta(weeks=week-1)
+                target_sunday = target_monday + timedelta(days=6)
+                return target_monday, target_sunday
+
+            week_start, week_end = get_week_dates(year, week)
+            if name_type == 'arabic':
+                week_dates = f"من {week_start.strftime('%d/%m/%Y')} إلى {week_end.strftime('%d/%m/%Y')}"
+            else:
+                week_dates = f"from {week_start.strftime('%d/%m/%Y')} to {week_end.strftime('%d/%m/%Y')}"
+            
+            canvas.setFont(font_name, 14)
+            canvas.setFillColor(text_color)
+            canvas.drawCentredString(page_width/2, page_height - 80, process_text(week_dates))
+            
+            # Add page number
+            canvas.setFont(font_name, 10)
+            canvas.drawRightString(page_width - 30, 30, f"Page {page_num}")
+
+        # Prepare shift headers
         shift_headers = {
             'shift_1': '7h à 15h',
             'shift_2': '15h à 23h',
@@ -1643,59 +1645,81 @@ def export_schedule():
         for shift_key, shift_name in shift_headers.items():
             if any(row[shift_key] for row in schedule_data):
                 active_shifts.append((shift_key, shift_name))
-        
-        # Prepare table data with proper text direction
-        table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
+
+        # Calculate dimensions
+        margin = 40
+        available_width = page_width - (2 * margin)
+        num_columns = len(active_shifts) + 1
+        col_width = available_width / num_columns
+        row_height = 40  # Increased row height
+        max_rows_per_page = int((page_height - 150) / row_height)  # 150 for headers and margins
+
+        # Split data into pages
+        pages = []
+        current_page = []
         for row in schedule_data:
-            if any(row[f'shift_{i}'] for i in range(1, 7)):
+            if len(current_page) >= max_rows_per_page:
+                pages.append(current_page)
+                current_page = []
+            current_page.append(row)
+        if current_page:
+            pages.append(current_page)
+
+        # Generate each page
+        for page_num, page_data in enumerate(pages, 1):
+            if page_num > 1:
+                p.showPage()
+                p.setPageSize(landscape(A4))
+
+            add_page_header(p, page_num)
+
+            # Prepare table data for this page
+            table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
+            for row in page_data:
                 table_row = [process_text(row['machine_name'])]
                 for shift_key, _ in active_shifts:
                     table_row.append(process_text(row[shift_key] if row[shift_key] else ""))
                 table_data.append(table_row)
-        
-        # Create table with appropriate text alignment
-        table_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-            ('FONTNAME', (0, 1), (-1, -1), font_name),
-            ('FONTSIZE', (0, 1), (-1, -1), 14),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('TOPPADDING', (0, 1), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
-        ])
-        
-        # Add alternating row colors
-        for i in range(len(table_data)):
-            if i % 2 == 1:  # odd rows
-                table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
-        
-        # Calculate table dimensions
-        num_columns = len(active_shifts) + 1
-        available_width = page_width - 80  # 40px margin on each side
-        col_width = available_width / num_columns
-        
-        table = Table(table_data, colWidths=[col_width] * num_columns)
-        table.setStyle(table_style)
-        
-        # Draw table
-        table.wrapOn(p, page_width, page_height)
-        table.drawOn(p, 40, page_height - 400)  # Adjust Y position as needed
-        
-        # Add footer
-        p.setFont(font_name, 8)
-        p.setFillColor(colors.gray)
-        if name_type == 'arabic':
-            footer_text = f"تم إنشاؤه في {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        else:
-            footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        p.drawCentredString(page_width/2, 30, process_text(footer_text))
-        
+
+            # Create table with appropriate styling
+            table = Table(table_data, colWidths=[col_width] * num_columns, rowHeights=[row_height] * len(table_data))
+            
+            table_style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+                ('FONTNAME', (0, 1), (-1, -1), font_name),
+                ('FONTSIZE', (0, 1), (-1, -1), 12),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('WORDWRAP', (0, 0), (-1, -1), True),
+            ])
+
+            # Add alternating row colors
+            for i in range(len(table_data)):
+                if i % 2 == 1:  # odd rows
+                    table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
+
+            table.setStyle(table_style)
+
+            # Draw table
+            table.wrapOn(p, page_width, page_height)
+            table.drawOn(p, margin, page_height - 150 - (len(table_data) * row_height))
+
+            # Add footer
+            p.setFont(font_name, 8)
+            p.setFillColor(colors.gray)
+            if name_type == 'arabic':
+                footer_text = f"تم إنشاؤه في {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            else:
+                footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            p.drawCentredString(page_width/2, 20, process_text(footer_text))
+
         # Save the PDF
         p.save()
         
@@ -1710,7 +1734,7 @@ def export_schedule():
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
-
+    
 def get_local_ip():
     # Cette méthode ouvre une connexion fictive pour détecter l'IP locale
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
