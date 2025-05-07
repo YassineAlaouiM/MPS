@@ -1588,41 +1588,41 @@ def export_schedule():
             print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'
 
-        def process_text(text, is_header=False, is_machine=False):
-    if not text:
-        return ""
-
-    text = str(text).strip()
-
-    # Detect Arabic characters
-    is_arabic = any('\u0600' <= char <= '\u06FF' for char in text)
-
-    if is_arabic:
-        # For Arabic: reshape and apply bidi algorithm for entire text
-        reshaped = arabic_reshaper.reshape(text)
-        bidi_text = get_display(reshaped)
-
-        # For machine names (assumed to be short and not full sentences)
-        if is_machine:
-            return bidi_text.upper()
-
-        # For headers: return as is, clean and clear
-        if is_header:
-            return bidi_text
-
-        # For body text: wrap every 2 words per line (optional, based on your use)
-        words = bidi_text.split()
-        lines = [' '.join(words[i:i+2]) for i in range(0, len(words), 2)]
-        return '\n'.join(lines)
-
-    else:
-        # For non-Arabic text (Latin), apply formatting
-        if is_machine:
-            return text.upper()
-        elif not is_header:
-            words = [word.strip().capitalize() for word in text.split()]
-            return ' '.join(words)
-        return text
+    def process_text(text, is_header=False, is_machine=False):
+        if not text:
+            return ""
+    
+        text = str(text).strip()
+    
+        # Detect Arabic characters
+        is_arabic = any('\u0600' <= char <= '\u06FF' for char in text)
+    
+        if is_arabic:
+            # For Arabic: reshape and apply bidi algorithm for entire text
+            reshaped = arabic_reshaper.reshape(text)
+            bidi_text = get_display(reshaped)
+    
+            # For machine names (assumed to be short and not full sentences)
+            if is_machine:
+                return bidi_text.upper()
+    
+            # For headers: return as is, clean and clear
+            if is_header:
+                return bidi_text
+    
+            # For body text: wrap every 2 words per line (optional, based on your use)
+            words = bidi_text.split()
+            lines = [' '.join(words[i:i+2]) for i in range(0, len(words), 2)]
+            return '\n'.join(lines)
+    
+        else:
+            # For non-Arabic text (Latin), apply formatting
+            if is_machine:
+                return text.upper()
+            elif not is_header:
+                words = [word.strip().capitalize() for word in text.split()]
+                return ' '.join(words)
+            return text
         
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
