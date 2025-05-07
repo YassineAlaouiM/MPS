@@ -1592,17 +1592,25 @@ def export_schedule():
             if not text:
                 return ""
             text = str(text)
+
+            def truncate_text(text, max_chars=15):
+                """Truncate text to max_chars and add ellipsis if needed"""
+                if len(text) <= max_chars:
+                    return text
+                return text[:max_chars-3] + '...'
+
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
-                return text.upper()
+                # For machine names, convert to uppercase and truncate if needed
+                return truncate_text(text.upper(), 20)  # Allow longer machine names
             elif not is_header:
-                # For Latin text in cells (not headers), add spaces and capitalize each word
+                # For Latin text in cells, capitalize each word and truncate
                 words = text.split()
-                # Capitalize first letter of each word, rest lowercase
                 words = [word.strip().capitalize() for word in words]
-                return ' '.join(words)
+                processed_text = ' '.join(words)
+                return truncate_text(processed_text)  # Default 15 chars for operator names
             return text
 
         # Set colors
