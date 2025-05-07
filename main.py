@@ -1551,11 +1551,10 @@ def export_schedule():
         # Register appropriate font based on name type
         try:
             if name_type == 'arabic':
-                # Try multiple potential font locations for cross-platform compatibility
                 font_paths = [
-                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',  # Common on Ubuntu
+                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
                     '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                    'C:\\Windows\\Fonts\\arial.ttf'  # Keep Windows path as fallback
+                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
                 
                 font_found = False
@@ -1589,11 +1588,18 @@ def export_schedule():
             print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'
 
-        def process_text(text):
-            if name_type == 'arabic' and text and any(ord(char) in range(0x0600, 0x06FF) for char in str(text)):
-                reshaped_text = arabic_reshaper.reshape(str(text))
+        def process_text(text, is_header=False):
+            if not text:
+                return ""
+            text = str(text)
+            if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
+                reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
-            return str(text) if text else ""
+            elif not is_header:
+                # For Latin text in cells (not headers), add spaces for better wrapping
+                words = text.split()
+                return ' '.join(words)
+            return text
 
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
@@ -1601,7 +1607,7 @@ def export_schedule():
         row_color = colors.HexColor('#ecf0f1')  # Light Gray
         text_color = colors.HexColor('#23335b')  # Dark Blue
 
-        def add_page_header(canvas, page_num):
+        def add_page_header(canvas, page_num, total_pages):
             # Add title
             canvas.setFont(font_name, 24)
             canvas.setFillColor(header_color)
@@ -1628,7 +1634,7 @@ def export_schedule():
             
             # Add page number
             canvas.setFont(font_name, 10)
-            canvas.drawRightString(page_width - 30, 30, f"Page {page_num}")
+            canvas.drawRightString(page_width - 30, 30, f"Page {page_num} of {total_pages}")
 
         # Prepare shift headers
         shift_headers = {
@@ -1651,19 +1657,23 @@ def export_schedule():
         available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
-        row_height = 40  # Increased row height
-        max_rows_per_page = int((page_height - 150) / row_height)  # 150 for headers and margins
+        
+        # Fixed number of rows per page (9 rows + 1 header row = 10 total)
+        rows_per_page = 9
+        row_height = min((page_height - 150) / 10, 45)  # Ensure minimum spacing, max height of 45
 
-        # Split data into pages
+        # Split data into pages (9 rows per page)
         pages = []
         current_page = []
         for row in schedule_data:
-            if len(current_page) >= max_rows_per_page:
+            if len(current_page) >= rows_per_page:
                 pages.append(current_page)
                 current_page = []
             current_page.append(row)
         if current_page:
             pages.append(current_page)
+
+        total_pages = len(pages)
 
         # Generate each page
         for page_num, page_data in enumerate(pages, 1):
@@ -1671,18 +1681,23 @@ def export_schedule():
                 p.showPage()
                 p.setPageSize(landscape(A4))
 
-            add_page_header(p, page_num)
+            add_page_header(p, page_num, total_pages)
 
             # Prepare table data for this page
             table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
             for row in page_data:
                 table_row = [process_text(row['machine_name'])]
                 for shift_key, _ in active_shifts:
-                    table_row.append(process_text(row[shift_key] if row[shift_key] else ""))
+                    cell_text = row[shift_key] if row[shift_key] else ""
+                    table_row.append(process_text(cell_text))
                 table_data.append(table_row)
 
             # Create table with appropriate styling
-            table = Table(table_data, colWidths=[col_width] * num_columns, rowHeights=[row_height] * len(table_data))
+            table = Table(
+                table_data,
+                colWidths=[col_width] * num_columns,
+                rowHeights=[row_height] * len(table_data)
+            )
             
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
@@ -1694,10 +1709,12 @@ def export_schedule():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (-1, -1), 12),
+                ('FONTSIZE', (0, 1), (-1, -1), 11),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
             ])
 
             # Add alternating row colors
@@ -1709,7 +1726,8 @@ def export_schedule():
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
-            table.drawOn(p, margin, page_height - 150 - (len(table_data) * row_height))
+            table_y = page_height - 150 - (len(table_data) * row_height)
+            table.drawOn(p, margin, table_y)
 
             # Add footer
             p.setFont(font_name, 8)
@@ -1734,7 +1752,7 @@ def export_schedule():
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
-    
+
 def get_local_ip():
     # Cette méthode ouvre une connexion fictive pour détecter l'IP locale
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
