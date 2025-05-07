@@ -1623,10 +1623,10 @@ def export_schedule():
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title
-            canvas.setFont(font_name, 20)
+            canvas.setFont(font_name, 18)
             canvas.setFillColor(header_color)
             title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
-            canvas.drawCentredString(page_width/2, page_height - 75, process_text(title_text))
+            canvas.drawCentredString(page_width/2, page_height - 45, process_text(title_text))
             
             # Add week dates
             def get_week_dates(year, week):
@@ -1669,8 +1669,8 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (9 rows + 1 header row = 10 total)
-        rows_per_page = 11
-        row_height = min((page_height - 75) / 8, 35)  # Ensure minimum spacing, max height of 45
+        rows_per_page = 12
+        row_height = min((page_height - 60) / 12, 35)  # Ensure minimum spacing, max height of 45
 
         # Split data into pages (9 rows per page)
         pages = []
