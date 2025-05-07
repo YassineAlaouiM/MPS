@@ -1602,7 +1602,7 @@ def export_schedule():
                             processed_words.append(words[i] + ' ' + words[i + 1])
                         else:
                             processed_words.append(words[i])
-                    text = '\t'.join(processed_words)
+                    text = '\n'.join(processed_words)
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
@@ -1637,10 +1637,7 @@ def export_schedule():
                 return target_monday, target_sunday
 
             week_start, week_end = get_week_dates(year, week)
-            if name_type == 'arabic':
-                week_dates = f"إلى {week_end.strftime('%d/%m/%Y')} من {week_start.strftime('%d/%m/%Y')}"
-            else:
-                week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
+            week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
             
             canvas.setFont(font_name, 14)
             canvas.setFillColor(text_color)
