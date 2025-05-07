@@ -513,7 +513,7 @@ function confirmAssignments() {
             document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
 
             const style = document.createElement('style');
-            style.textContent = '.error-row{ background-color: #ffebee; }';
+            style.textContent = '.error-row{ color: red; }';
             document.head.appendChild(style);
             
             // Remove error message after 5 seconds
