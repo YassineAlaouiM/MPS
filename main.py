@@ -1223,27 +1223,13 @@ def confirm_assignments():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Get machine and operator names for better error messages
-            machine_names = {}
-            operator_names = {}
-            cursor.execute("SELECT id, name FROM machines")
-            for machine in cursor.fetchall():
-                machine_names[machine['id']] = machine['name']
-            
-            cursor.execute("SELECT id, name FROM operators")
-            for operator in cursor.fetchall():
-                operator_names[operator['id']] = operator['name']
-
             # Validate that no operator is assigned to multiple shifts
-            operator_assignments = {}
+            operator_assignments = set()
             for assignment in assignments:
                 operator_id = assignment['operator_id']
                 if operator_id in operator_assignments:
-                    return jsonify({
-                        'success': False, 
-                        'message': f'Operator {operator_names.get(operator_id, "Unknown")} is assigned to multiple shifts.'
-                    }), 400
-                operator_assignments[operator_id] = True
+                    return jsonify({'success': False, 'message': f'Operator {operator_id} is assigned to multiple shifts.'}), 400
+                operator_assignments.add(operator_id)
 
             # Define shift models
             # Adding shifts is static
@@ -1270,10 +1256,7 @@ def confirm_assignments():
                 # Check if the machine is already assigned to a different shift model
                 if machine_id in machine_shift_models:
                     if machine_shift_models[machine_id] != current_model:
-                        return jsonify({
-                            'success': False, 
-                            'message': f'Machine {machine_names.get(machine_id, "Unknown")} is assigned to multiple shift models in the same week.'
-                        }), 400
+                        return jsonify({'success': False, 'message': f'Machine {machine_id} is assigned to multiple shift models in the same week.'}), 400
                 else:
                     machine_shift_models[machine_id] = current_model
 
@@ -1282,23 +1265,13 @@ def confirm_assignments():
                 assigned_operators = [a for a in assignments if a['machine_id'] == machine_id]
 
                 if model == "model_1" and len(assigned_operators) != 3:
-                    return jsonify({
-                        'success': False, 
-                        'message': f'Machine {machine_names.get(machine_id, "Unknown")} must have exactly 3 operators for shift model 1.'
-                    }), 400
+                    return jsonify({'success': False, 'message': f'Machine {machine_id} must have exactly 3 operators for shift model 1.'}), 400
 
                 if model == "model_2" and len(assigned_operators) != 2:
-                    return jsonify({
-                        'success': False, 
-                        'message': f'Machine {machine_names.get(machine_id, "Unknown")} must have exactly 2 operators for shift model 2.'
-                    }), 400
+                    return jsonify({'success': False, 'message': f'Machine {machine_id} must have exactly 2 operators for shift model 2.'}), 400
 
                 if model == "model_3" and len(assigned_operators) != 1:
-                    return jsonify({
-                        'success': False, 
-                        'message': f'Machine {machine_names.get(machine_id, "Unknown")} must have exactly 1 operator for shift model 3.'
-                    }), 400
-
+                    return jsonify({'success': False, 'message': f'Machine {machine_id} must have exactly 1 operator for shift model 3.'}), 400
             # Clear existing assignments for this week
             cursor.execute("""
                 DELETE FROM schedule 
@@ -1319,7 +1292,7 @@ def confirm_assignments():
         connection.rollback()
         return jsonify({'success': False, 'message': str(e)})
     finally:
-        connection.close()
+        connection.close()   
         
 @app.route('/api/schedule/random', methods=['POST'])
 @login_required
