@@ -1663,7 +1663,7 @@ def export_schedule():
                 active_shifts.append((shift_key, shift_name))
 
         # Calculate dimensions
-        margin = 20
+        margin = 40
         available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
@@ -1738,7 +1738,7 @@ def export_schedule():
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
-            table_y = page_height - 150 - (len(table_data) * row_height)
+            table_y = page_height - 100 - (len(table_data) * row_height)
             table.drawOn(p, margin, table_y)
 
         # Save the PDF
