@@ -1742,10 +1742,8 @@ def export_schedule():
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Reduced from 3
-                ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Reduced from 3
-                ('TOPPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
+                ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
+                ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Reduced from 3
             ])
             # Add alternating row colors
             for i in range(len(table_data)):
