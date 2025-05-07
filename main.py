@@ -1645,10 +1645,6 @@ def export_schedule():
             canvas.setFont(font_name, 14)
             canvas.setFillColor(text_color)
             canvas.drawCentredString(page_width/2, page_height - 80, process_text(week_dates))
-            
-            # Add page number
-            canvas.setFont(font_name, 10)
-            canvas.drawRightString(page_width - 30, 30, f"Page {page_num} / {total_pages}")
 
         # Prepare shift headers
         shift_headers = {
@@ -1744,12 +1740,6 @@ def export_schedule():
             table.wrapOn(p, page_width, page_height)
             table_y = page_height - 150 - (len(table_data) * row_height)
             table.drawOn(p, margin, table_y)
-
-            # Add footer
-            p.setFont(font_name, 8)
-            p.setFillColor(colors.gray)
-            footer_text = f"Généré le {datetime.now().strftime('%Y-%m-%d')}"
-            p.drawCentredString(page_width/2, 20, process_text(footer_text))
 
         # Save the PDF
         p.save()
