@@ -28,7 +28,7 @@
             </thead>
             <tbody>
                 {% for machine in machines %}
-                <tr>
+                <tr class=error-row>
                     <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}"></td>
                     <td>{{ machine.name }}</td>
                     <td data-machine-id="{{ machine.id }}" data-shift-id="1">
@@ -49,7 +49,7 @@
                             {% endfor %}
                         </select>
                     </td>
-                    <td data-machine-id="{{ machine.id }}" data-shift-id="2" class=error-row>
+                    <td data-machine-id="{{ machine.id }}" data-shift-id="2">
                         <select class="operator-select" data-machine-id="{{ machine.id }}" data-shift-id="2" onchange="handleOperatorSelection(this)">
                             <option value="">Sélectionner un opérateur</option>
                             {% for operator in operators %}
