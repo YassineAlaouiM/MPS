@@ -1660,13 +1660,17 @@ def export_schedule():
         margin = 40
         available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
-        col_width = available_width / num_columns
         
-        # Fixed number of rows per page (9 rows + 1 header row = 10 total)
+        # Adjust column widths - make first column slightly wider
+        first_col_width = available_width * 0.20  # 20% for machine names
+        other_col_width = (available_width - first_col_width) / (num_columns - 1)
+        col_widths = [first_col_width] + [other_col_width] * (num_columns - 1)
+        
+        # Fixed number of rows per page (7 rows + 1 header row = 8 total)
         rows_per_page = 7
-        row_height = min((page_height - 150) / 10, 45)  # Ensure minimum spacing, max height of 45
+        row_height = min((page_height - 150) / 8, 50)  # Increased max height for better text display
 
-        # Split data into pages (9 rows per page)
+        # Split data into pages (7 rows per page)
         pages = []
         current_page = []
         for row in schedule_data:
@@ -1686,7 +1690,6 @@ def export_schedule():
                 p.setPageSize(landscape(A4))
 
             add_page_header(p, page_num, total_pages)
-
             # Prepare table data for this page
             table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
             for row in page_data:
