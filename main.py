@@ -1602,7 +1602,7 @@ def export_schedule():
                             processed_words.append(words[i] + ' ' + words[i + 1])
                         else:
                             processed_words.append(words[i])
-                    text = '\n'.join(processed_words)
+                    text = '\t'.join(processed_words)
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
@@ -1612,7 +1612,7 @@ def export_schedule():
                 words = text.split()
                 # Capitalize first letter of each word, rest lowercase
                 words = [word.strip().capitalize() for word in words]
-                return '\n'.join(words)
+                return ' '.join(words)
             return text
         
         # Set colors
