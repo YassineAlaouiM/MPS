@@ -1592,25 +1592,28 @@ def export_schedule():
             if not text:
                 return ""
             text = str(text)
-            if name_type == 'arabic' and any('\u0600' <= char <= '\u06FF' for char in text):
-                # Split into words, group every two, then reshape and BiDi per line
-                words = text.split()
-                lines = []
-                for i in range(0, len(words), 2):
-                    line_words = words[i:i+2]
-                    line = ' '.join(line_words)
-                    reshaped = arabic_reshaper.reshape(line)
-                    bidi_line = get_display(reshaped)
-                    lines.append(bidi_line)
-                return '\n'.join(lines)
+            if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
+                # For Arabic text in table cells, add line break after every two words
+                if not is_header and not is_machine:
+                    words = text.split()
+                    processed_words = []
+                    for i in range(0, len(words), 2):
+                        if i + 1 < len(words):
+                            processed_words.append(words[i] + ' ' + words[i + 1])
+                        else:
+                            processed_words.append(words[i])
+                    text = '\n'.join(processed_words)
+                reshaped_text = arabic_reshaper.reshape(text)
+                return get_display(reshaped_text)
             elif is_machine:
                 return text.upper()
             elif not is_header:
+                # For Latin text in cells (not headers), add spaces and capitalize each word
                 words = text.split()
+                # Capitalize first letter of each word, rest lowercase
                 words = [word.strip().capitalize() for word in words]
                 return ' '.join(words)
             return text
-
         
         # Set colors
         header_color = colors.HexColor('#26438c')  # Blue
