@@ -1596,8 +1596,10 @@ def export_schedule():
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif not is_header:
-                # For Latin text in cells (not headers), add spaces for better wrapping
+                # For Latin text in cells (not headers), add spaces and capitalize each word
                 words = text.split()
+                # Capitalize first letter of each word, rest lowercase
+                words = [word.strip().capitalize() for word in words]
                 return ' '.join(words)
             return text
 
