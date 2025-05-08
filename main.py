@@ -774,9 +774,10 @@ def create_production():
                 is_service = True
             
             # For service machines, article and quantity are not required
-            if not is_service and (not article_id or not quantity):
-                return jsonify({'success': False, 'message': 'Article and quantity are required for machines'})
-            
+            if not is_service:
+                if article_id is None or quantity is None:
+                    return jsonify({'success': False, 'message': 'Article and quantity are required for non-service machines'})
+
             # Check if machine is already in production
             sql = """
                 SELECT id, start_date, end_date, status 
@@ -791,7 +792,7 @@ def create_production():
             cursor.execute(sql, (machine_id, start_date, start_date, start_date, end_date, start_date))
             existing_production = cursor.fetchone()
             
-            if existing_production and name.lower() != "emballages":
+            if existing_production:
                 print(f"Found existing production: {existing_production}")  # Debug log
                 return jsonify({
                     'success': False, 
@@ -865,9 +866,10 @@ def update_production(id):
                 params.append(machine_id)
             
             if is_service:
-                # For service machines, article_id and quantity should be NULL
-                updates.append("article_id = NULL")
-                updates.append("quantity = NULL")
+                # Si article_id ou quantity sont explicitement envoyés dans la requête, on les met à NULL
+                if article_id is not None or quantity is not None:
+                    updates.append("article_id = NULL")
+                    updates.append("quantity = NULL")
             else:
                 if article_id is not None:
                     updates.append("article_id = %s")
@@ -876,23 +878,22 @@ def update_production(id):
                 if quantity is not None:
                     updates.append("quantity = %s")
                     params.append(quantity)
-            
+
             if start_date is not None:
                 updates.append("start_date = %s")
                 params.append(start_date)
 
-                
             if end_date is not None:
                 updates.append("end_date = %s")
                 params.append(end_date)
-            
+
             if status is not None:
                 updates.append("status = %s")
                 params.append(status)
-            
+
             if not updates:
                 return jsonify({'success': False, 'message': 'No fields to update'})
-            
+
             params.append(id)
             sql = f"UPDATE production SET {', '.join(updates)} WHERE id = %s"
             cursor.execute(sql, params)
