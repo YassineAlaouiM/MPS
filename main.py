@@ -265,7 +265,7 @@ def schedule():
                         OR (p.start_date BETWEEN %s AND %s)
                         OR ((p.end_date IS NOT NULL) AND p.end_date BETWEEN %s AND %s)
                     )
-                    ORDER BY m.name
+                    ORDER BY m.type
                 """, (week_dates['week_end'], week_dates['week_start'],
                       week_dates['week_start'], week_dates['week_end'],
                       week_dates['week_start'], week_dates['week_end']))
