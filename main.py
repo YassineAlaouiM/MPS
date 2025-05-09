@@ -1503,42 +1503,42 @@ def export_schedule():
                 m.name AS machine_name,
                 p.id as production_id,
                 a.name as article_name,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 1 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_1,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 2 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_2,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 3 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_3,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 4 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_4,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 5 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_5,
-                   GROUP_CONCAT(
-                       CASE s.id
-                           WHEN 6 THEN {name_field}
-                           ELSE NULL
-                       END
-                   ) AS shift_6
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 1 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_1,
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 2 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_2,
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 3 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_3,
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 4 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_4,
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 5 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_5,
+                GROUP_CONCAT(
+                    CASE s.id
+                        WHEN 6 THEN {name_field}
+                        ELSE NULL
+                    END
+                ) AS shift_6
             FROM machines m
             INNER JOIN schedule sc ON m.id = sc.machine_id AND sc.week_number = %s AND sc.year = %s
             INNER JOIN production p ON sc.production_id = p.id
@@ -1714,11 +1714,10 @@ def export_schedule():
             for row in page_data:
                 # Create machine name with article name if available
                 machine_name = row['machine_name']
-                article_name = row['article_name']
-                if article_name:
-                    # Use a tuple to pass both names for special rendering
-                    machine_name = (machine_name, article_name)
-                table_row = [machine_name]
+                if row['article_name']:
+                    machine_name = f"{machine_name}\n({row['article_name']})"
+                
+                table_row = [process_text(machine_name, is_machine=True)]
                 for shift_key, _ in active_shifts:
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
@@ -1755,32 +1754,6 @@ def export_schedule():
             for i in range(len(table_data)):
                 if i % 2 == 1:  # odd rows
                     table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
-
-            # Custom draw for machine+article name with smaller article font
-            def draw_cell_with_article(canvas, x, y, width, height, value):
-                if isinstance(value, tuple):
-                    machine, article = value
-                    # Draw machine name (normal size)
-                    canvas.setFont(font_name, 11)
-                    canvas.setFillColor(text_color)
-                    canvas.drawCentredString(x + width/2, y + height/2 + 4, process_text(machine, is_machine=True))
-                    # Draw article name (smaller size)
-                    canvas.setFont(font_name, 7)
-                    canvas.setFillColor(colors.HexColor('#888888'))
-                    canvas.drawCentredString(x + width/2, y + height/2 - 7, process_text(article))
-                else:
-                    canvas.setFont(font_name, 11)
-                    canvas.setFillColor(text_color)
-                    canvas.drawCentredString(x + width/2, y + height/2, process_text(value, is_machine=True))
-
-            # Patch the table's drawCell method for the first column (machine+article)
-            orig_drawCell = table._drawCell
-            def custom_drawCell(self, cellval, col, row, x, y, width, height):
-                if col == 0 and row > 0:
-                    draw_cell_with_article(self.canv, x, y, width, height, cellval)
-                else:
-                    orig_drawCell(cellval, col, row, x, y, width, height)
-            table._drawCell = custom_drawCell.__get__(table, Table)
 
             table.setStyle(table_style)
 
