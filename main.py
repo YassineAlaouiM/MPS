@@ -1035,7 +1035,7 @@ def get_machines_in_production():
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT m.*, p.article_id, a.name as article_name
+                    SELECT DISTINCT m.*, p.article_id, a.name as article_name
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
                     JOIN articles a ON p.article_id = a.id
