@@ -213,20 +213,6 @@ select {
     transition: all 0.3s ease;
 }
 
-.schedule-cell select {
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    background-size: 16px;
-    transition: all 0.3s ease;
-    cursor: default;
-}
-
-.schedule-cell:hover select {
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='red' stroke='red' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cline x1='18' y1='6' x2='6' y2='18'%3e%3c/line%3e%3cline x1='6' y1='6' x2='18' y2='18'%3e%3c/line%3e%3c/svg%3e");
-    cursor: pointer;
-}
-
 select:focus {
     border-color: #2196F3;
     box-shadow: 0 0 0 2px rgba(33,150,243,0.1);
@@ -335,8 +321,8 @@ table td:first-child {
 <script>
 function exportToPDF(nameType) {
     // Get current week and year from the page
-    const week = "{{ week }}";
-    const year = "{{ year }}";
+    const week = {{ week }};
+    const year = {{ year }};
     
     // Create a loading state
     const button = document.getElementById(`export-${nameType}-pdf-button`);
@@ -478,8 +464,8 @@ function confirmAssignments() {
         },
         body: JSON.stringify({
             assignments: assignments,
-            week_number: "{{ week }}",
-            year: "{{ year }}"
+            week_number: {{ week }},
+            year: {{ year }}
         })
     })
     .then(response => response.json())
@@ -670,8 +656,8 @@ function randomAssignment() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                week_number: "{{ week }}",
-                year: "{{ year }}",
+                week_number: {{ week }},
+                year: {{ year }},
                 machine_ids: checkedMachines
             })
         })
@@ -826,57 +812,5 @@ function handleDrop(event) {
     // Update the UI
     updateOperatorDropdowns();
 }
-
-function clearCell(button) {
-    const cell = button.closest('.schedule-cell');
-    const select = cell.querySelector('select');
-    
-    // Clear the select value
-    select.value = '';
-    
-    // Remove the selected operator from the set
-    const selectedOperator = select.dataset.selectedOperator;
-    if (selectedOperator) {
-        selectedOperators.delete(selectedOperator);
-        delete select.dataset.selectedOperator;
-    }
-    
-    // Update the dropdowns
-    updateOperatorDropdowns();
-}
-
-// Ensure the "X" icon functionality works
-function clearCell(selectElement) {
-    // Clear the select value
-    selectElement.value = '';
-
-    // Remove the selected operator from the set
-    const selectedOperator = selectElement.dataset.selectedOperator;
-    if (selectedOperator) {
-        selectedOperators.delete(selectedOperator);
-        delete selectElement.dataset.selectedOperator;
-    }
-
-    // Update the dropdowns
-    updateOperatorDropdowns();
-}
-
-// Add event listener for hover to show the "X" icon
-const scheduleCells = document.querySelectorAll('.schedule-cell select');
-scheduleCells.forEach(select => {
-    select.addEventListener('mouseenter', () => {
-        select.style.backgroundImage = "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'red\' stroke=\'red\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cline x1=\'18\' y1=\'6\' x2=\'6\' y2=\'18\'%3e%3c/line%3e%3cline x1=\'6\' y1=\'6\' x2=\'18\' y2=\'18\'%3e%3c/line%3e%3c/svg%3e)";
-        select.style.cursor = 'pointer';
-    });
-
-    select.addEventListener('mouseleave', () => {
-        select.style.backgroundImage = "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e)";
-        select.style.cursor = 'default';
-    });
-
-    select.addEventListener('click', () => {
-        clearCell(select);
-    });
-});
 </script>
 {% endblock %}
