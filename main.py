@@ -746,6 +746,131 @@ def delete_article(article_id):
     finally:
         connection.close()
 
+@app.route('/api/production', methods=['POST'])
+@login_required
+def create_production():
+    data = request.get_json()
+    machine_id = data.get('machine_id')
+    article_id = data.get('article_id')
+    if article_id in (None, ""):
+        article_id = None
+    quantity = data.get('quantity')
+    if quantity in (None, ""):
+        quantity = None
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
+    
+    print(f"Creating production with data: {data}")  # Debug log
+    
+    if not machine_id or not start_date:
+        return jsonify({'success': False, 'message': 'Machine and start date are required'})
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if machine is a service
+            sql = "SELECT type FROM machines WHERE id = %s"
+            cursor.execute(sql, (machine_id,))
+            machine_result = cursor.fetchone()
+            
+            is_service = False
+            if machine_result and machine_result['type']:
+                is_service = True
+            
+            # For regular machines, article and quantity are required
+            if not is_service and (not article_id or not quantity):
+                return jsonify({'success': False, 'message': 'Article and quantity are required for machines'})
+            
+            # Check if machine is already in production
+            sql = """
+                SELECT id, start_date, end_date, status 
+                FROM production 
+                WHERE machine_id = %s 
+                AND status = 'active'
+                AND (
+                    (%s BETWEEN start_date AND COALESCE(end_date, %s))
+                    OR (start_date BETWEEN %s AND COALESCE(%s, %s))
+                )
+            """
+            cursor.execute(sql, (machine_id, start_date, start_date, start_date, end_date, start_date))
+            existing_production = cursor.fetchone()
+            
+            if existing_production:
+                print(f"Found existing production: {existing_production}")  # Debug log
+                return jsonify({
+                    'success': False, 
+                    'message': f'Machine is already in production from {existing_production["start_date"]} to {existing_production["end_date"] or "ongoing"}'
+                })
+            
+            # Add to production - for services, article_id and quantity are optional
+            sql = """
+                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
+                VALUES (%s, %s, %s, %s, %s, 'active')
+            """
+            cursor.execute(sql, (machine_id, article_id, quantity, start_date, end_date))
+                
+            connection.commit()
+            print("Production record created successfully")  # Debug log
+            return jsonify({'success': True, 'message': 'Production added successfully'})
+    except pymysql.Error as e:
+        print(f"Database error: {str(e)}")  # Debug log
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+@app.route('/api/production/<int:id>', methods=['PUT'])
+@login_required
+def update_production(id):
+    data = request.get_json()
+    machine_id = data.get('machine_id')
+    article_id = data.get('article_id')
+    if article_id in (None, ""):
+        article_id = None
+    quantity = data.get('quantity')
+    if quantity in (None, ""):
+        quantity = None
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
+    status = data.get('status')
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            updates = []
+            params = []
+            
+            if machine_id:
+                updates.append("machine_id = %s")
+                params.append(machine_id)
+            if article_id is not None:
+                updates.append("article_id = %s")
+                params.append(article_id)
+            if quantity is not None:
+                updates.append("quantity = %s")
+                params.append(quantity)
+            if start_date is not None:
+                updates.append("start_date = %s")
+                params.append(start_date)
+            if end_date is not None:
+                updates.append("end_date = %s")
+                params.append(end_date)
+            if status is not None:
+                updates.append("status = %s")
+                params.append(status)
+            
+            if not updates:
+                return jsonify({'success': False, 'message': 'No fields to update'})
+            
+            params.append(id)
+            sql = f"UPDATE production SET {', '.join(updates)} WHERE id = %s"
+            cursor.execute(sql, params)
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Production updated successfully'})
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
 @app.route('/api/production/<int:id>', methods=['GET'])
 @login_required
 def get_production(id):
