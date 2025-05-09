@@ -1712,12 +1712,14 @@ def export_schedule():
             # Prepare table data for this page
             table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
             for row in page_data:
-                # Create machine name with article name if available
+                # Create machine name and article name separately
                 machine_name = row['machine_name']
-                if row['article_name']:
-                    machine_name = f"{machine_name}\n({row['article_name']})"
-                
-                table_row = [process_text(machine_name, is_machine=True)]
+                article_name = row['article_name']
+                if article_name:
+                    # Use a tuple to pass both names
+                    table_row = [(machine_name, article_name)]
+                else:
+                    table_row = [machine_name]
                 for shift_key, _ in active_shifts:
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
@@ -1755,7 +1757,27 @@ def export_schedule():
                 if i % 2 == 1:  # odd rows
                     table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
 
+            # Custom cell drawing for machine+article name
+            def machine_article_drawer(canvas, table, x, y, width, height, cell):
+                value = cell[0]
+                if isinstance(value, tuple):
+                    machine, article = value
+                    # Draw machine name (large)
+                    canvas.setFont(font_name, 11)
+                    canvas.drawCentredString(x + width/2, y + height/2 + 4, process_text(machine, is_machine=True))
+                    # Draw article name (small)
+                    canvas.setFont(font_name, 7)
+                    canvas.setFillColor(colors.grey)
+                    canvas.drawCentredString(x + width/2, y + height/2 - 7, process_text(article))
+                    canvas.setFillColor(text_color)
+                else:
+                    canvas.setFont(font_name, 11)
+                    canvas.drawCentredString(x + width/2, y + height/2, process_text(value, is_machine=True))
+
             table.setStyle(table_style)
+            # Apply custom cell drawing for the first column (machine+article)
+            for row_idx in range(1, len(table_data)):
+                table._cellDrawers[(row_idx, 0)] = machine_article_drawer
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
