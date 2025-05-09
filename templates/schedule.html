@@ -844,5 +844,39 @@ function clearCell(button) {
     // Update the dropdowns
     updateOperatorDropdowns();
 }
+
+// Ensure the "X" icon functionality works
+function clearCell(selectElement) {
+    // Clear the select value
+    selectElement.value = '';
+
+    // Remove the selected operator from the set
+    const selectedOperator = selectElement.dataset.selectedOperator;
+    if (selectedOperator) {
+        selectedOperators.delete(selectedOperator);
+        delete selectElement.dataset.selectedOperator;
+    }
+
+    // Update the dropdowns
+    updateOperatorDropdowns();
+}
+
+// Add event listener for hover to show the "X" icon
+const scheduleCells = document.querySelectorAll('.schedule-cell select');
+scheduleCells.forEach(select => {
+    select.addEventListener('mouseenter', () => {
+        select.style.backgroundImage = "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'red\' stroke=\'red\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cline x1=\'18\' y1=\'6\' x2=\'6\' y2=\'18\'%3e%3c/line%3e%3cline x1=\'6\' y1=\'6\' x2=\'18\' y2=\'18\'%3e%3c/line%3e%3c/svg%3e)";
+        select.style.cursor = 'pointer';
+    });
+
+    select.addEventListener('mouseleave', () => {
+        select.style.backgroundImage = "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e)";
+        select.style.cursor = 'default';
+    });
+
+    select.addEventListener('click', () => {
+        clearCell(select);
+    });
+});
 </script>
 {% endblock %}
