@@ -1723,6 +1723,14 @@ def export_schedule():
                     table_row.append(process_text(cell_text))
                 table_data.append(table_row)
 
+            # Adjust font size for article names (text within parentheses)
+            for row in table_data[1:]:  # Skip header row
+                if '(' in row[0] and ')' in row[0]:
+                    article_name_start = row[0].find('(')
+                    article_name_end = row[0].find(')') + 1
+                    article_name = row[0][article_name_start:article_name_end]
+                    row[0] = row[0].replace(article_name, f"<font size='6'>{article_name}</font>")
+
             # Create table with appropriate styling
             table = Table(
                 table_data,
