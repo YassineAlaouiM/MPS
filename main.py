@@ -1775,9 +1775,6 @@ def export_schedule():
                     canvas.drawCentredString(x + width/2, y + height/2, process_text(value, is_machine=True))
 
             table.setStyle(table_style)
-            # Apply custom cell drawing for the first column (machine+article)
-            for row_idx in range(1, len(table_data)):
-                table._cellDrawers[(row_idx, 0)] = machine_article_drawer
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
