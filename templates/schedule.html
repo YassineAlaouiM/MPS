@@ -65,6 +65,7 @@
                             </option>
                             {% endfor %}
                         </select>
+                        <button class="clear-cell" onclick="clearCell(this)"><i class="fas fa-times" style="color: red;"></i></button>
                     </td>
                     {% endfor %}
                 </tr>
@@ -321,8 +322,8 @@ table td:first-child {
 <script>
 function exportToPDF(nameType) {
     // Get current week and year from the page
-    const week = {{ week }};
-    const year = {{ year }};
+    const week = "{{ week }}";
+    const year = "{{ year }}";
     
     // Create a loading state
     const button = document.getElementById(`export-${nameType}-pdf-button`);
@@ -464,8 +465,8 @@ function confirmAssignments() {
         },
         body: JSON.stringify({
             assignments: assignments,
-            week_number: {{ week }},
-            year: {{ year }}
+            week_number: "{{ week }}",
+            year: "{{ year }}"
         })
     })
     .then(response => response.json())
@@ -656,8 +657,8 @@ function randomAssignment() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                week_number: {{ week }},
-                year: {{ year }},
+                week_number: "{{ week }}",
+                year: "{{ year }}",
                 machine_ids: checkedMachines
             })
         })
@@ -812,5 +813,24 @@ function handleDrop(event) {
     // Update the UI
     updateOperatorDropdowns();
 }
+
+function clearCell(button) {
+    const cell = button.closest('.schedule-cell');
+    const select = cell.querySelector('select');
+    
+    // Clear the select value
+    select.value = '';
+    
+    // Remove the selected operator from the set
+    const selectedOperator = select.dataset.selectedOperator;
+    if (selectedOperator) {
+        selectedOperators.delete(selectedOperator);
+        delete select.dataset.selectedOperator;
+    }
+    
+    // Update the dropdowns
+    updateOperatorDropdowns();
+}
 </script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 {% endblock %}
