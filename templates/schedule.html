@@ -1,850 +1,835 @@
 {% extends "base.html" %}
-        {% block title %}Horaire{% endblock %}
+{% block title %}Horaire{% endblock %}
 
-        {% block content %}
-        <div class="container">
-            
-            <!-- Week Navigation -->
-            <div class="week-navigation">
-                <button onclick="previousWeek()">Semaine précédente</button>
-                <span id="current-week">Semaine {{ week }}, {{ year }}</span>
-                <button onclick="nextWeek()">Semaine suivante</button>
-            </div>
+{% block content %}
+<div class="container">
+    
+    <!-- Week Navigation -->
+    <div class="week-navigation">
+        <button onclick="previousWeek()">Semaine précédente</button>
+        <span id="current-week">Semaine {{ week }}, {{ year }}</span>
+        <button onclick="nextWeek()">Semaine suivante</button>
+    </div>
 
-            <!-- Schedule Grid -->
-            <div class="assignments-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th><input type="checkbox" id="select-all-machines" onclick="toggleAllMachines(this)"></th>
-                            <th>Machine</th>
-                            <th>7h->15h</th>
-                            <th>15h->23h</th>
-                            <th>23h->7h</th>
-                            <th>7h->19h</th>
-                            <th>19h->7h</th>
-                            <th>9h->17h</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for machine in machines %}
-                        <tr>
-                            <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
-                            <td>
-                                {{ machine.name }}
-                                {% if machine.article_name %}
-                                <br><small class="text-muted">{{ machine.article_name }}</small>
-                                {% endif %}
-                            </td>
-                            {% for shift_id in range(1, 7) %}
-                            <td class="schedule-cell" 
+    <!-- Schedule Grid -->
+    <div class="assignments-table">
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all-machines" onclick="toggleAllMachines(this)"></th>
+                    <th>Machine</th>
+                    <th>7h->15h</th>
+                    <th>15h->23h</th>
+                    <th>23h->7h</th>
+                    <th>7h->19h</th>
+                    <th>19h->7h</th>
+                    <th>9h->17h</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for machine in machines %}
+                <tr>
+                    <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
+                    <td>
+                        {{ machine.name }}
+                        {% if machine.article_name %}
+                        <br><small class="text-muted">{{ machine.article_name }}</small>
+                        {% endif %}
+                    </td>
+                    {% for shift_id in range(1, 7) %}
+                    <td class="schedule-cell" 
+                        data-machine-id="{{ machine.id }}"
+                        data-production-id="{{ machine.production_id }}"
+                        data-shift-id="{{ shift_id }}"
+                        draggable="true"
+                        ondragstart="handleDragStart(event)"
+                        ondragover="handleDragOver(event)"
+                        ondrop="handleDrop(event)"
+                        ondragend="handleDragEnd(event)">
+                        <select class="operator-select" 
                                 data-machine-id="{{ machine.id }}"
                                 data-production-id="{{ machine.production_id }}"
-                                data-shift-id="{{ shift_id }}"
-                                draggable="true"
-                                ondragstart="handleDragStart(event)"
-                                ondragover="handleDragOver(event)"
-                                ondrop="handleDrop(event)"
-                                ondragend="handleDragEnd(event)">
-                                <select class="operator-select" 
-                                        data-machine-id="{{ machine.id }}"
-                                        data-production-id="{{ machine.production_id }}"
-                                        data-shift-id="{{ shift_id }}" 
-                                        onchange="handleOperatorSelection(this)">
-                                    <option value="">Sélectionner un opérateur</option>
-                                    {% for operator in operators %}
-                                    <option value="{{ operator.id }}" 
-                                            {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first).operator_id == operator.id %}selected{% endif %}
-                                            {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
-                                            data-last-shift="{{ operator.last_shift_id }}"
-                                            data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
-                                        {{ operator.name }} 
-                                        {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
-                                            (Absent jusqu'au {{ operator.end_date }})
-                                        {% endif %}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button class="clear-cell" onclick="clearCell(this)" style="position: absolute; top: 5px; right: 5px; background: transparent; border: none; cursor: pointer;"><i class="fas fa-times" style="color: red;"></i></button>
-                            </td>
+                                data-shift-id="{{ shift_id }}" 
+                                onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
+                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% endif %}
+                            </option>
                             {% endfor %}
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="actions-container" style="margin-top: 20px;">
-                    <div class="button-group">
-                        <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
-                        <div class="export-buttons">
-                            <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
-                            <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
-                        </div>
-                        <div class="button-pair">
-                            <button id="remove-display-button" onclick="removeFromDisplay()">Réinitialiser</button>
-                            <button id="confirm-button" onclick="confirmAssignments()">Confirmer</button>
-                        </div>
-                    </div>
+                        </select>
+                        <button class="clear-cell" onclick="clearCell(this)">X</button>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="actions-container" style="margin-top: 20px;">
+            <div class="button-group">
+                <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
+                <div class="export-buttons">
+                    <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
+                    <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
+                </div>
+                <div class="button-pair">
+                    <button id="remove-display-button" onclick="removeFromDisplay()">Réinitialiser</button>
+                    <button id="confirm-button" onclick="confirmAssignments()">Confirmer</button>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <style>
-        .week-navigation {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+<style>
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.assignments-table {
+    margin-bottom: 30px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th, td {
+    font-weight: 500;
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    transition: all 0.3s ease;
+}
+
+th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.schedule-cell {
+    position: relative;
+    cursor: move;
+    transition: all 0.2s ease;
+}
+
+.schedule-cell.dragging {
+    opacity: 0.5;
+    background-color: #f0f0f0;
+}
+
+.schedule-cell.drag-over {
+    background-color: #e3f2fd;
+    border: 2px dashed #2196F3;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    color: white;
+    background-color: #2196F3;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+#confirm-button {
+    background-color: #4CAF50;
+}
+
+#confirm-button:hover {
+    background-color: #45a049;
+}
+
+#remove-display-button {
+    background-color: transparent;
+    border: 2px solid #da190b;
+    color: #da190b;
+}
+
+#remove-display-button:hover {
+    background-color: #da190b;
+    color: white;
+}
+
+#random-assignment-button {
+    background-color: #FF9800;
+}
+
+#random-assignment-button:hover {
+    background-color: #F57C00;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 12px 20px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+    display: inline-block;
+}
+
+select {
+    width: 100%;
+    padding: 10px 35px 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    transition: all 0.3s ease;
+}
+
+select:focus {
+    border-color: #2196F3;
+    box-shadow: 0 0 0 2px rgba(33,150,243,0.1);
+    outline: none;
+}
+
+.actions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.button-pair {
+    display: flex;
+    gap: 15px;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 12px 20px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+table input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    vertical-align: middle;
+    cursor: pointer;
+    border-radius: 4px;
+    border: 2px solid #ddd;
+    transition: all 0.3s ease;
+}
+
+table input[type="checkbox"]:checked {
+    background-color: #2196F3;
+    border-color: #2196F3;
+}
+
+table th:first-child,
+table td:first-child {
+    width: 50px;
+    text-align: center;
+    padding: 12px 8px;
+}
+
+#select-all-machines {
+    margin: 0;
+}
+
+.export-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+}
+
+.export-btn {
+    padding: 10px 20px;
+    border: 2px solid #2196F3;
+    background-color: #2196F3;
+    color: white;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.export-btn:hover {
+    background-color: #1982d8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+#export-arabic-pdf-button {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+}
+
+@media (max-width: 768px) {
+    .button-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .export-buttons {
+        flex-direction: column;
+    }
+    
+    .button-pair {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script>
+function exportToPDF(nameType) {
+    // Get current week and year from the page
+    const week = "{{ week }}";
+    const year = "{{ year }}";
+    
+    // Create a loading state
+    const button = document.getElementById(`export-${nameType}-pdf-button`);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = nameType === 'latin' ? 'Génération du PDF...' : 'جاري التصدير...';
+    
+    // Open the export URL in a new tab with the name type parameter
+    window.open(`/export_schedule?week=${week}&year=${year}&name_type=${nameType}`, '_blank');
+    
+    // Restore button state after a short delay
+    setTimeout(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+    }, 1000);
+}
+
+function previousWeek() {
+    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
+}
+
+function nextWeek() {
+    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+}
+
+const selectedOperators = new Set();
+
+function handleOperatorSelection(selectElement) {
+    const wrapper = selectElement.parentElement;
+
+    // Remove previously selected operator from the set
+    const previousOperator = selectElement.dataset.selectedOperator;
+    if (previousOperator) {
+        selectedOperators.delete(previousOperator);
+    }
+
+    // Add the new operator to the set
+    if (selectElement.value) {
+        if (selectedOperators.has(selectElement.value)) {
+            alert('Cet opérateur est déjà affecté à un autre poste.');
+            selectElement.value = ""; // Reset the selection
+            return;
         }
+        selectedOperators.add(selectElement.value);
+    }
 
-        .assignments-table {
-            margin-bottom: 30px;
-        }
+    // Update the dataset to track the selected operator
+    selectElement.dataset.selectedOperator = selectElement.value;
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            background: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
+    // Disable the selected operator in other dropdowns
+    updateOperatorDropdowns();
+}
 
-        th, td {
-            font-weight: 500;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            transition: all 0.3s ease;
-        }
-
-        th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-        }
-
-        .schedule-cell {
-            position: relative;
-            cursor: move;
-            transition: all 0.2s ease;
-        }
-
-        .schedule-cell .clear-cell {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            display: none;
-        }
-
-        .schedule-cell:hover .clear-cell {
-            display: block;
-        }
-
-        .schedule-cell.dragging {
-            opacity: 0.5;
-            background-color: #f0f0f0;
-        }
-
-        .schedule-cell.drag-over {
-            background-color: #e3f2fd;
-            border: 2px dashed #2196F3;
-        }
-
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            color: white;
-            background-color: #2196F3;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        #confirm-button {
-            background-color: #4CAF50;
-        }
-
-        #confirm-button:hover {
-            background-color: #45a049;
-        }
-
-        #remove-display-button {
-            background-color: transparent;
-            border: 2px solid #da190b;
-            color: #da190b;
-        }
-
-        #remove-display-button:hover {
-            background-color: #da190b;
-            color: white;
-        }
-
-        #random-assignment-button {
-            background-color: #FF9800;
-        }
-
-        #random-assignment-button:hover {
-            background-color: #F57C00;
-        }
-
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 12px 20px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .select-wrapper {
-            position: relative;
-            width: 100%;
-            display: inline-block;
-        }
-
-        select {
-            width: 100%;
-            padding: 10px 35px 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            background-size: 16px;
-            transition: all 0.3s ease;
-        }
-
-        select:focus {
-            border-color: #2196F3;
-            box-shadow: 0 0 0 2px rgba(33,150,243,0.1);
-            outline: none;
-        }
-
-        .actions-container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .button-group {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .button-pair {
-            display: flex;
-            gap: 15px;
-        }
-
-        .alert-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 12px 20px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        table input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin: 0;
-            vertical-align: middle;
-            cursor: pointer;
-            border-radius: 4px;
-            border: 2px solid #ddd;
-            transition: all 0.3s ease;
-        }
-
-        table input[type="checkbox"]:checked {
-            background-color: #2196F3;
-            border-color: #2196F3;
-        }
-
-        table th:first-child,
-        table td:first-child {
-            width: 50px;
-            text-align: center;
-            padding: 12px 8px;
-        }
-
-        #select-all-machines {
-            margin: 0;
-        }
-
-        .export-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: flex-end;
-        }
-
-        .export-btn {
-            padding: 10px 20px;
-            border: 2px solid #2196F3;
-            background-color: #2196F3;
-            color: white;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border-radius: 6px;
-        }
-
-        .export-btn:hover {
-            background-color: #1982d8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        #export-arabic-pdf-button {
-            font-family: 'Noto Naskh Arabic', Arial, sans-serif;
-        }
-
-        @media (max-width: 768px) {
-            .button-group {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .export-buttons {
-                flex-direction: column;
-            }
-            
-            .button-pair {
-                flex-direction: column;
-            }
-        }
-        </style>
-
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
-        <script>
-        function exportToPDF(nameType) {
-            // Get current week and year from the page
-            const week = "{{ week }}";
-            const year = "{{ year }}";
-            
-            // Create a loading state
-            const button = document.getElementById(`export-${nameType}-pdf-button`);
-            const originalText = button.textContent;
-            button.disabled = true;
-            button.textContent = nameType === 'latin' ? 'Génération du PDF...' : 'جاري التصدير...';
-            
-            // Open the export URL in a new tab with the name type parameter
-            window.open(`/export_schedule?week=${week}&year=${year}&name_type=${nameType}`, '_blank');
-            
-            // Restore button state after a short delay
-            setTimeout(() => {
-                button.disabled = false;
-                button.textContent = originalText;
-            }, 1000);
-        }
-
-        function previousWeek() {
-            window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
-        }
-
-        function nextWeek() {
-            window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
-        }
-
-        const selectedOperators = new Set();
-
-        function handleOperatorSelection(selectElement) {
-            const wrapper = selectElement.parentElement;
-
-            // Remove previously selected operator from the set
-            const previousOperator = selectElement.dataset.selectedOperator;
-            if (previousOperator) {
-                selectedOperators.delete(previousOperator);
-            }
-
-            // Add the new operator to the set
-            if (selectElement.value) {
-                if (selectedOperators.has(selectElement.value)) {
-                    alert('Cet opérateur est déjà affecté à un autre poste.');
-                    selectElement.value = ""; // Reset the selection
-                    return;
+function updateOperatorDropdowns() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        const currentOperator = dropdown.dataset.selectedOperator;
+        const currentShiftId = parseInt(dropdown.dataset.shiftId);
+        const options = Array.from(dropdown.querySelectorAll('option'));
+        
+        // Clear the dropdown
+        dropdown.innerHTML = '';
+        
+        // Add the default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Sélectionner un opérateur';
+        dropdown.appendChild(defaultOption);
+        
+        // Add enabled options first
+        options.forEach(option => {
+            if (option.value && !selectedOperators.has(option.value) && !option.disabled) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
                 }
-                selectedOperators.add(selectElement.value);
+                
+                // Check if this is the operator's next expected shift
+                const lastShift = parseInt(option.dataset.lastShift);
+                const nextShift = parseInt(option.dataset.nextShift);
+                const isNextExpectedShift = nextShift === currentShiftId;
+                
+                option.disabled = false;
+                option.style.color = isNextExpectedShift ? '#4CAF50' : 'black';
+                option.style.fontWeight = isNextExpectedShift ? 'bold' : 'normal';
+                dropdown.appendChild(option);
             }
-
-            // Update the dataset to track the selected operator
-            selectElement.dataset.selectedOperator = selectElement.value;
-
-            // Disable the selected operator in other dropdowns
-            updateOperatorDropdowns();
-        }
-
-        function updateOperatorDropdowns() {
-            const allDropdowns = document.querySelectorAll('.operator-select');
-            allDropdowns.forEach(dropdown => {
-                const currentOperator = dropdown.dataset.selectedOperator;
-                const currentShiftId = parseInt(dropdown.dataset.shiftId);
-                const options = Array.from(dropdown.querySelectorAll('option'));
-                
-                // Clear the dropdown
-                dropdown.innerHTML = '';
-                
-                // Add the default option
-                const defaultOption = document.createElement('option');
-                defaultOption.value = '';
-                defaultOption.textContent = 'Sélectionner un opérateur';
-                dropdown.appendChild(defaultOption);
-                
-                // Add enabled options first
-                options.forEach(option => {
-                    if (option.value && !selectedOperators.has(option.value) && !option.disabled) {
-                        // Check if operator is in long absence
-                        if (option.style.display === 'none') {
-                            return; // Skip operators in long absence
-                        }
-                        
-                        // Check if this is the operator's next expected shift
-                        const lastShift = parseInt(option.dataset.lastShift);
-                        const nextShift = parseInt(option.dataset.nextShift);
-                        const isNextExpectedShift = nextShift === currentShiftId;
-                        
-                        option.disabled = false;
-                        option.style.color = isNextExpectedShift ? '#4CAF50' : 'black';
-                        option.style.fontWeight = isNextExpectedShift ? 'bold' : 'normal';
-                        dropdown.appendChild(option);
-                    }
-                });
-                
-                // Add disabled options at the bottom
-                options.forEach(option => {
-                    if (option.value && (selectedOperators.has(option.value) || option.disabled)) {
-                        // Check if operator is in long absence
-                        if (option.style.display === 'none') {
-                            return; // Skip operators in long absence
-                        }
-                        option.disabled = true;
-                        option.style.color = '#b3b3b3';
-                        dropdown.appendChild(option);
-                    }
-                });
-                
-                // Restore the current selection
-                if (currentOperator) {
-                    dropdown.value = currentOperator;
-                }
-            });
-        }
-
-        function confirmAssignments() {
-            // Remove any existing messages first
-            const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
-            existingMessages.forEach(message => message.remove());
-
-            const assignments = [];
-            const allDropdowns = document.querySelectorAll('.operator-select');
-            
-            allDropdowns.forEach(dropdown => {
-                if (dropdown.value) {
-                    assignments.push({
-                        machine_id: dropdown.dataset.machineId,
-                        production_id: dropdown.dataset.productionId,
-                        shift_id: dropdown.dataset.shiftId,
-                        operator_id: dropdown.value
-                    });
-                }
-            });
-
-            if (assignments.length === 0) {
-                alert('Aucune affectation sélectionnée.');
-                return;
-            }
-
-            // Send the assignments to the backend
-            fetch('/api/schedule/confirm', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    assignments: assignments,
-                    week_number: "{{ week }}",
-                    year: "{{ year }}"
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Store assignments in session storage
-                    const weekKey = `week_{{ week }}_year_{{ year }}`;
-                    sessionStorage.setItem(weekKey, JSON.stringify(assignments));
-                    sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
-                    
-                    const successMessage = document.createElement('div');
-                    successMessage.className = 'alert-success';
-                    successMessage.textContent = 'Affectations confirmées avec succès.';
-                    document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
-                    
-                    // Remove success message after 3 seconds
-                    setTimeout(() => {
-                        successMessage.remove();
-                    }, 3000);
-                } else {
-                    // Remove any existing success messages
-                    const existingSuccessMessages = document.querySelectorAll('.alert-success');
-                    existingSuccessMessages.forEach(message => message.remove());
-
-                    const errorMessage = document.createElement('div');
-                    errorMessage.className = 'alert-error';
-                    errorMessage.textContent = 'Erreur : ' + data.message;
-                    document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
-                    
-                    // Remove error message after 5 seconds
-                    setTimeout(() => {
-                        errorMessage.remove();
-                    }, 5000);
-                }
-            })
-            .catch(error => {
-                // Remove any existing success messages
-                const existingSuccessMessages = document.querySelectorAll('.alert-success');
-                existingSuccessMessages.forEach(message => message.remove());
-
-                console.error('Erreur:', error);
-                const errorMessage = document.createElement('div');
-                errorMessage.className = 'alert-error';
-                errorMessage.textContent = 'Erreur lors de la confirmation des affectations.';
-                document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
-                
-                // Remove error message after 5 seconds
-                setTimeout(() => {
-                    errorMessage.remove();
-                }, 5000);
-            });
-        }
-
-        function loadStoredAssignments() {
-            const weekKey = `week_{{ week }}_year_{{ year }}`;
-            const storedAssignments = sessionStorage.getItem(weekKey);
-            const isConfirmed = sessionStorage.getItem(`${weekKey}_confirmed`);
-            
-            if (storedAssignments && isConfirmed) {
-                const assignments = JSON.parse(storedAssignments);
-                const allDropdowns = document.querySelectorAll('.operator-select');
-                
-                // Apply stored assignments
-                assignments.forEach(assignment => {
-                    const dropdown = Array.from(allDropdowns).find(d => 
-                        d.dataset.machineId === assignment.machine_id.toString() && 
-                        d.dataset.shiftId === assignment.shift_id.toString()
-                    );
-                    if (dropdown) {
-                        dropdown.value = assignment.operator_id;
-                        handleOperatorSelection(dropdown);
-                    }
-                });
-                
-                // Show confirmation message
-                const successMessage = document.createElement('div');
-                successMessage.className = 'alert-success';
-                successMessage.textContent = 'Affectations confirmées avec succès.';
-                document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
-            }
-        }
-
-        // Initialize select containers and clear icons
-        function initializeSelects() {
-            const allDropdowns = document.querySelectorAll('.operator-select');
-            
-            allDropdowns.forEach(dropdown => {
-                // Create container
-                const container = document.createElement('div');
-                container.className = 'select-wrapper';
-                
-                // Wrap the select
-                dropdown.parentNode.insertBefore(container, dropdown);
-                container.appendChild(dropdown);
-                
-                // Add click handler for the wrapper
-                container.addEventListener('click', function(e) {
-                    if (e.target === container && dropdown.value) {
-                        e.stopPropagation();
-                        selectedOperators.delete(dropdown.value);
-                        dropdown.value = '';
-                        delete dropdown.dataset.selectedOperator;
-                        updateOperatorDropdowns();
-                    }
-                });
-                
-                // Initialize if has value
-                if (dropdown.value) {
-                    selectedOperators.add(dropdown.value);
-                    dropdown.dataset.selectedOperator = dropdown.value;
-                }
-            });
-        }
-
-        // Update DOMContentLoaded event listener
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStoredAssignments();
-            initializeSelects();
-            updateOperatorDropdowns();
         });
-
-        function removeFromDisplay() {
-            // Get checked machines
-            const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
-                .map(checkbox => ({
-                    machineId: checkbox.dataset.machineId,
-                    productionId: checkbox.dataset.productionId
-                }));
-            
-            // Clear session storage for current week
-            const weekKey = `week_{{ week }}_year_{{ year }}`;
-            sessionStorage.removeItem(weekKey);
-            sessionStorage.removeItem(`${weekKey}_confirmed`);
-            
-            // Clear all dropdowns for checked machines
-            const allDropdowns = document.querySelectorAll('.operator-select');
-            allDropdowns.forEach(dropdown => {
-                if (checkedMachines.length === 0 || 
-                    checkedMachines.some(m => m.machineId === dropdown.dataset.machineId && 
-                                            m.productionId === dropdown.dataset.productionId)) {
-                    dropdown.value = '';
-                    const previousOperator = dropdown.dataset.selectedOperator;
-                    if (previousOperator) {
-                        selectedOperators.delete(previousOperator);
-                        delete dropdown.dataset.selectedOperator;
-                    }
+        
+        // Add disabled options at the bottom
+        options.forEach(option => {
+            if (option.value && (selectedOperators.has(option.value) || option.disabled)) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
                 }
+                option.disabled = true;
+                option.style.color = '#b3b3b3';
+                dropdown.appendChild(option);
+            }
+        });
+        
+        // Restore the current selection
+        if (currentOperator) {
+            dropdown.value = currentOperator;
+        }
+    });
+}
+
+function confirmAssignments() {
+    // Remove any existing messages first
+    const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
+    existingMessages.forEach(message => message.remove());
+
+    const assignments = [];
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    
+    allDropdowns.forEach(dropdown => {
+        if (dropdown.value) {
+            assignments.push({
+                machine_id: dropdown.dataset.machineId,
+                production_id: dropdown.dataset.productionId,
+                shift_id: dropdown.dataset.shiftId,
+                operator_id: dropdown.value
             });
+        }
+    });
+
+    if (assignments.length === 0) {
+        alert('Aucune affectation sélectionnée.');
+        return;
+    }
+
+    // Send the assignments to the backend
+    fetch('/api/schedule/confirm', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            assignments: assignments,
+            week_number: "{{ week }}",
+            year: "{{ year }}"
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store assignments in session storage
+            const weekKey = `week_{{ week }}_year_{{ year }}`;
+            sessionStorage.setItem(weekKey, JSON.stringify(assignments));
+            sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
             
-            // Update dropdowns
-            updateOperatorDropdowns();
-            
-            // Show success message
             const successMessage = document.createElement('div');
             successMessage.className = 'alert-success';
-            successMessage.textContent = checkedMachines.length > 0 
-                ? 'Affectations effacées pour les machines sélectionnées.' 
-                : 'Toutes les affectations ont été réinitialisées.';
+            successMessage.textContent = 'Affectations confirmées avec succès.';
             document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
             
             // Remove success message after 3 seconds
             setTimeout(() => {
                 successMessage.remove();
             }, 3000);
-        }
+        } else {
+            // Remove any existing success messages
+            const existingSuccessMessages = document.querySelectorAll('.alert-success');
+            existingSuccessMessages.forEach(message => message.remove());
 
-        function randomAssignment() {
-            const button = document.getElementById('random-assignment-button');
-            const originalText = button.textContent;
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = 'Erreur : ' + data.message;
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
             
-            // Show loading state
-            button.disabled = true;
-            button.textContent = 'Génération des affectations aléatoires...';
-            
-            try {
-                // Get checked machines
-                const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
-                    .map(checkbox => checkbox.dataset.machineId);
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        // Remove any existing success messages
+        const existingSuccessMessages = document.querySelectorAll('.alert-success');
+        existingSuccessMessages.forEach(message => message.remove());
+
+        console.error('Erreur:', error);
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = 'Erreur lors de la confirmation des affectations.';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    });
+}
+
+function loadStoredAssignments() {
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    const storedAssignments = sessionStorage.getItem(weekKey);
+    const isConfirmed = sessionStorage.getItem(`${weekKey}_confirmed`);
+    
+    if (storedAssignments && isConfirmed) {
+        const assignments = JSON.parse(storedAssignments);
+        const allDropdowns = document.querySelectorAll('.operator-select');
+        
+        // Apply stored assignments
+        assignments.forEach(assignment => {
+            const dropdown = Array.from(allDropdowns).find(d => 
+                d.dataset.machineId === assignment.machine_id.toString() && 
+                d.dataset.shiftId === assignment.shift_id.toString()
+            );
+            if (dropdown) {
+                dropdown.value = assignment.operator_id;
+                handleOperatorSelection(dropdown);
+            }
+        });
+        
+        // Show confirmation message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'alert-success';
+        successMessage.textContent = 'Affectations confirmées avec succès.';
+        document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    }
+}
+
+// Initialize select containers and clear icons
+function initializeSelects() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    
+    allDropdowns.forEach(dropdown => {
+        // Create container
+        const container = document.createElement('div');
+        container.className = 'select-wrapper';
+        
+        // Wrap the select
+        dropdown.parentNode.insertBefore(container, dropdown);
+        container.appendChild(dropdown);
+        
+        // Add click handler for the wrapper
+        container.addEventListener('click', function(e) {
+            if (e.target === container && dropdown.value) {
+                e.stopPropagation();
+                selectedOperators.delete(dropdown.value);
+                dropdown.value = '';
+                delete dropdown.dataset.selectedOperator;
+                updateOperatorDropdowns();
+            }
+        });
+        
+        // Initialize if has value
+        if (dropdown.value) {
+            selectedOperators.add(dropdown.value);
+            dropdown.dataset.selectedOperator = dropdown.value;
+        }
+    });
+}
+
+// Update DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+    loadStoredAssignments();
+    initializeSelects();
+    updateOperatorDropdowns();
+});
+
+function removeFromDisplay() {
+    // Get checked machines
+    const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+        .map(checkbox => ({
+            machineId: checkbox.dataset.machineId,
+            productionId: checkbox.dataset.productionId
+        }));
+    
+    // Clear session storage for current week
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    sessionStorage.removeItem(weekKey);
+    sessionStorage.removeItem(`${weekKey}_confirmed`);
+    
+    // Clear all dropdowns for checked machines
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        if (checkedMachines.length === 0 || 
+            checkedMachines.some(m => m.machineId === dropdown.dataset.machineId && 
+                                    m.productionId === dropdown.dataset.productionId)) {
+            dropdown.value = '';
+            const previousOperator = dropdown.dataset.selectedOperator;
+            if (previousOperator) {
+                selectedOperators.delete(previousOperator);
+                delete dropdown.dataset.selectedOperator;
+            }
+        }
+    });
+    
+    // Update dropdowns
+    updateOperatorDropdowns();
+    
+    // Show success message
+    const successMessage = document.createElement('div');
+    successMessage.className = 'alert-success';
+    successMessage.textContent = checkedMachines.length > 0 
+        ? 'Affectations effacées pour les machines sélectionnées.' 
+        : 'Toutes les affectations ont été réinitialisées.';
+    document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    
+    // Remove success message after 3 seconds
+    setTimeout(() => {
+        successMessage.remove();
+    }, 3000);
+}
+
+function randomAssignment() {
+    const button = document.getElementById('random-assignment-button');
+    const originalText = button.textContent;
+    
+    // Show loading state
+    button.disabled = true;
+    button.textContent = 'Génération des affectations aléatoires...';
+    
+    try {
+        // Get checked machines
+        const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+            .map(checkbox => checkbox.dataset.machineId);
+        
+        if (checkedMachines.length === 0) {
+            throw new Error('Veuillez sélectionner au moins une machine');
+        }
+        
+        // Make API call to backend
+        fetch('/api/schedule/random', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                week_number: "{{ week }}",
+                year: "{{ year }}",
+                machine_ids: checkedMachines
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the UI with new assignments
+                const allDropdowns = document.querySelectorAll('.operator-select');
                 
-                if (checkedMachines.length === 0) {
-                    throw new Error('Veuillez sélectionner au moins une machine');
-                }
-                
-                // Make API call to backend
-                fetch('/api/schedule/random', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        week_number: "{{ week }}",
-                        year: "{{ year }}",
-                        machine_ids: checkedMachines
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Update the UI with new assignments
-                        const allDropdowns = document.querySelectorAll('.operator-select');
-                        
-                        // Clear existing selections for checked machines
-                        allDropdowns.forEach(dropdown => {
-                            if (checkedMachines.includes(dropdown.dataset.machineId)) {
-                                dropdown.value = '';
-                                delete dropdown.dataset.selectedOperator;
-                            }
-                        });
-                        
-                        // Apply new assignments
-                        data.assignments.forEach(assignment => {
-                            const dropdown = Array.from(allDropdowns).find(d => 
-                                d.dataset.machineId === assignment.machine_id.toString() && 
-                                d.dataset.productionId === assignment.production_id.toString() &&
-                                d.dataset.shiftId === assignment.shift_id.toString()
-                            );
-                            
-                            if (dropdown) {
-                                if (assignment.operator_id === null) {
-                                    dropdown.value = '';
-                                    delete dropdown.dataset.selectedOperator;
-                                } else {
-                                    dropdown.value = assignment.operator_id;
-                                    dropdown.dataset.selectedOperator = assignment.operator_id;
-                                }
-                            }
-                        });
-                        
-                        // Update the UI
-                        updateOperatorDropdowns();
-                        
-                        // Show success message
-                        const successMessage = document.createElement('div');
-                        successMessage.className = 'alert-success';
-                        successMessage.textContent = data.message || 'Affectations aléatoires générées avec succès';
-                        document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
-                        
-                        // Remove success message after 3 seconds
-                        setTimeout(() => {
-                            successMessage.remove();
-                        }, 3000);
-                    } else {
-                        throw new Error(data.message || 'Erreur lors de la génération des affectations aléatoires');
+                // Clear existing selections for checked machines
+                allDropdowns.forEach(dropdown => {
+                    if (checkedMachines.includes(dropdown.dataset.machineId)) {
+                        dropdown.value = '';
+                        delete dropdown.dataset.selectedOperator;
                     }
-                })
-                .catch(error => {
-                    // Show error message
-                    const errorMessage = document.createElement('div');
-                    errorMessage.className = 'alert-error';
-                    errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
-                    document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
-                    
-                    // Remove error message after 5 seconds
-                    setTimeout(() => {
-                        errorMessage.remove();
-                    }, 5000);
                 });
                 
-            } catch (error) {
-                // Show error message
-                const errorMessage = document.createElement('div');
-                errorMessage.className = 'alert-error';
-                errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
-                document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+                // Apply new assignments
+                data.assignments.forEach(assignment => {
+                    const dropdown = Array.from(allDropdowns).find(d => 
+                        d.dataset.machineId === assignment.machine_id.toString() && 
+                        d.dataset.productionId === assignment.production_id.toString() &&
+                        d.dataset.shiftId === assignment.shift_id.toString()
+                    );
+                    
+                    if (dropdown) {
+                        if (assignment.operator_id === null) {
+                            dropdown.value = '';
+                            delete dropdown.dataset.selectedOperator;
+                        } else {
+                            dropdown.value = assignment.operator_id;
+                            dropdown.dataset.selectedOperator = assignment.operator_id;
+                        }
+                    }
+                });
                 
-                // Remove error message after 5 seconds
+                // Update the UI
+                updateOperatorDropdowns();
+                
+                // Show success message
+                const successMessage = document.createElement('div');
+                successMessage.className = 'alert-success';
+                successMessage.textContent = data.message || 'Affectations aléatoires générées avec succès';
+                document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+                
+                // Remove success message after 3 seconds
                 setTimeout(() => {
-                    errorMessage.remove();
-                }, 5000);
-            } finally {
-                // Restore button state
-                button.disabled = false;
-                button.textContent = originalText;
+                    successMessage.remove();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Erreur lors de la génération des affectations aléatoires');
             }
-        }
-
-        function toggleAllMachines(checkbox) {
-            const machineCheckboxes = document.querySelectorAll('.machine-checkbox');
-            machineCheckboxes.forEach(box => {
-                box.checked = checkbox.checked;
-            });
-        }
-
-        // Add these new functions for drag and drop functionality
-        let draggedCell = null;
-
-        function handleDragStart(event) {
-            draggedCell = event.target;
-            event.target.classList.add('dragging');
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', JSON.stringify({
-                machineId: event.target.dataset.machineId,
-                productionId: event.target.dataset.productionId,
-                shiftId: event.target.dataset.shiftId
-            }));
-        }
-
-        function handleDragOver(event) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            event.target.classList.add('drag-over');
-        }
-
-        function handleDragEnd(event) {
-            event.target.classList.remove('dragging');
-            document.querySelectorAll('.schedule-cell').forEach(cell => {
-                cell.classList.remove('drag-over');
-            });
-        }
-
-        function handleDrop(event) {
-            event.preventDefault();
-            const targetCell = event.target.closest('.schedule-cell');
-            if (!targetCell || !draggedCell) return;
-
-            targetCell.classList.remove('drag-over');
-
-            // Get the select elements
-            const sourceSelect = draggedCell.querySelector('select');
-            const targetSelect = targetCell.querySelector('select');
-
-            // Store the current values and selected operators
-            const sourceValue = sourceSelect.value;
-            const targetValue = targetSelect.value;
-            const sourceOperator = sourceSelect.dataset.selectedOperator;
-            const targetOperator = targetSelect.dataset.selectedOperator;
-
-            // Remove both operators from the selected set
-            if (sourceOperator) selectedOperators.delete(sourceOperator);
-            if (targetOperator) selectedOperators.delete(targetOperator);
-
-            // Swap the values
-            sourceSelect.value = targetValue;
-            targetSelect.value = sourceValue;
-
-            // Update the dataset to track the selected operators
-            sourceSelect.dataset.selectedOperator = targetValue;
-            targetSelect.dataset.selectedOperator = sourceValue;
-
-            // Add both operators back to the selected set if they have values
-            if (targetValue) selectedOperators.add(targetValue);
-            if (sourceValue) selectedOperators.add(sourceValue);
-
-            // Update the UI
-            updateOperatorDropdowns();
-        }
-
-        function clearCell(button) {
-            const cell = button.closest('.schedule-cell');
-            const select = cell.querySelector('select');
+        })
+        .catch(error => {
+            // Show error message
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
             
-            // Clear the select value
-            select.value = '';
-            
-            // Remove the selected operator from the set
-            const selectedOperator = select.dataset.selectedOperator;
-            if (selectedOperator) {
-                selectedOperators.delete(selectedOperator);
-                delete select.dataset.selectedOperator;
-            }
-            
-            // Update the dropdowns
-            updateOperatorDropdowns();
-        }
-        </script>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-        {% endblock %}
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        });
+        
+    } catch (error) {
+        // Show error message
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+function toggleAllMachines(checkbox) {
+    const machineCheckboxes = document.querySelectorAll('.machine-checkbox');
+    machineCheckboxes.forEach(box => {
+        box.checked = checkbox.checked;
+    });
+}
+
+// Add these new functions for drag and drop functionality
+let draggedCell = null;
+
+function handleDragStart(event) {
+    draggedCell = event.target;
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', JSON.stringify({
+        machineId: event.target.dataset.machineId,
+        productionId: event.target.dataset.productionId,
+        shiftId: event.target.dataset.shiftId
+    }));
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    event.target.classList.add('drag-over');
+}
+
+function handleDragEnd(event) {
+    event.target.classList.remove('dragging');
+    document.querySelectorAll('.schedule-cell').forEach(cell => {
+        cell.classList.remove('drag-over');
+    });
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    const targetCell = event.target.closest('.schedule-cell');
+    if (!targetCell || !draggedCell) return;
+
+    targetCell.classList.remove('drag-over');
+
+    // Get the select elements
+    const sourceSelect = draggedCell.querySelector('select');
+    const targetSelect = targetCell.querySelector('select');
+
+    // Store the current values and selected operators
+    const sourceValue = sourceSelect.value;
+    const targetValue = targetSelect.value;
+    const sourceOperator = sourceSelect.dataset.selectedOperator;
+    const targetOperator = targetSelect.dataset.selectedOperator;
+
+    // Remove both operators from the selected set
+    if (sourceOperator) selectedOperators.delete(sourceOperator);
+    if (targetOperator) selectedOperators.delete(targetOperator);
+
+    // Swap the values
+    sourceSelect.value = targetValue;
+    targetSelect.value = sourceValue;
+
+    // Update the dataset to track the selected operators
+    sourceSelect.dataset.selectedOperator = targetValue;
+    targetSelect.dataset.selectedOperator = sourceValue;
+
+    // Add both operators back to the selected set if they have values
+    if (targetValue) selectedOperators.add(targetValue);
+    if (sourceValue) selectedOperators.add(sourceValue);
+
+    // Update the UI
+    updateOperatorDropdowns();
+}
+
+function clearCell(button) {
+    const cell = button.closest('.schedule-cell');
+    const select = cell.querySelector('select');
+    
+    // Clear the select value
+    select.value = '';
+    
+    // Remove the selected operator from the set
+    const selectedOperator = select.dataset.selectedOperator;
+    if (selectedOperator) {
+        selectedOperators.delete(selectedOperator);
+        delete select.dataset.selectedOperator;
+    }
+    
+    // Update the dropdowns
+    updateOperatorDropdowns();
+}
+</script>
+{% endblock %}
