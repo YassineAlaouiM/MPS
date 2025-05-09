@@ -1284,13 +1284,14 @@ def random_assignments():
                 
                 # Get selected machines or all machines if none selected
                 if machine_ids:
-                    cursor.execute("SELECT m.id, m.name FROM machines m JOIN production p ON m.id = p.machine_id WHERE m.id IN %s", (tuple(machine_ids),))
+                    cursor.execute("SELECT m.id, m.name FROM production p JOIN machines m ON p.machine_id = m.id WHERE p.machine_id IN %s", (tuple(machine_ids),))
                 else:
-                    cursor.execute("SELECT m.id, m.name FROM machines m JOIN production p ON m.id = p.machine_id")
+                    cursor.execute("SELECT m.id, m.name FROM production p JOIN machines m ON p.machine_id = m.id")
                 machines = cursor.fetchall()
                 
                 if not machines:
                     return jsonify({'success': False, 'message': 'No machines available'})
+
                 
                 # Get shifts for the first three shifts (1, 2, 3)
                 cursor.execute("SELECT id, name FROM shifts WHERE id IN (1, 2, 3) ORDER BY id")
