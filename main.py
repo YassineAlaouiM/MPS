@@ -257,7 +257,7 @@ def schedule():
                 
                 # Get machines that were in production during this week
                 cursor.execute("""
-                    SELECT m.*
+                    SELECT DISTINCT m.*
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
                     AND (
@@ -752,7 +752,11 @@ def create_production():
     data = request.get_json()
     machine_id = data.get('machine_id')
     article_id = data.get('article_id')
-    quantity = data.get('quantity', 0)
+    if article_id in (None, ""):
+        article_id = None
+    quantity = data.get('quantity')
+    if quantity in (None, ""):
+        quantity = None
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     
@@ -773,7 +777,7 @@ def create_production():
             if machine_result and machine_result['type']:
                 is_service = True
             
-            # For service machines, article and quantity are not required
+            # For regular machines, article and quantity are required
             if not is_service and (not article_id or not quantity):
                 return jsonify({'success': False, 'message': 'Article and quantity are required for machines'})
             
@@ -798,19 +802,12 @@ def create_production():
                     'message': f'Machine is already in production from {existing_production["start_date"]} to {existing_production["end_date"] or "ongoing"}'
                 })
             
-            # Add to production - set article_id and quantity to NULL for service machines
-            if is_service:
-                sql = """
-                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
-                    VALUES (%s, NULL, NULL, %s, %s, 'active')
-                """
-                cursor.execute(sql, (machine_id, start_date, end_date))
-            else:
-                sql = """
-                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
-                    VALUES (%s, %s, %s, %s, %s, 'active')
-                """
-                cursor.execute(sql, (machine_id, article_id, quantity, start_date, end_date))
+            # Add to production - for services, article_id and quantity are optional
+            sql = """
+                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
+                VALUES (%s, %s, %s, %s, %s, 'active')
+            """
+            cursor.execute(sql, (machine_id, article_id, quantity, start_date, end_date))
                 
             connection.commit()
             print("Production record created successfully")  # Debug log
@@ -827,7 +824,11 @@ def update_production(id):
     data = request.get_json()
     machine_id = data.get('machine_id')
     article_id = data.get('article_id')
+    if article_id in (None, ""):
+        article_id = None
     quantity = data.get('quantity')
+    if quantity in (None, ""):
+        quantity = None
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     status = data.get('status')
@@ -835,57 +836,24 @@ def update_production(id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Check if machine is a service type
-            is_service = False
-            if machine_id:
-                sql = "SELECT type FROM machines WHERE id = %s"
-                cursor.execute(sql, (machine_id,))
-                machine_result = cursor.fetchone()
-                
-                if machine_result and machine_result['type']:
-                    is_service = True
-            else:
-                # If no machine_id provided, check the current production record
-                sql = """
-                    SELECT m.type 
-                    FROM production p 
-                    JOIN machines m ON p.machine_id = m.id 
-                    WHERE p.id = %s
-                """
-                cursor.execute(sql, (id,))
-                result = cursor.fetchone()
-                if result and result['type']:
-                    is_service = True
-            
             updates = []
             params = []
             
             if machine_id:
                 updates.append("machine_id = %s")
                 params.append(machine_id)
-            
-            if is_service:
-                # For service machines, article_id and quantity should be NULL
-                updates.append("article_id = NULL")
-                updates.append("quantity = NULL")
-            else:
-                if article_id is not None:
-                    updates.append("article_id = %s")
-                    params.append(article_id)
-                
-                if quantity is not None:
-                    updates.append("quantity = %s")
-                    params.append(quantity)
-            
+            if article_id is not None:
+                updates.append("article_id = %s")
+                params.append(article_id)
+            if quantity is not None:
+                updates.append("quantity = %s")
+                params.append(quantity)
             if start_date is not None:
                 updates.append("start_date = %s")
                 params.append(start_date)
-
-                
             if end_date is not None:
                 updates.append("end_date = %s")
                 params.append(end_date)
-            
             if status is not None:
                 updates.append("status = %s")
                 params.append(status)
@@ -1331,14 +1299,6 @@ def random_assignments():
                 if not machines:
                     return jsonify({'success': False, 'message': 'No machines available'})
                 
-                # Get active productions to differentiate by article_id
-                cursor.execute("""
-                    SELECT p.machine_id, p.article_id
-                    FROM production p
-                    WHERE p.status = 'active'
-                """)
-                active_productions = cursor.fetchall()
-
                 # Get shifts for the first three shifts (1, 2, 3)
                 cursor.execute("SELECT id, name FROM shifts WHERE id IN (1, 2, 3) ORDER BY id")
                 shifts = cursor.fetchall()
@@ -1353,68 +1313,62 @@ def random_assignments():
                 available_operators = operators.copy()
 
                 for machine in machines:
-                    # Filter productions for the current machine
-                    machine_productions = [p for p in active_productions if p['machine_id'] == machine['id']]
-
-                    for production in machine_productions:
-                        for shift in shifts:
-                            if not available_operators:
-                                assignments.append({
-                                    'machine_id': machine['id'],
-                                    'article_id': production['article_id'],
-                                    'operator_id': None,
-                                    'shift_id': shift['id'],
-                                    'machine_name': machine['name'],
-                                    'operator_name': None,
-                                    'shift_name': shift['name']
-                                })
-                                continue
-
-                            selected_operator = None
-                            for operator in available_operators:
-                                last_shift_id = operator['last_shift_id']
-                                if last_shift_id is None:
-                                    if shift['id'] == 1:
-                                        selected_operator = operator
-                                        break
-                                else:
-                                    if last_shift_id == 1:
-                                        next_shift = 3
-                                    elif last_shift_id == 3:
-                                        next_shift = 2
-                                    else:
-                                        next_shift = 1
-
-                                    if shift['id'] == next_shift:
-                                        selected_operator = operator
-                                        break
-
-                            if not selected_operator:
-                                selected_operator = available_operators[0]
-
-                            available_operators.remove(selected_operator)
-
+                    for shift in shifts:
+                        if not available_operators:
                             assignments.append({
                                 'machine_id': machine['id'],
-                                'article_id': production['article_id'],
-                                'operator_id': selected_operator['id'],
+                                'operator_id': None,
                                 'shift_id': shift['id'],
                                 'machine_name': machine['name'],
-                                'operator_name': selected_operator['name'],
+                                'operator_name': None,
                                 'shift_name': shift['name']
                             })
+                            continue
 
-                            # Update operator's last shift in database
-                            cursor.execute("""
-                                UPDATE operators 
-                                SET last_shift_id = %s 
-                                WHERE id = %s
-                            """, (shift['id'], selected_operator['id']))
+                        selected_operator = None
+                        for operator in available_operators:
+                            last_shift_id = operator['last_shift_id']
+                            if last_shift_id is None:
+                                if shift['id'] == 1:
+                                    selected_operator = operator
+                                    break
+                            else:
+                                if last_shift_id == 1:
+                                    next_shift = 3
+                                elif last_shift_id == 3:
+                                    next_shift = 2
+                                else:
+                                    next_shift = 1
 
+                                if shift['id'] == next_shift:
+                                    selected_operator = operator
+                                    break
+
+                        if not selected_operator:
+                            selected_operator = available_operators[0]
+
+                        available_operators.remove(selected_operator)
+
+                        assignments.append({
+                            'machine_id': machine['id'],
+                            'operator_id': selected_operator['id'],
+                            'shift_id': shift['id'],
+                            'machine_name': machine['name'],
+                            'operator_name': selected_operator['name'],
+                            'shift_name': shift['name']
+                        })
+                        
+                        # Update operator's last shift in database
+                        cursor.execute("""
+                            UPDATE operators 
+                            SET last_shift_id = %s 
+                            WHERE id = %s
+                        """, (shift['id'], selected_operator['id']))
+                
                 conn.commit()
                 return jsonify({
                     'success': True, 
-                    'message': 'Random assignments with differentiation by article generated successfully',
+                    'message': 'Random assignments with rotation generated successfully',
                     'assignments': assignments
                 })
     except Exception as e:
