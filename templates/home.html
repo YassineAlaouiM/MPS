@@ -300,8 +300,8 @@
                                 <tr>
                                     <td>{{ prod.machine_name }}</td>
                                     <td>{{ 'Service' if prod.machine_type else 'Machine' }}</td>
-                                    <td>{{ prod.article_name if not prod.machine_type else '-' }}</td>
-                                    <td>{{ prod.quantity if not prod.machine_type else '-' }}</td>
+                                    <td>{{ prod.article_name if prod.article_name else '-' }}</td>
+                                    <td>{{ prod.quantity if prod.quantity else '-' }}</td>
                                     <td>{{ prod.start_date }}</td>
                                     <td>{{ prod.end_date if prod.end_date else '-' }}</td>
                                     <td>
@@ -1145,23 +1145,14 @@ function deleteArticle(id) {
 function saveProduction() {
     const machineSelect = document.getElementById('productionMachine');
     const machineId = machineSelect.value;
-    
-    // Check if the selected machine is a service (type = true)
-    const isService = machineSelect.selectedIndex > 0 && 
-                     machineSelect.options[machineSelect.selectedIndex].getAttribute('data-type') === 'true';
-    
     const data = {
         machine_id: machineId,
         start_date: document.getElementById('productionStartDate').value,
         end_date: document.getElementById('productionEndDate').value
     };
-    
-    // Only include article and quantity if not a service
-    if (!isService) {
-        data.article_id = document.getElementById('productionArticle').value;
-        data.quantity = document.getElementById('productionQuantity').value;
-    }
-
+    // Always include article and quantity if filled
+    data.article_id = document.getElementById('productionArticle').value;
+    data.quantity = document.getElementById('productionQuantity').value;
     fetch('/api/production', {
         method: 'POST',
         headers: {
@@ -1264,24 +1255,15 @@ function editProduction(id) {
 function saveProductionEdit() {
     const id = document.getElementById('editProductionId').value;
     const machineSelect = document.getElementById('editProductionMachine');
-    
-    // Check if the selected machine is a service (type = true)
-    const isService = machineSelect.selectedIndex > 0 && 
-                     machineSelect.options[machineSelect.selectedIndex].getAttribute('data-type') === 'true';
-    
     const data = {
         machine_id: machineSelect.value,
         start_date: document.getElementById('editProductionStartDate').value,
         end_date: document.getElementById('editProductionEndDate').value || null,
         status: document.getElementById('editProductionStatus').value
     };
-    
-    // Only include article and quantity if not a service
-    if (!isService) {
-        data.article_id = document.getElementById('editProductionArticle').value;
-        data.quantity = document.getElementById('editProductionQuantity').value;
-    }
-
+    // Always include article and quantity if filled
+    data.article_id = document.getElementById('editProductionArticle').value;
+    data.quantity = document.getElementById('editProductionQuantity').value;
     fetch(`/api/production/${id}`, {
         method: 'PUT',
         headers: {
