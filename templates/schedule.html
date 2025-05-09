@@ -531,7 +531,7 @@ function loadStoredAssignments() {
         // Apply stored assignments
         assignments.forEach(assignment => {
             const dropdown = Array.from(allDropdowns).find(d => 
-                d.dataset.machineId === assignment.machine_id.toString() && 
+                d.dataset.productionId === assignment.production_id.toString() && 
                 d.dataset.shiftId === assignment.shift_id.toString()
             );
             if (dropdown) {
