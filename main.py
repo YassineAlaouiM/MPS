@@ -1284,9 +1284,9 @@ def random_assignments():
                 
                 # Get selected machines or all machines if none selected
                 if machine_ids:
-                    cursor.execute("SELECT id, name FROM production WHERE id IN %s", (tuple(machine_ids),))
+                    cursor.execute("SELECT p.id, m.name FROM machines m JOIN production p ON m.id = p.machine_id WHERE m.id IN %s", (tuple(machine_ids),))
                 else:
-                    cursor.execute("SELECT id, name FROM production")
+                    cursor.execute("SELECT p.id, m.name FROM machines m JOIN production p ON m.id = p.machine_id")
                 machines = cursor.fetchall()
                 
                 if not machines:
