@@ -257,7 +257,7 @@ def schedule():
                 
                 # Get machines that were in production during this week
                 cursor.execute("""
-                    SELECT DISTINCT m.*
+                    SELECT m.*
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
                     AND (
