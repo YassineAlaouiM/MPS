@@ -791,7 +791,7 @@ def create_production():
             cursor.execute(sql, (machine_id, start_date, start_date, start_date, end_date, start_date))
             existing_production = cursor.fetchone()
             
-            if existing_production and name.lower() != "emballages":
+            if existing_production:
                 print(f"Found existing production: {existing_production}")  # Debug log
                 return jsonify({
                     'success': False, 
