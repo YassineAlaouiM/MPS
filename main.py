@@ -795,13 +795,6 @@ def create_production():
             cursor.execute(sql, (machine_id, start_date, start_date, start_date, end_date, start_date))
             existing_production = cursor.fetchone()
             
-            if existing_production:
-                print(f"Found existing production: {existing_production}")  # Debug log
-                return jsonify({
-                    'success': False, 
-                    'message': f'Machine is already in production from {existing_production["start_date"]} to {existing_production["end_date"] or "ongoing"}'
-                })
-            
             # Add to production - for services, article_id and quantity are optional
             sql = """
                 INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
@@ -1042,7 +1035,7 @@ def get_machines_in_production():
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT DISTINCT m.*, p.article_id, a.name as article_name
+                    SELECT m.*, p.article_id, a.name as article_name
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
                     JOIN articles a ON p.article_id = a.id
