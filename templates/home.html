@@ -1157,7 +1157,7 @@ function saveProduction() {
     };
     
     // Only include article and quantity if not a service
-    if (!isService) {
+    if (!isService && production.machine_name="Emballages") {
         data.article_id = document.getElementById('productionArticle').value;
         data.quantity = document.getElementById('productionQuantity').value;
     }
