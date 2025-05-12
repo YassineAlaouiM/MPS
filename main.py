@@ -1280,7 +1280,12 @@ def confirm_assignments():
 
                 if model == "model_3" and len(assigned_operators) != 1:
                     return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} must have exactly 1 operator for shift model 3.'}), 400
-
+	        # Clear existing assignments for this week
+            cursor.execute("""
+                DELETE FROM schedule 
+                WHERE week_number = %s AND year = %s
+            """, (week_number, year))
+            
             #Save new assignments to the database
             for assignment in assignments:
                 cursor.execute("""
