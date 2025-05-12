@@ -971,7 +971,10 @@ def get_operators():
                         END as absence_status
                     FROM operators o
                     LEFT JOIN absences a ON o.id = a.operator_id 
-                        AND CURDATE() BETWEEN a.start_date AND a.end_date
+                        AND (
+			    CURDATE() BETWEEN a.start_date AND a.end_date
+       			    OR CURDATE() < a.start_date
+			)
                     WHERE o.status != 'inactive'
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """)
