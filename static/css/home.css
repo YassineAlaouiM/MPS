@@ -1,0 +1,90 @@
+.scrollable-section {
+    max-height: 284px;
+    overflow-y: auto;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.card {
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-body {
+    padding: 15px;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .card-header h3 {
+        font-size: 1.25rem;
+    }
+
+    .btn {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 992px) {
+    
+    .col-md-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    .col-md-12 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Arabic text support */
+@font-face {
+    font-family: 'Noto Naskh Arabic';
+    src: url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
+}
+
+.text-end {
+    text-align: left !important;
+}
+
+[dir="rtl"] {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+}
+
+.arabic-text {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+    text-align: right;
+}
+
+/* Ensure proper alignment in tables */
+td.text-end {
+    direction: rtl;
+    unicode-bidi: bidi-override;
+}
+
+/* Modal RTL support */
+.modal-body input[dir="rtl"] {
+    text-align: right;
+    padding-right: 12px;
+}
+
+/* Search box bi-directional support */
+input.search-bilingual {
+    padding-right: 12px;
+    padding-left: 12px;
+}
+
+@media print {
+    .arabic-text {
+        font-family: 'Noto Naskh Arabic', Arial, sans-serif !important;
+    }
+}
