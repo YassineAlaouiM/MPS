@@ -3,6 +3,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
     <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script>
+        const currentWeek = {{ week }};
+        const currentYear = {{ year }};
+    </script>
 {% endblock %}
 {% block title %}Horaire{% endblock %}
 
@@ -116,17 +120,12 @@ function exportToPDF(nameType) {
     }, 1000);
 }
 
-const currentWeek = {{ week }};
-const currentYear = {{ year }};
-
 function nextWeek() {
-    const next = currentWeek + 1
-    window.location.href = `/schedule?week={{ next }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ currentWeek + 1 }}&year={{ year }}`;
 }
     
 function previousWeek() {
-    const prev = currentWeek - 1
-    window.location.href = `/schedule?week={{ prev }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ currentWeek - 1 }}&year={{ year }}`;
 }
 
 const selectedOperators = new Set();
