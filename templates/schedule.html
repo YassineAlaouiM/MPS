@@ -121,11 +121,13 @@ function exportToPDF(nameType) {
 }
 
 function nextWeek() {
-    window.location.href = `/schedule?week={{ currentWeek + 1 }}&year={{ year }}`;
+    const next = currentWeek + 1
+    window.location.href = `/schedule?week={{ next }}&year={{ year }}`;
 }
     
 function previousWeek() {
-    window.location.href = `/schedule?week={{ currentWeek - 1 }}&year={{ year }}`;
+    const prev = currentWeek - 1
+    window.location.href = `/schedule?week={{ prev }}&year={{ year }}`;
 }
 
 const selectedOperators = new Set();
