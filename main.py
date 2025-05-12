@@ -958,7 +958,7 @@ def get_operators():
                 cursor.execute("""
                     SELECT 
                         STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
-                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
+                        STR_TO_DATE(CONCAT(%s, ' ', %s+1, ' Sunday'), '%%Y %%u %%W') as week_end
                 """, (current_year, current_week, current_year, current_week))
                 week_dates = cursor.fetchone()
                 
