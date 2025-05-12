@@ -122,12 +122,12 @@ function exportToPDF(nameType) {
 
 function nextWeek() {
     const next = currentWeek + 1
-    window.location.href = `/schedule?week={{ next }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ next }}&year={{ currentYear }}`;
 }
     
 function previousWeek() {
     const prev = currentWeek - 1
-    window.location.href = `/schedule?week={{ prev }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ prev }}&year={{ currentYear }}`;
 }
 
 const selectedOperators = new Set();
