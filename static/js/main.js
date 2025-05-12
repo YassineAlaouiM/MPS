@@ -229,40 +229,6 @@ function updateOperator(id) {
     });
 }
 
-function saveOperatorEdit() {
-    const arabicName = document.getElementById('editOperatorArabicName').value.trim();
-    if (!arabicName) {
-        alert('Le nom arabe est requis');
-        return;
-    }
-    
-    const id = document.getElementById('editOperatorId').value;
-    const data = {
-        name: document.getElementById('editOperatorName').value,
-        arabic_name: arabicName,
-        status: document.getElementById('editOperatorStatus').value
-    };
-
-    fetch(`/api/operators/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to update operator');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating operator:', error);
-        alert('Error updating operator');
-    });
-}
-
 function deleteOperator(id) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet opérateur ?')) {
         fetch(`/api/operators/${id}`, {
@@ -282,6 +248,221 @@ function deleteOperator(id) {
             alert('Erreur lors de la suppression de l\'opérateur');
         });
     }
+}
+
+// Schedule Management
+function assignOperator(machineId, shiftId, weekNumber, year) {
+    const operatorSelect = document.getElementById(`operator-select-${machineId}-${shiftId}`);
+    const operatorId = operatorSelect ? operatorSelect.value : null;
+
+    if (!operatorId) {
+        alert('Veuillez sélectionner un opérateur');
+        return;
+    }
+
+    fetch('/api/schedule', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            machine_id: machineId,
+            operator_id: operatorId,
+            shift_id: shiftId,
+            week_number: weekNumber,
+            year: year
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Opérateur assigné avec succès');
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur :', error);
+        alert('Erreur lors de l\'assignation de l\'opérateur');
+    });
+}
+
+function removeAssignment(assignmentId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette assignation ?')) {
+        fetch(`/api/schedule/${assignmentId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Assignation supprimée avec succès');
+                location.reload();
+            } else {
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur :', error);
+            alert('Erreur lors de la suppression de l\'assignation');
+        });
+    }
+}
+
+function updateAssignment(assignmentId, machineId, operatorId, shiftId) {
+    fetch(`/api/schedule/${assignmentId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            machine_id: machineId,
+            operator_id: operatorId,
+            shift_id: shiftId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Assignation mise à jour avec succès');
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur :', error);
+        alert('Erreur lors de la mise à jour de l\'assignation');
+    });
+}
+
+// Helper function to get week number (ISO 8601)
+Date.prototype.getWeek = function() {
+    // Create a copy of this date object
+    const target = new Date(this.valueOf());
+
+    // ISO week date weeks start on Monday, so correct the day number
+    const dayNr = (this.getDay() + 6) % 7;
+
+    // Set the target to the Thursday of this week so the
+    // target date is in the right year
+    target.setDate(target.getDate() - dayNr + 3);
+
+    // ISO 8601 states that week 1 is the week with January 4th in it
+    const jan4 = new Date(target.getFullYear(), 0, 4);
+    
+    // Number of days between target date and january 4th
+    const dayDiff = (target - jan4) / 86400000;
+
+    // Calculate week number: Week 1 + number of weeks between target and jan4
+    const weekNr = 1 + Math.ceil((dayDiff - 3 + (jan4.getDay() + 6) % 7) / 7);
+
+    return weekNr;
+};
+
+// Helper function to get the last week number of a year (ISO 8601)
+function getLastWeekOfYear(year) {
+    // Get Dec 31 of the year
+    const dec31 = new Date(year, 11, 31);
+    // Get its week number
+    let weekNum = dec31.getWeek();
+    
+    // Special handling: if Dec 31 is in week 1, we need to find the last week of the previous year
+    if (weekNum === 1) {
+        // Try Dec 28 which is always in the last week
+        const dec28 = new Date(year, 11, 28);
+        weekNum = dec28.getWeek();
+    }
+    
+    return weekNum;
+}
+
+// Helper function to validate week number
+function isValidWeek(week, year) {
+    if (week < 1) return false;
+    const lastWeek = getLastWeekOfYear(year);
+    return week <= lastWeek;
+}
+
+// Helper function to get current week and year
+function getCurrentWeekYear() {
+    const today = new Date();
+    const week = today.getWeek();
+    let year = today.getFullYear();
+    
+    // Handle edge case where current week might belong to previous/next year
+    if (week === 1 && today.getMonth() === 11) {
+        // Week 1 in December belongs to next year
+        year++;
+    } else if (week >= 52 && today.getMonth() === 0) {
+        // Week 52/53 in January belongs to previous year
+        year--;
+    }
+    
+    return { week, year };
+}
+
+function previousWeek() {
+    const currentUrl = new URL(window.location.href);
+    const current = getCurrentWeekYear();
+    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
+    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
+    
+    // Validate current week/year
+    if (!isValidWeek(week, year)) {
+        week = current.week;
+        year = current.year;
+    }
+    
+    // Calculate previous week
+    if (week === 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    } else {
+        week--;
+    }
+    
+    // Double-check the result is valid
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    currentUrl.searchParams.set('week', week);
+    currentUrl.searchParams.set('year', year);
+    window.location.href = currentUrl.toString();
+}
+
+function nextWeek() {
+    const currentUrl = new URL(window.location.href);
+    const current = getCurrentWeekYear();
+    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
+    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
+    
+    // Validate current week/year
+    if (!isValidWeek(week, year)) {
+        week = current.week;
+        year = current.year;
+    }
+    
+    // Calculate next week
+    const lastWeek = getLastWeekOfYear(year);
+    if (week === lastWeek) {
+        week = 1;
+        year++;
+    } else {
+        week++;
+    }
+    
+    // Double-check the result is valid
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    currentUrl.searchParams.set('week', week);
+    currentUrl.searchParams.set('year', year);
+    window.location.href = currentUrl.toString();
 }
 
 // Non-Functioning Machines Management
@@ -403,60 +584,6 @@ function submitMarkFixed(id) {
     });
 }
 
-// Articles Management
-function saveArticle() {
-    const data = {
-        name: document.getElementById('articleName').value,
-        description: document.getElementById('articleDescription').value
-    };
-
-    fetch('/api/articles', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to create article');
-        }
-    })
-    .catch(error => {
-        console.error('Error creating article:', error);
-        alert('Error creating article');
-    });
-}
-
-function saveArticleEdit() {
-    const id = document.getElementById('editArticleId').value;
-    const data = {
-        name: document.getElementById('editArticleName').value,
-        description: document.getElementById('editArticleDescription').value
-    };
-
-    fetch(`/api/articles/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to update article');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating article:', error);
-        alert('Error updating article');
-    });
-}
-
 function deleteArticle(id) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
         fetch(`/api/articles/${id}`, {
@@ -478,32 +605,6 @@ function deleteArticle(id) {
     }
 }
 
-function editArticle(id) {
-    fetch(`/api/articles/${id}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Échec de la récupération des détails de l\'article');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                const article = data.article; // Correctly access the article object
-                document.getElementById('editArticleId').value = article.id;
-                document.getElementById('editArticleName').value = article.name;
-                document.getElementById('editArticleDescription').value = article.description;
-                new bootstrap.Modal(document.getElementById('editArticleModal')).show();
-            } else {
-                alert('Erreur : ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Erreur lors de la récupération des détails de l\'article :', error);
-            alert('Erreur lors de la récupération des détails de l\'article');
-        });
-}
-
-// Production Management
 function deleteProduction(id) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet enregistrement de production ?')) {
         fetch(`/api/production/${id}`, {
@@ -525,149 +626,6 @@ function deleteProduction(id) {
     }
 }
 
-function saveProduction() {
-    const machineSelect = document.getElementById('productionMachine');
-    const machineId = machineSelect.value;
-    const data = {
-        machine_id: machineId,
-        start_date: document.getElementById('productionStartDate').value,
-        end_date: document.getElementById('productionEndDate').value
-    };
-    // Always include article and quantity if filled
-    data.article_id = document.getElementById('productionArticle').value;
-    data.quantity = document.getElementById('productionQuantity').value;
-    fetch('/api/production', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert(data.message || 'Error creating production');
-        }
-    })
-    .catch(error => {
-        console.error('Error creating production:', error);
-        alert('Error creating production: ' + error.message);
-    });
-}
-
-function saveProductionEdit() {
-    const id = document.getElementById('editProductionId').value;
-    const machineSelect = document.getElementById('editProductionMachine');
-    const data = {
-        machine_id: machineSelect.value,
-        start_date: document.getElementById('editProductionStartDate').value,
-        end_date: document.getElementById('editProductionEndDate').value || null,
-        status: document.getElementById('editProductionStatus').value
-    };
-    // Always include article and quantity if filled
-    data.article_id = document.getElementById('editProductionArticle').value;
-    data.quantity = document.getElementById('editProductionQuantity').value;
-    fetch(`/api/production/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to update production');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating production:', error);
-        alert('Error updating production');
-    });
-}
-
-function editProduction(id) {
-    fetch(`/api/production/${id}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Échec de la récupération des détails de la production');
-            }
-            return response.json();
-        })
-        .then(production => {
-            document.getElementById('editProductionId').value = production.id;
-            
-            // Ensure the machine is properly selected in the dropdown
-            const machineSelect = document.getElementById('editProductionMachine');
-            
-            // Check if the machine exists in the dropdown
-            let machineExists = false;
-            for (let i = 0; i < machineSelect.options.length; i++) {
-                if (machineSelect.options[i].value == production.machine_id) {
-                    machineExists = true;
-                    break;
-                }
-            }
-            
-            // If machine doesn't exist in dropdown, add it
-            if (!machineExists && production.machine_name) {
-                const option = document.createElement('option');
-                option.value = production.machine_id;
-                option.textContent = production.machine_name;
-                machineSelect.appendChild(option);
-            }
-            
-            // Now set the value
-            machineSelect.value = production.machine_id;
-            
-            document.getElementById('editProductionArticle').value = production.article_id;
-            document.getElementById('editProductionQuantity').value = production.quantity;
-            
-            // Format start date to YYYY-MM-DD if it exists
-            if (production.start_date) {
-                // If the date is already in YYYY-MM-DD format, use it directly
-                // Otherwise, convert it to that format
-                if (/^\d{4}-\d{2}-\d{2}$/.test(production.start_date)) {
-                    document.getElementById('editProductionStartDate').value = production.start_date;
-                } else {
-                    // Parse the date and format it as YYYY-MM-DD
-                    const startDate = new Date(production.start_date);
-                    const formattedStartDate = startDate.toISOString().split('T')[0];
-                    document.getElementById('editProductionStartDate').value = formattedStartDate;
-                }
-            } else {
-                document.getElementById('editProductionStartDate').value = '';
-            }
-            
-            // Format end date to YYYY-MM-DD if it exists
-            if (production.end_date) {
-                // If the date is already in YYYY-MM-DD format, use it directly
-                // Otherwise, convert it to that format
-                if (/^\d{4}-\d{2}-\d{2}$/.test(production.end_date)) {
-                    document.getElementById('editProductionEndDate').value = production.end_date;
-                } else {
-                    // Parse the date and format it as YYYY-MM-DD
-                    const endDate = new Date(production.end_date);
-                    const formattedEndDate = endDate.toISOString().split('T')[0];
-                    document.getElementById('editProductionEndDate').value = formattedEndDate;
-                }
-            } else {
-                document.getElementById('editProductionEndDate').value = '';
-            }
-            
-            document.getElementById('editProductionStatus').value = production.status;
-            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
-        })
-        .catch(error => {
-            console.error('Erreur lors de la récupération des détails de la production :', error);
-            alert('Erreur lors de la récupération des détails de la production');
-        });
-}
-
-// Shifts Management
 function deleteShift(id) {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce shift ?')) {
         fetch(`/api/shifts/${id}`, {
@@ -729,279 +687,6 @@ function saveAbsence() {
     });
 }
 
-function editAbsence(id) {
-    // Fetch absence details and populate the edit modal
-    fetch(`/api/absences/${id}`)
-        .then(response => response.json())
-        .then(absence => {
-            document.getElementById('editAbsenceId').value = absence.id;
-            document.getElementById('editOperatorName').value = absence.operator_id;
-            if (absence.start_date) {
-                const startDate = new Date(absence.start_date);
-                document.getElementById('editStartDate').value = startDate.toISOString().split('T')[0];
-            }
-            if (absence.end_date) {
-                const endDate = new Date(absence.end_date);
-                document.getElementById('editEndDate').value = endDate.toISOString().split('T')[0];
-            }
-
-            document.getElementById('editReason').value = absence.reason;
-            
-            // Show the modal
-            new bootstrap.Modal(document.getElementById('editAbsenceModal')).show();
-        })
-        .catch(error => {
-            console.error('Error fetching absence details:', error);
-            alert('Error fetching absence details');
-        });
-}
-
-function saveAbsenceEdit() {
-    const id = document.getElementById('editAbsenceId').value;
-    const data = {
-        operator_id: document.getElementById('editOperatorName').value,
-        start_date: document.getElementById('editStartDate').value,
-        end_date: document.getElementById('editEndDate').value,
-        reason: document.getElementById('editReason').value
-    };
-
-    fetch(`/api/absences/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to update absence');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating absence:', error);
-        alert('Error updating absence');
-    });
-}
-
-
-// Schedule Management
-function assignOperator(machineId, shiftId, weekNumber, year) {
-    const operatorSelect = document.getElementById(`operator-select-${machineId}-${shiftId}`);
-    const operatorId = operatorSelect ? operatorSelect.value : null;
-
-    if (!operatorId) {
-        alert('Veuillez sélectionner un opérateur');
-        return;
-    }
-
-    fetch('/api/schedule', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            machine_id: machineId,
-            operator_id: operatorId,
-            shift_id: shiftId,
-            week_number: weekNumber,
-            year: year
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Opérateur assigné avec succès');
-            location.reload();
-        } else {
-            alert('Erreur : ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Erreur :', error);
-        alert('Erreur lors de l\'assignation de l\'opérateur');
-    });
-}
-
-function removeAssignment(assignmentId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette assignation ?')) {
-        fetch(`/api/schedule/${assignmentId}`, {
-            method: 'DELETE'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Assignation supprimée avec succès');
-                location.reload();
-            } else {
-                alert('Erreur : ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Erreur :', error);
-            alert('Erreur lors de la suppression de l\'assignation');
-        });
-    }
-}
-
-function updateAssignment(assignmentId, machineId, operatorId, shiftId) {
-    fetch(`/api/schedule/${assignmentId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            machine_id: machineId,
-            operator_id: operatorId,
-            shift_id: shiftId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Assignation mise à jour avec succès');
-            location.reload();
-        } else {
-            alert('Erreur : ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Erreur :', error);
-        alert('Erreur lors de la mise à jour de l\'assignation');
-    });
-}
-
-// Helper function to get week number (ISO 8601)
-Date.prototype.getWeek = function() {
-    // Create a copy of this date object
-    const target = new Date(this.valueOf());
-
-    // ISO week date weeks start on Monday, so correct the day number
-    const dayNr = (this.getDay() + 6) % 7;
-
-    // Set the target to the Thursday of this week so the
-    // target date is in the right year
-    target.setDate(target.getDate() - dayNr + 3);
-
-    // ISO 8601 states that week 1 is the week with January 4th in it
-    const jan4 = new Date(target.getFullYear(), 0, 4);
-    
-    // Number of days between target date and january 4th
-    const dayDiff = (target - jan4) / 86400000;
-
-    // Calculate week number: Week 1 + number of weeks between target and jan4
-    const weekNr = 1 + Math.ceil((dayDiff - 3 + (jan4.getDay() + 6) % 7) / 7);
-
-    return weekNr;
-};
-
-// Helper function to get the last week number of a year (53/52week a year) (ISO 8601)
-function getLastWeekOfYear(year) {
-    // Get Dec 31 of the year
-    const dec31 = new Date(year, 11, 31);
-    // Get its week number
-    let weekNum = dec31.getWeek();
-    
-    // Special handling: if Dec 31 is in week 1, we need to find the last week of the previous year
-    if (weekNum === 1) {
-        // Try Dec 28 which is always in the last week
-        const dec28 = new Date(year, 11, 28);
-        weekNum = dec28.getWeek();
-    }
-    
-    return weekNum;
-}
-
-// Helper function to validate week number
-function isValidWeek(week, year) {
-    if (week < 1) return false;
-    const lastWeek = getLastWeekOfYear(year);
-    return week <= lastWeek;
-}
-
-// Helper function to get current week and year
-function getCurrentWeekYear() {
-    const today = new Date();
-    const week = today.getWeek();
-    let year = today.getFullYear();
-    
-    // Handle edge case where current week might belong to previous/next year
-    if (week === 1 && today.getMonth() === 11) {
-        // Week 1 in December belongs to next year
-        year++;
-    } else if (week >= 52 && today.getMonth() === 0) {
-        // Week 52/53 in January belongs to previous year
-        year--;
-    }
-    
-    return { week, year };
-}
-
-function previousWeek() {
-    const currentUrl = new URL(window.location.href);
-    const current = getCurrentWeekYear();
-    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
-    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-    
-    // Validate current week/year
-    if (!isValidWeek(week, year)) {
-        week = current.week;
-        year = current.year;
-    }
-    
-    // Calculate previous week
-    if (week === 1) {
-        year--;
-        week = getLastWeekOfYear(year);
-    } else {
-        week--;
-    }
-    
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    currentUrl.searchParams.set('week', week);
-    currentUrl.searchParams.set('year', year);
-    window.location.href = currentUrl.toString();
-}
-
-function nextWeek() {
-    const currentUrl = new URL(window.location.href);
-    const current = getCurrentWeekYear();
-    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
-    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-    
-    // Validate current week/year
-    if (!isValidWeek(week, year)) {
-        week = current.week;
-        year = current.year;
-    }
-    
-    // Calculate next week
-    const lastWeek = getLastWeekOfYear(year);
-    if (week === lastWeek) {
-        week = 1;
-        year++;
-    } else {
-        week++;
-    }
-    
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    currentUrl.searchParams.set('week', week);
-    currentUrl.searchParams.set('year', year);
-    window.location.href = currentUrl.toString();
-}
-
-//Schedule Operator Selection
 function updateOperatorDropdowns() {
     // Get all operator dropdowns
     const dropdowns = document.querySelectorAll('.operator-select');
@@ -1091,3 +776,105 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+function editArticle(id) {
+    fetch(`/api/articles/${id}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Échec de la récupération des détails de l\'article');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                const article = data.article; // Correctly access the article object
+                document.getElementById('editArticleId').value = article.id;
+                document.getElementById('editArticleName').value = article.name;
+                document.getElementById('editArticleDescription').value = article.description;
+                new bootstrap.Modal(document.getElementById('editArticleModal')).show();
+            } else {
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur lors de la récupération des détails de l\'article :', error);
+            alert('Erreur lors de la récupération des détails de l\'article');
+        });
+}
+function editProduction(id) {
+    fetch(`/api/production/${id}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Échec de la récupération des détails de la production');
+            }
+            return response.json();
+        })
+        .then(production => {
+            document.getElementById('editProductionId').value = production.id;
+            
+            // Ensure the machine is properly selected in the dropdown
+            const machineSelect = document.getElementById('editProductionMachine');
+            
+            // Check if the machine exists in the dropdown
+            let machineExists = false;
+            for (let i = 0; i < machineSelect.options.length; i++) {
+                if (machineSelect.options[i].value == production.machine_id) {
+                    machineExists = true;
+                    break;
+                }
+            }
+            
+            // If machine doesn't exist in dropdown, add it
+            if (!machineExists && production.machine_name) {
+                const option = document.createElement('option');
+                option.value = production.machine_id;
+                option.textContent = production.machine_name;
+                machineSelect.appendChild(option);
+            }
+            
+            // Now set the value
+            machineSelect.value = production.machine_id;
+            
+            document.getElementById('editProductionArticle').value = production.article_id;
+            document.getElementById('editProductionQuantity').value = production.quantity;
+            
+            // Format start date to YYYY-MM-DD if it exists
+            if (production.start_date) {
+                // If the date is already in YYYY-MM-DD format, use it directly
+                // Otherwise, convert it to that format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(production.start_date)) {
+                    document.getElementById('editProductionStartDate').value = production.start_date;
+                } else {
+                    // Parse the date and format it as YYYY-MM-DD
+                    const startDate = new Date(production.start_date);
+                    const formattedStartDate = startDate.toISOString().split('T')[0];
+                    document.getElementById('editProductionStartDate').value = formattedStartDate;
+                }
+            } else {
+                document.getElementById('editProductionStartDate').value = '';
+            }
+            
+            // Format end date to YYYY-MM-DD if it exists
+            if (production.end_date) {
+                // If the date is already in YYYY-MM-DD format, use it directly
+                // Otherwise, convert it to that format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(production.end_date)) {
+                    document.getElementById('editProductionEndDate').value = production.end_date;
+                } else {
+                    // Parse the date and format it as YYYY-MM-DD
+                    const endDate = new Date(production.end_date);
+                    const formattedEndDate = endDate.toISOString().split('T')[0];
+                    document.getElementById('editProductionEndDate').value = formattedEndDate;
+                }
+            } else {
+                document.getElementById('editProductionEndDate').value = '';
+            }
+            
+            document.getElementById('editProductionStatus').value = production.status;
+            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
+        })
+        .catch(error => {
+            console.error('Erreur lors de la récupération des détails de la production :', error);
+            alert('Erreur lors de la récupération des détails de la production');
+        });
+}
