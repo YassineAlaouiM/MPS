@@ -983,7 +983,7 @@ function nextWeek() {
     
     // Calculate next week
     const lastWeek = getLastWeekOfYear(year);
-    const next = ++week;
+    let next = week + 1;
     if (week === lastWeek) {
         week = 1;
         year++;
