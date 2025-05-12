@@ -937,19 +937,37 @@ function getCurrentWeekYear() {
     
     return { week, year };
 }
-
 function nextWeek() {
-    const { week, year } = getCurrentWeekYear();
-    let newWeek = week++;
-    let newYear = year;
-
-    // Optional: check if week > 52 and roll over
-    if (newWeek > 52) {
-        newWeek = 1;
-        newYear++;
+    const currentUrl = new URL(window.location.href);
+    const current = getCurrentWeekYear();
+    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
+    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
+    
+    // Validate current week/year
+    if (!isValidWeek(week, year)) {
+        week = current.week;
+        year = current.year;
     }
-
-    window.location.href = `/schedule?week=${newWeek}&year=${newYear}`;
+    
+    // Calculate next week
+    const lastWeek = getLastWeekOfYear(year);
+    let next = week + 1;
+    if (week === lastWeek) {
+        week = 1;
+        year++;
+    } else {
+        next;
+    }
+    
+    // Double-check the result is valid
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    currentUrl.searchParams.set('week', week);
+    currentUrl.searchParams.set('year', year);
+    window.location.href = currentUrl.toString();
 }
 
 function previousWeek() {
