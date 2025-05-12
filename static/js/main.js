@@ -969,7 +969,7 @@ function previousWeek() {
     window.location.href = currentUrl.toString();
 }
 
-function nextWeek() {
+function nextWeekkkk() {
     const currentUrl = new URL(window.location.href);
     const current = getCurrentWeekYear();
     let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
