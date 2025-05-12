@@ -11,9 +11,9 @@
     
     <!-- Week Navigation -->
     <div class="week-navigation">
-        <button onclick="previousWeek()">Semaine précédente</button>
+        <button onclick="nextWeek()">Semaine précédente</button>
         <span id="current-week">Semaine {{ week }}, {{ year }}</span>
-        <button onclick="nextWeek()">Semaine suivante</button>
+        <button onclick="previousWeek()">Semaine suivante</button>
     </div>
 
     <!-- Schedule Grid -->
@@ -117,7 +117,7 @@ function exportToPDF(nameType) {
 }
 
 function previousWeek() {
-    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
 }
 
 function nextWeek() {
