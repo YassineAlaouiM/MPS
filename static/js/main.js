@@ -970,9 +970,10 @@ function previousWeek() {
 }
 
 function nextWeek() {
+    const currentUrl = new URL(window.location.href);
     const current = getCurrentWeekYear();
-    let week = parseInt(window.location.href.searchParams.get('week')) || current.week;
-    let year = parseInt(window.location.href.searchParams.get('year')) || current.year;
+    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
+    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
     
     // Validate current week/year
     if (!isValidWeek(week, year)) {
@@ -995,9 +996,9 @@ function nextWeek() {
         return;
     }
     
-    window.location.href.searchParams.set('week', week);
-    window.location.href.searchParams.set('year', year);
-    window.location.href = window.location.href.toString();
+    currentUrl.searchParams.set('week', week);
+    currentUrl.searchParams.set('year', year);
+    window.location.href = currentUrl.toString();
 }
 
 //Schedule Operator Selection
