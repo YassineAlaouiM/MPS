@@ -68,7 +68,6 @@
                                     (Absent jusqu'au {{ operator.end_date }})
                                 {% elif operator.absence_status == 'upcoming_absence' %}
                                     (Absent à partir du {{ operator.start_date }} jusqu'au {{ operator.end_date }})
-                                    {% endif %}
                                 {% endif %}
                             </option>
                             {% endfor %}
