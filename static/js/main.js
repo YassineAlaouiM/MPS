@@ -937,22 +937,19 @@ function getCurrentWeekYear() {
     
     return { week, year };
 }
+
 function nextWeek() {
     const currentUrl = new URL(window.location.href);
     const current = getCurrentWeekYear();
     let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
     let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-
-    console.log('Initial week and year:', { week, year }); // Debug log
-
+    
     // Validate current week/year
     if (!isValidWeek(week, year)) {
         week = current.week;
         year = current.year;
     }
-
-    console.log('After validation:', { week, year }); // Debug log
-
+    
     // Calculate next week
     const lastWeek = getLastWeekOfYear(year);
     if (week === lastWeek) {
@@ -961,20 +958,18 @@ function nextWeek() {
     } else {
         week++;
     }
-
-    console.log('After increment:', { week, year }); // Debug log
-
+    
     // Double-check the result is valid
     if (!isValidWeek(week, year)) {
         console.error('Invalid week calculation', { week, year });
         return;
     }
-
+    
     currentUrl.searchParams.set('week', week);
     currentUrl.searchParams.set('year', year);
-    console.log('Final URL:', currentUrl.toString()); // Debug log
     window.location.href = currentUrl.toString();
 }
+
 function previousWeek() {
     const currentUrl = new URL(window.location.href);
     const current = getCurrentWeekYear();
