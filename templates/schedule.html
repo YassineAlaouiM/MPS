@@ -121,7 +121,7 @@ function previousWeek() {
 }
 
 function nextWeek() {
-    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
 }
 
 const selectedOperators = new Set();
