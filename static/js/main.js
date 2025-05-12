@@ -998,7 +998,7 @@ function nextWeek() {
     
     currentUrl.searchParams.set('week', week);
     currentUrl.searchParams.set('year', year);
-    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+    window.location.href = currentUrl.toString();
 }
 
 //Schedule Operator Selection
