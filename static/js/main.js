@@ -922,9 +922,19 @@ function isValidWeek(week, year) {
 
 // Helper function to get current week and year
 function getCurrentWeekYear() {
-    const params = new URLSearchParams(window.location.search);
-    let week = parseInt(params.get("week")) || {{ week }};
-    let year = parseInt(params.get("year")) || {{ year }};
+    const today = new Date();
+    const week = today.getWeek();
+    let year = today.getFullYear();
+    
+    // Handle edge case where current week might belong to previous/next year
+    if (week === 1 && today.getMonth() === 11) {
+        // Week 1 in December belongs to next year
+        year++;
+    } else if (week >= 52 && today.getMonth() === 0) {
+        // Week 52/53 in January belongs to previous year
+        year--;
+    }
+    
     return { week, year };
 }
 
