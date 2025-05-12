@@ -955,7 +955,7 @@ function previousWeek() {
         year--;
         week = getLastWeekOfYear(year);
     } else {
-        week--;
+        week++;
     }
     
     // Double-check the result is valid
