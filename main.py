@@ -945,24 +945,25 @@ def get_machines_in_production():
         flash(f"Error loading machines in production: {str(e)}", "error")
         return []
 
-def get_operators():
+def get_operators(week=None, year=None):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                # Get current week dates
-                current_date = datetime.now()
-                current_week = current_date.isocalendar()[1]
-                current_year = current_date.year
+                # If week and year are not provided, use current date
+                if week is None or year is None:
+                    current_date = datetime.now()
+                    week = current_date.isocalendar()[1]
+                    year = current_date.year
                 
                 # Calculate week start and end dates
                 cursor.execute("""
                     SELECT 
                         STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
-                        STR_TO_DATE(CONCAT(%s, ' ', %s+1, ' Sunday'), '%%Y %%u %%W') as week_end
-                """, (current_year, current_week, current_year, current_week))
+                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
+                """, (year, week, year, week))
                 week_dates = cursor.fetchone()
                 
-                # Get operators with their current absence status
+                # Get operators with their absence status for the selected week
                 cursor.execute("""
                     SELECT 
                         o.*,
@@ -972,9 +973,9 @@ def get_operators():
                             WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
                                 CASE 
                                     WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
-                                        AND CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)    
+                                        AND %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)    
                                     THEN 'long_absence'
-                                    WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                    WHEN %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
                                     THEN 'current_absence'
                                     WHEN MAX(a.start_date) BETWEEN %s AND %s
                                     THEN 'upcoming_absence'
@@ -985,18 +986,20 @@ def get_operators():
                     FROM operators o
                     LEFT JOIN absences a ON o.id = a.operator_id 
                         AND (
-                            CURDATE() BETWEEN a.start_date AND a.end_date
+                            %s BETWEEN a.start_date AND a.end_date
                             OR a.start_date BETWEEN %s AND %s
                         )
                     WHERE o.status != 'inactive'
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
-                """, (week_dates['week_start'], week_dates['week_end'],
+                """, (week_dates['week_start'], week_dates['week_start'],
+                      week_dates['week_start'], week_dates['week_end'],
+                      week_dates['week_start'],
                       week_dates['week_start'], week_dates['week_end']))
                 return cursor.fetchall()
     except Exception as e:
         flash(f"Error loading operators: {str(e)}", "error")
         return []
-	    
+
 def get_shifts():
     try:
         with get_db_connection() as conn:
@@ -1144,7 +1147,7 @@ def schedule():
                 machines = cursor.fetchall()
                 
                 # Get operators and shifts
-                operators = get_operators()
+                operators = get_operators(week, year)
                 shifts = get_shifts()
                 
                 # Get current assignments for the selected week
