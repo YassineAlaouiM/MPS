@@ -117,7 +117,7 @@ function exportToPDF(nameType) {
 }
 
 function previousWeek() {
-    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
 }
 
 function nextWeek() {
