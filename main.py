@@ -67,6 +67,7 @@ def index():
         return redirect(url_for('home'))
     return redirect(url_for('login'))
 
+#Login and Registration
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -123,6 +124,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+#Home Page
 @app.route('/home')
 @login_required
 def home():
@@ -227,118 +229,10 @@ def init_db():
         print("Database initialized from schema.sql")
     finally:
         connection.close()
-
 # Call init_db when the application starts
 init_db()
 
-
-@app.route('/schedule')
-@login_required
-def schedule():
-    week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
-    year = request.args.get('year', default=datetime.now().year, type=int)
-    
-    # Get machines that were in production during the selected week
-    machines = []
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                # Get the start and end dates of the selected week
-                cursor.execute("""
-                    SELECT 
-                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
-                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
-                """, (year, week, year, week))
-                week_dates = cursor.fetchone()
-                
-                if not week_dates or not week_dates['week_start'] or not week_dates['week_end']:
-                    flash(f"Error calculating week dates for week {week} of {year}", "error")
-                    return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
-                
-                # Get machines and their production records that were active during this week
-                cursor.execute("""
-                    SELECT m.*, p.id as production_id, p.article_id, a.name as article_name
-                    FROM machines m
-                    JOIN production p ON m.id = p.machine_id
-                    LEFT JOIN articles a ON p.article_id = a.id
-                    WHERE p.status = 'active'
-                    AND (
-                        (p.start_date <= %s AND (p.end_date IS NULL OR p.end_date >= %s))
-                        OR (p.start_date BETWEEN %s AND %s)
-                        OR ((p.end_date IS NOT NULL) AND p.end_date BETWEEN %s AND %s)
-                    )
-                    ORDER BY m.type, m.name, p.start_date
-                """, (week_dates['week_end'], week_dates['week_start'],
-                      week_dates['week_start'], week_dates['week_end'],
-                      week_dates['week_start'], week_dates['week_end']))
-                machines = cursor.fetchall()
-                
-                # Get operators and shifts
-                operators = get_operators()
-                shifts = get_shifts()
-                
-                # Get current assignments for the selected week
-                cursor.execute("""
-                    SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.week_number, s.year,
-                           m.name as machine_name, o.name as operator_name, sh.name as shift_name,
-                           p.article_id, a.name as article_name
-                    FROM schedule s
-                    JOIN machines m ON s.machine_id = m.id
-                    JOIN production p ON s.production_id = p.id
-                    LEFT JOIN articles a ON p.article_id = a.id
-                    JOIN operators o ON s.operator_id = o.id
-                    JOIN shifts sh ON s.shift_id = sh.id
-                    WHERE s.week_number = %s AND s.year = %s
-                    ORDER BY m.name, p.start_date, sh.id
-                """, (week, year))
-                assignments = cursor.fetchall()
-                
-    except Exception as e:
-        flash(f"Error loading machines: {str(e)}", "error")
-        return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
-    
-    return render_template('schedule.html', 
-                         week=week,
-                         year=year,
-                         machines=machines,
-                         operators=operators,
-                         shifts=shifts,
-                         assignments=assignments)
-
-@app.route('/assign_operator', methods=['POST'])
-@login_required
-def assign_operator():
-    machine_id = request.form['machine_id']
-    operator_id = request.form['operator_id']
-    shift_id = request.form['shift_id']
-    week_number = request.form['week_number']
-    year = request.form['year']
-    
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            # Check if operator is already assigned
-            sql = """
-                SELECT id FROM schedule 
-                WHERE operator_id = %s AND week_number = %s AND year = %s
-            """
-            cursor.execute(sql, (operator_id, week_number, year))
-            if cursor.fetchone():
-                flash('Operator already assigned for this week')
-                return redirect(url_for('schedule', week=week_number, year=year))
-            
-            # Assign operator
-            sql = """
-                INSERT INTO schedule (machine_id, operator_id, shift_id, week_number, year)
-                VALUES (%s, %s, %s, %s, %s)
-            """
-            cursor.execute(sql, (machine_id, operator_id, shift_id, week_number, year))
-            connection.commit()
-    finally:
-        connection.close()
-    
-    return redirect(url_for('schedule', week=week_number, year=year))
-
+#Machine Management
 @app.route('/api/machines', methods=['POST'])
 @login_required
 def create_machine():
@@ -402,6 +296,25 @@ def update_machine(machine_id):
     finally:
         connection.close()
 
+@app.route('/api/machines/<int:machine_id>/toggle_type', methods=['POST'])
+@login_required
+def toggle_machine_type(machine_id):
+    data = request.get_json()
+    new_type = data.get('type', False)
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "UPDATE machines SET type = %s WHERE id = %s"
+            cursor.execute(sql, (new_type, machine_id))
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Machine type updated successfully'})
+    except Exception as e:
+        connection.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        connection.close()
+
 @app.route('/api/machines/<int:machine_id>', methods=['DELETE'])
 @login_required
 def delete_machine(machine_id):
@@ -430,7 +343,7 @@ def delete_machine(machine_id):
     finally:
         connection.close()
 
-# Removed the requirement to provide operator_id during operator creation
+#Operator Management
 @app.route('/api/operators', methods=['POST'])
 @login_required
 def create_operator():
@@ -529,6 +442,7 @@ def delete_operator(operator_id):
     finally:
         connection.close()
 
+#Non-Functioning Machines Management (Mahcines en panne)
 @app.route('/api/non_functioning_machines', methods=['POST'])
 @login_required
 def create_non_functioning_machine():
@@ -561,6 +475,7 @@ def create_non_functioning_machine():
     finally:
         connection.close()
 
+#Change machine status to operational by clicking on the "Marquer réparé" button
 @app.route('/api/non_functioning_machines/<int:id>/fix', methods=['POST'])
 @login_required
 def mark_machine_fixed(id):
@@ -597,6 +512,7 @@ def mark_machine_fixed(id):
     finally:
         connection.close()
 
+#Absences Management
 @app.route('/api/absences/<int:id>', methods=['GET'])
 @login_required
 def get_absence(id):
@@ -674,6 +590,7 @@ def update_absence(id):
     finally:
         connection.close()
 
+#Article Management
 @app.route('/api/articles', methods=['POST'])
 @login_required
 def create_article():
@@ -751,6 +668,7 @@ def delete_article(article_id):
     finally:
         connection.close()
 
+#Production Management
 @app.route('/api/production', methods=['POST'])
 @login_required
 def create_production():
@@ -784,7 +702,7 @@ def create_production():
             
             # For regular machines, article and quantity are required
             if not is_service and (not article_id or not quantity):
-                return jsonify({'success': False, 'message': 'Article and quantity are required for machines'})
+                return jsonify({'success': False, 'message': 'Article et quantité sont nécessaires pour les machines'})
             
             # Check if machine is already in production
             sql = """
@@ -919,31 +837,6 @@ def delete_production(id):
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
-
-@app.route('/api/schedule', methods=['GET'])
-@login_required
-def get_schedule():
-    week = request.args.get('week', type=int)
-    year = request.args.get('year', type=int)
-    
-    if not week or not year:
-        return jsonify({'success': False, 'message': 'Week and year are required'})
-    
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT s.id, m.name as machine_name, o.name as operator_name, sh.name as shift_name
-                    FROM schedule s
-                    JOIN machines m ON s.machine_id = m.id
-                    JOIN operators o ON s.operator_id = o.id
-                    JOIN shifts sh ON s.shift_id = sh.id
-                    WHERE s.week_number = %s AND s.year = %s
-                """, (week, year))
-                assignments = cursor.fetchall()
-                return jsonify({'success': True, 'assignments': assignments})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/schedule', methods=['POST'])
 @login_required
@@ -1091,13 +984,13 @@ def get_shifts():
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM shifts")
                 shifts = cursor.fetchall()
-                print(f"Found {len(shifts)} shifts in database: {shifts}")  # Debug print
                 return shifts
     except Exception as e:
-        print(f"Error in get_shifts: {str(e)}")  # Debug print
+        print(f"Error in get_shifts: {str(e)}")  #Debug print
         flash(f"Error loading shifts: {str(e)}", "error")
         return []
 
+#Shift Management
 @app.route('/shifts')
 @login_required
 def shifts():
@@ -1178,6 +1071,152 @@ def delete_shift(shift_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+@app.route('/check_shifts')
+def check_shifts():
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM shifts")
+                shifts = cursor.fetchall()
+                return jsonify({'success': True, 'shifts': shifts})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+#Schedule Management
+@app.route('/schedule')
+@login_required
+def schedule():
+    week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
+    year = request.args.get('year', default=datetime.now().year, type=int)
+    
+    # Get machines that were in production during the selected week
+    machines = []
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                # Get the start and end dates of the selected week
+                cursor.execute("""
+                    SELECT 
+                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
+                        STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
+                """, (year, week, year, week))
+                week_dates = cursor.fetchone()
+                
+                if not week_dates or not week_dates['week_start'] or not week_dates['week_end']:
+                    flash(f"Error calculating week dates for week {week} of {year}", "error")
+                    return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
+                
+                # Get machines and their production records that were active during this week
+                cursor.execute("""
+                    SELECT m.*, p.id as production_id, p.article_id, a.name as article_name
+                    FROM machines m
+                    JOIN production p ON m.id = p.machine_id
+                    LEFT JOIN articles a ON p.article_id = a.id
+                    WHERE p.status = 'active'
+                    AND (
+                        (p.start_date <= %s AND (p.end_date IS NULL OR p.end_date >= %s))
+                        OR (p.start_date BETWEEN %s AND %s)
+                        OR ((p.end_date IS NOT NULL) AND p.end_date BETWEEN %s AND %s)
+                    )
+                    ORDER BY m.type, m.name, p.start_date
+                """, (week_dates['week_end'], week_dates['week_start'],
+                      week_dates['week_start'], week_dates['week_end'],
+                      week_dates['week_start'], week_dates['week_end']))
+                machines = cursor.fetchall()
+                
+                # Get operators and shifts
+                operators = get_operators()
+                shifts = get_shifts()
+                
+                # Get current assignments for the selected week
+                cursor.execute("""
+                    SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.week_number, s.year,
+                           m.name as machine_name, o.name as operator_name, sh.name as shift_name,
+                           p.article_id, a.name as article_name
+                    FROM schedule s
+                    JOIN machines m ON s.machine_id = m.id
+                    JOIN production p ON s.production_id = p.id
+                    LEFT JOIN articles a ON p.article_id = a.id
+                    JOIN operators o ON s.operator_id = o.id
+                    JOIN shifts sh ON s.shift_id = sh.id
+                    WHERE s.week_number = %s AND s.year = %s
+                    ORDER BY m.name, p.start_date, sh.id
+                """, (week, year))
+                assignments = cursor.fetchall()
+                
+    except Exception as e:
+        flash(f"Error loading machines: {str(e)}", "error")
+        return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
+    
+    return render_template('schedule.html', 
+                         week=week,
+                         year=year,
+                         machines=machines,
+                         operators=operators,
+                         shifts=shifts,
+                         assignments=assignments)
+
+@app.route('/api/schedule', methods=['GET'])
+@login_required
+def get_schedule():
+    week = request.args.get('week', type=int)
+    year = request.args.get('year', type=int)
+    
+    if not week or not year:
+        return jsonify({'success': False, 'message': 'Week and year are required'})
+    
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT s.id, m.name as machine_name, o.name as operator_name, sh.name as shift_name
+                    FROM schedule s
+                    JOIN machines m ON s.machine_id = m.id
+                    JOIN operators o ON s.operator_id = o.id
+                    JOIN shifts sh ON s.shift_id = sh.id
+                    WHERE s.week_number = %s AND s.year = %s
+                """, (week, year))
+                assignments = cursor.fetchall()
+                return jsonify({'success': True, 'assignments': assignments})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+#Schedule Assignment
+@app.route('/assign_operator', methods=['POST'])
+@login_required
+def assign_operator():
+    machine_id = request.form['machine_id']
+    operator_id = request.form['operator_id']
+    shift_id = request.form['shift_id']
+    week_number = request.form['week_number']
+    year = request.form['year']
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if operator is already assigned
+            sql = """
+                SELECT id FROM schedule 
+                WHERE operator_id = %s AND week_number = %s AND year = %s
+            """
+            cursor.execute(sql, (operator_id, week_number, year))
+            if cursor.fetchone():
+                flash('Operator already assigned for this week')
+                return redirect(url_for('schedule', week=week_number, year=year))
+            
+            # Assign operator
+            sql = """
+                INSERT INTO schedule (machine_id, operator_id, shift_id, week_number, year)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (machine_id, operator_id, shift_id, week_number, year))
+            connection.commit()
+    finally:
+        connection.close()
+    
+    return redirect(url_for('schedule', week=week_number, year=year))
+
+#Schedule Confirmation
 @app.route('/api/schedule/confirm', methods=['POST'])
 @login_required
 def confirm_assignments():
@@ -1194,7 +1233,7 @@ def confirm_assignments():
             for assignment in assignments:
                 operator_id = assignment['operator_id']
                 if operator_id in operator_assignments:
-                    return jsonify({'success': False, 'message': f'Operator {operator_id} is assigned to multiple shifts.'}), 400
+                    return jsonify({'success': False, 'message': f'Operateur {operator_id} est affecté à plusieurs shifts.'}), 400
                 operator_assignments.add(operator_id)
 
             # Define shift models
@@ -1242,13 +1281,7 @@ def confirm_assignments():
                 if model == "model_3" and len(assigned_operators) != 1:
                     return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} must have exactly 1 operator for shift model 3.'}), 400
 
-            # Clear existing assignments for this week
-            cursor.execute("""
-                DELETE FROM schedule 
-                WHERE week_number = %s AND year = %s
-            """, (week_number, year))
-
-            # Save new assignments to the database
+            #Save new assignments to the database
             for assignment in assignments:
                 cursor.execute("""
                     INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, week_number, year)
@@ -1264,6 +1297,7 @@ def confirm_assignments():
     finally:
         connection.close()
 
+#Random Assignments with Rotation Management
 @app.route('/api/schedule/random', methods=['POST'])
 @login_required
 def random_assignments():
@@ -1340,7 +1374,7 @@ def random_assignments():
                 if not machines:
                     return jsonify({'success': False, 'message': 'No machines available'})
                 
-                # Get shifts for the first three shifts (1, 2, 3)
+                # Get shifts for the first three shifts (1, 2, 3) (Model 1)
                 cursor.execute("SELECT id, name FROM shifts WHERE id IN (1, 2, 3) ORDER BY id")
                 shifts = cursor.fetchall()
                 
@@ -1401,7 +1435,7 @@ def random_assignments():
                             'shift_name': shift['name']
                         })
                         
-                        # Update operator's last shift in database
+                        # Update operator's last shift in database (Rotation)
                         cursor.execute("""
                             UPDATE operators 
                             SET last_shift_id = %s 
@@ -1417,70 +1451,7 @@ def random_assignments():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@app.route('/api/schedule/clear', methods=['POST'])
-@login_required
-def clear_assignments():
-    data = request.json
-    week = data.get('week_number')
-    year = data.get('year')
-    machine_ids = data.get('machine_ids', [])  # New parameter for selected machines
-    
-    if not week or not year:
-        return jsonify({'success': False, 'message': 'Week and year are required'})
-    
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                if machine_ids:
-                    cursor.execute("""
-                        DELETE FROM schedule 
-                        WHERE machine_id = ANY(%s) AND week_number = %s AND year = %s
-                    """, (machine_ids, week, year))
-                else:
-                    cursor.execute("DELETE FROM schedule WHERE week_number = %s AND year = %s", (week, year))
-                conn.commit()
-                return jsonify({'success': True, 'message': 'Assignments cleared successfully'})
-    except Exception as e:
-        conn.rollback()
-        return jsonify({'success': False, 'message': str(e)})
-
-@app.route('/check_shifts')
-def check_shifts():
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM shifts")
-                shifts = cursor.fetchall()
-                return jsonify({'success': True, 'shifts': shifts})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-@app.before_request
-def log_request_info():
-    print(f"Request URL: {request.url}")
-    print(f"Request Method: {request.method}")
-    print(f"Request Headers: {request.headers}")
-    print(f"Request Body: {request.get_data(as_text=True)}")
-
-@app.route('/api/machines/<int:machine_id>/toggle_type', methods=['POST'])
-@login_required
-def toggle_machine_type(machine_id):
-    data = request.get_json()
-    new_type = data.get('type', False)
-
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            sql = "UPDATE machines SET type = %s WHERE id = %s"
-            cursor.execute(sql, (new_type, machine_id))
-            connection.commit()
-            return jsonify({'success': True, 'message': 'Machine type updated successfully'})
-    except Exception as e:
-        connection.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-    finally:
-        connection.close()
-
+#PDF
 @app.route('/export_schedule', methods=['GET'])
 @login_required
 def export_schedule():
@@ -1495,7 +1466,7 @@ def export_schedule():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Select appropriate name field based on name_type
+        # Select arabic or french name
         name_field = 'o.arabic_name' if name_type == 'arabic' else 'o.name'
         
         cursor.execute(f'''
@@ -1609,7 +1580,7 @@ def export_schedule():
                 return ""
             text = str(text)
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
-                # For Arabic text in table cells, add line break after every two words
+                # For Arabic text, add line break after every two words
                 if not is_header and not is_machine:
                     words = text.split()
                     processed_words = []
@@ -1644,7 +1615,7 @@ def export_schedule():
             title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
             canvas.drawCentredString(page_width/2, page_height - 40, process_text(title_text))
             
-            # Add week dates
+            # Add Week dates 
             def get_week_dates(year, week):
                 jan_fourth = datetime(year, 1, 4)
                 monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
@@ -1662,7 +1633,7 @@ def export_schedule():
             canvas.setFillColor(text_color)
             canvas.drawCentredString(page_width/2, page_height - 60, process_text(week_dates))
 
-        # Prepare shift headers
+        # Shifts (headers)
         shift_headers = {
             'shift_1': '7h à 15h',
             'shift_2': '15h à 23h',
@@ -1673,22 +1644,23 @@ def export_schedule():
         }
         
         # Determine active shifts
+        #Only keep shifts that have at least one operator assigned
         active_shifts = []
         for shift_key, shift_name in shift_headers.items():
             if any(row[shift_key] for row in schedule_data):
                 active_shifts.append((shift_key, shift_name))
 
-        # Calculate dimensions
+        # Calculate dimensions for the table
         margin = 40
         available_width = page_width - (2 * margin)
         num_columns = len(active_shifts) + 1
         col_width = available_width / num_columns
         
-        # Fixed number of rows per page (9 rows + 1 header row = 10 total)
+        # Fixed number of rows per page (13 rows + 1 header row = 14 total)
         rows_per_page = 13
-        row_height = min((page_height - 75) / 12, 35)  # Ensure minimum spacing, max height of 45
+        row_height = min((page_height - 75) / 12, 35)
 
-        # Split data into pages (9 rows per page)
+        # Split data into pages
         pages = []
         current_page = []
         for row in schedule_data:
@@ -1739,7 +1711,6 @@ def export_schedule():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                # Different font sizes for first column and other columns
                 ('FONTSIZE', (0, 1), (0, -1), 8),  # First column (machine names)
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
                 ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 12),  # Other columns
@@ -1770,18 +1741,18 @@ def export_schedule():
         response = make_response(buffer.getvalue())
         buffer.close()
         response.headers['Content-Type'] = 'application/pdf'
-        name_suffix = 'arabic' if name_type == 'arabic' else 'latin'
-        response.headers['Content-Disposition'] = f'attachment; filename=schedule_week_{week}_{year}_{name_suffix}.pdf'
+        name_suffix = 'ar' if name_type == 'arabic' else 'fr'
+        response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
         return response
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
 def get_local_ip():
-    # Cette méthode ouvre une connexion fictive pour détecter l'IP locale
+    #This method opens a connection to detect the local IP
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # On se connecte à une IP externe sans envoyer de données
+        #Connect to an external IP without sending data
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
     except Exception:
