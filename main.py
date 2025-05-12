@@ -1770,7 +1770,7 @@ def export_schedule():
         response = make_response(buffer.getvalue())
         buffer.close()
         response.headers['Content-Type'] = 'application/pdf'
-        name_suffix = 'arabic' if name_type == 'ar' else 'fr'
+        name_suffix = 'ar' if name_type == 'arabic' else 'fr'
         response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
         return response
         
