@@ -963,6 +963,8 @@ def get_operators():
                                     THEN 'long_absence'
                                     WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)
                                     THEN 'current_absence'
+				    WHEN CURDATE() < MAX(a.start_date)
+				    THEN 'upcoming_absence'
                                     ELSE 'no_absence'
                                 END
                             ELSE 'no_absence'
