@@ -990,15 +990,9 @@ function nextWeek() {
         week++;
     }
     
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
     currentUrl.searchParams.set('week', week);
     currentUrl.searchParams.set('year', year);
-    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+    window.location.href = currentUrl.toString();
 }
 
 //Schedule Operator Selection
