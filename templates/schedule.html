@@ -64,8 +64,8 @@
                                     data-last-shift="{{ operator.last_shift_id }}"
                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
                                 {{ operator.name }} 
-                                {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}
-                                    (Absent jusqu'au {{ operator.end_date }})
+                                {% if operator.absence_status == 'upcoming_absence' %}
+                                    (Absent à partir du {{ operator.start_date }} -> {{operator.end_date}})
                                 {% endif %}
                             </option>
                             {% endfor %}
