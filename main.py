@@ -984,10 +984,9 @@ def get_shifts():
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM shifts")
                 shifts = cursor.fetchall()
-                print(f"Found {len(shifts)} shifts in database: {shifts}")  # Debug print
                 return shifts
     except Exception as e:
-        print(f"Error in get_shifts: {str(e)}")  # Debug print
+        print(f"Error in get_shifts: {str(e)}")  #Debug print
         flash(f"Error loading shifts: {str(e)}", "error")
         return []
 
