@@ -116,12 +116,15 @@ function exportToPDF(nameType) {
     }, 1000);
 }
 
+const currentWeek = {{ week }};
+const currentYear = {{ year }};
+
 function nextWeek() {
-    window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ currentWeek + 1 }}&year={{ year }}`;
 }
     
 function previousWeek() {
-    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
+    window.location.href = `/schedule?week={{ currentWeek - 1 }}&year={{ year }}`;
 }
 
 const selectedOperators = new Set();
