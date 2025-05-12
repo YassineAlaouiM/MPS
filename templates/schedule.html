@@ -11,9 +11,9 @@
     
     <!-- Week Navigation -->
     <div class="week-navigation">
-        <button onclick="nextWeek()">Semaine précédente</button>
+        <button onclick="previousWeek()">Semaine précédente</button>
         <span id="current-week">Semaine {{ week }}, {{ year }}</span>
-        <button onclick="previousWeek()">Semaine suivante</button>
+        <button onclick="nextWeek()">Semaine suivante</button>
     </div>
 
     <!-- Schedule Grid -->
@@ -116,12 +116,12 @@ function exportToPDF(nameType) {
     }, 1000);
 }
 
-function previousWeek() {
-    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
-}
-
 function nextWeek() {
     window.location.href = `/schedule?week={{ week + 1 }}&year={{ year }}`;
+}
+    
+function previousWeek() {
+    window.location.href = `/schedule?week={{ week - 1 }}&year={{ year }}`;
 }
 
 const selectedOperators = new Set();
