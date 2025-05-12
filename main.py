@@ -784,7 +784,7 @@ def create_production():
             
             # For regular machines, article and quantity are required
             if not is_service and (not article_id or not quantity):
-                return jsonify({'success': False, 'message': 'Article and quantity are required for machines'})
+                return jsonify({'success': False, 'message': 'Article et quantité sont nécessaires pour les machines'})
             
             # Check if machine is already in production
             sql = """
@@ -1770,8 +1770,8 @@ def export_schedule():
         response = make_response(buffer.getvalue())
         buffer.close()
         response.headers['Content-Type'] = 'application/pdf'
-        name_suffix = 'arabic' if name_type == 'arabic' else 'latin'
-        response.headers['Content-Disposition'] = f'attachment; filename=schedule_week_{week}_{year}_{name_suffix}.pdf'
+        name_suffix = 'arabic' if name_type == 'ar' else 'fr'
+        response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
         return response
         
     except Exception as e:
