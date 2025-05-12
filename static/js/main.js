@@ -940,7 +940,7 @@ function getCurrentWeekYear() {
 
 function nextWeek() {
     const { week, year } = getCurrentWeekYear();
-    let newWeek = week + 1;
+    let newWeek = week++;
     let newYear = year;
 
     // Optional: check if week > 52 and roll over
