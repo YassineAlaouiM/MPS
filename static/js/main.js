@@ -987,7 +987,7 @@ function nextWeek() {
         week = 1;
         year++;
     } else {
-        week++;
+        week+2;
     }
     
     // Double-check the result is valid
