@@ -957,12 +957,7 @@ def get_operators():
                         MAX(a.end_date) as end_date,
                         CASE 
                             WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
-                                CASE 
-                                    WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
-                                        AND CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)    
-                                    THEN 'long_absence'
-                                    WHEN CURDATE() BETWEEN MAX(a.start_date) AND MAX(a.end_date)
-                                    THEN 'current_absence'
+                                CASE
 				    WHEN CURDATE() < MAX(a.start_date)
 				    THEN 'upcoming_absence'
                                     ELSE 'no_absence'
@@ -971,10 +966,7 @@ def get_operators():
                         END as absence_status
                     FROM operators o
                     LEFT JOIN absences a ON o.id = a.operator_id 
-                        AND (
-			    CURDATE() BETWEEN a.start_date AND a.end_date
-       			    OR CURDATE() < a.start_date
-			)
+                        AND CURDATE() < a.start_date
                     WHERE o.status != 'inactive'
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """)
