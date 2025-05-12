@@ -922,20 +922,24 @@ function isValidWeek(week, year) {
 
 // Helper function to get current week and year
 function getCurrentWeekYear() {
-    const today = new Date();
-    const week = today.getWeek();
-    let year = today.getFullYear();
-    
-    // Handle edge case where current week might belong to previous/next year
-    if (week === 1 && today.getMonth() === 11) {
-        // Week 1 in December belongs to next year
-        year++;
-    } else if (week >= 52 && today.getMonth() === 0) {
-        // Week 52/53 in January belongs to previous year
-        year--;
-    }
-    
+    const params = new URLSearchParams(window.location.search);
+    let week = parseInt(params.get("week")) || {{ week }};
+    let year = parseInt(params.get("year")) || {{ year }};
     return { week, year };
+}
+
+function nextWeek() {
+    const { week, year } = getCurrentWeekYear();
+    let newWeek = week + 1;
+    let newYear = year;
+
+    // Optional: check if week > 52 and roll over
+    if (newWeek > 52) {
+        newWeek = 1;
+        newYear++;
+    }
+
+    window.location.href = `/schedule?week=${newWeek}&year=${newYear}`;
 }
 
 function previousWeek() {
@@ -956,39 +960,6 @@ function previousWeek() {
         week = getLastWeekOfYear(year);
     } else {
         week--;
-    }
-    
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    currentUrl.searchParams.set('week', week);
-    currentUrl.searchParams.set('year', year);
-    window.location.href = currentUrl.toString();
-}
-
-function nextWeek() {
-    const currentUrl = new URL(window.location.href);
-    const current = getCurrentWeekYear();
-    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
-    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-    
-    // Validate current week/year
-    if (!isValidWeek(week, year)) {
-        week = current.week;
-        year = current.year;
-    }
-    
-    // Calculate next week
-    const lastWeek = getLastWeekOfYear(year);
-    let next = week + 1;
-    if (week === lastWeek) {
-        week = 1;
-        year++;
-    } else {
-        next;
     }
     
     // Double-check the result is valid
