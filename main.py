@@ -567,29 +567,29 @@ def create_absence():
 @login_required
 def update_absence(id):
     data = request.get_json()
+
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     reason = data.get('reason')
-    operator_id = data.get('operator_id')
+    operator_id = data.get('operator_id')  # ✅ Make sure this is included
 
-    
-    if not all([start_date, end_date, reason]):
-        return jsonify({'success': False, 'message': 'All fields are required'})
-    
+    # ✅ Validate all fields are provided
+    if not all([start_date, end_date, reason, operator_id]):
+        return jsonify({'success': False, 'message': 'All fields are required'}), 400
+
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
             sql = """
-		UPDATE absences 
-		SET start_date = %s, end_date = %s, reason = %s, operator_id = %s
-		WHERE id = %s
-
+                UPDATE absences 
+                SET start_date = %s, end_date = %s, reason = %s, operator_id = %s
+                WHERE id = %s
             """
             cursor.execute(sql, (start_date, end_date, reason, operator_id, id))
             connection.commit()
-            return jsonify({'success': True, 'message': 'Absence updated successfully'})
+            return jsonify({'success': True, 'message': 'Absence updated successfully'}), 200
     except pymysql.Error as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
 
