@@ -989,7 +989,7 @@ def get_operators(week=None, year=None):
                             %s BETWEEN a.start_date AND a.end_date
                             OR a.start_date BETWEEN %s AND %s
                         )
-                    WHERE o.status = 'active'
+                    WHERE o.status != 'inactive'
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """, (week_dates['week_start'], week_dates['week_start'],
                       week_dates['week_start'], week_dates['week_end'],
