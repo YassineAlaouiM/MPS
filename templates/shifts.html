@@ -27,7 +27,7 @@
                             <td>{{ shift.start_time }}</td>
                             <td>{{ shift.end_time }}</td>
                             <td>
-                                <button class="btn btn-warning btn-sm" onclick="editShift({{ shift.id }})">
+                                <button class="btn btn-light btn-sm" onclick="editShift({{ shift.id }})">
                                     <i class='bx bx-edit-alt'></i>
                                 </button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteShift({{ shift.id }})">
@@ -117,7 +117,7 @@ function editShift(shiftId) {
     const row = document.querySelector(`tr[data-shift-id="${shiftId}"]`);
     
     document.getElementById('form-title').textContent = 'Modifier le Shift';
-    document.getElementById('submit-button').textContent = 'Mettre à jour le Shift';
+    document.getElementById('submit-button').textContent = 'Mettre à jour';
     
     // Set form values
     document.getElementById('shift-name').value = row.cells[0].textContent;
