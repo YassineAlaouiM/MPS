@@ -41,10 +41,6 @@ body {
     margin: 2px;
 }
 
-.btn:hover {
-        transform: translateY(-3px);
-}
-
 /* Icon Styles */
 .btn i {
     font-size: 1.5em; /* Adjust the size of the icons */
@@ -91,12 +87,17 @@ body {
 .btn {
     border-radius: 7px !important;
     padding: 5px !important;
-    transition: background-color 0.3s ease;
+}
+
+
+.btn:hover {
+        transform: translateY(-3px);
 }
 
 #btn-text {
     padding: 5px 10px !important;
     font-weight: 600 !important;
+    transition: all 0.3s ease;
 }
 
 .btn-primary {
