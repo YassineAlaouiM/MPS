@@ -775,28 +775,30 @@ function saveAbsence() {
 }
 
 function editAbsence(id) {
-    fetch(`/get_absence/${id}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Erreur lors de la récupération des données");
-            }
-            return response.json();
-        })
+    
+    // Fetch absence details and populate the edit modal
+    fetch(`/api/absences/${id}`)
+        .then(response => response.json())
         .then(absence => {
-            // Remplir les champs du formulaire avec les données reçues
             document.getElementById('editAbsenceId').value = absence.id;
             document.getElementById('editOperatorName').value = absence.operator_id;
-            document.getElementById('editStartDate').value = absence.start_date;
-            document.getElementById('editEndDate').value = absence.end_date;
-            document.getElementById('editReason').value = absence.reason;
+            if (absence.start_date) {
+                const startDate = new Date(absence.start_date);
+                document.getElementById('editStartDate').value = startDate.toISOString().split('T')[0];
+            }
+            if (absence.end_date) {
+                const endDate = new Date(absence.end_date);
+                document.getElementById('editEndDate').value = endDate.toISOString().split('T')[0];
+            }
 
-            // Ouvrir la modale Bootstrap
-            const modal = new bootstrap.Modal(document.getElementById('editAbsenceModal'));
-            modal.show();
+            document.getElementById('editReason').value = absence.reason;
+            
+            // Show the modal
+            new bootstrap.Modal(document.getElementById('editAbsenceModal')).show();
         })
         .catch(error => {
-            console.error("Erreur :", error);
-            alert("Une erreur est survenue lors de la récupération de l'absence.");
+            console.error('Error fetching absence details:', error);
+            alert('Error fetching absence details');
         });
 }
 
