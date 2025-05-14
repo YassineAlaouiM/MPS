@@ -523,7 +523,7 @@ def get_absence(id):
                 SELECT a.*, o.name as operator_name
                 FROM absences a
                 JOIN operators o ON a.operator_id = o.id
-                WHERE a.id = %s AND o.status = 'active'
+                WHERE a.id = %s
             """
             cursor.execute(sql, (id,))
             absence = cursor.fetchone()
@@ -989,7 +989,7 @@ def get_operators(week=None, year=None):
                             %s BETWEEN a.start_date AND a.end_date
                             OR a.start_date BETWEEN %s AND %s
                         )
-                    WHERE o.status != 'inactive'
+                    WHERE o.status = 'active'
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """, (week_dates['week_start'], week_dates['week_start'],
                       week_dates['week_start'], week_dates['week_end'],
