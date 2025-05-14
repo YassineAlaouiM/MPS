@@ -171,6 +171,7 @@ def home():
                 SELECT a.*, o.name as operator_name
                 FROM absences a
                 JOIN operators o ON a.operator_id = o.id
+		WHERE o.status = 'active'
                 ORDER BY a.end_date DESC
             """
             cursor.execute(sql)
