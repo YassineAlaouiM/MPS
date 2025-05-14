@@ -537,6 +537,7 @@
 </div>
 
 <!-- Edit Absence Modal -->
+<!-- Edit Absence Modal -->
 <div class="modal fade" id="editAbsenceModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -548,8 +549,9 @@
                 <form id="editAbsenceForm">
                     <input type="hidden" id="editAbsenceId">
                     <div class="mb-3">
-                        <label for="editOperatorName" class="form-label">Opérateur</label>
-                        <select class="form-select" id="editOperatorName" required>
+                        <label for="editOperatorSelect" class="form-label">Opérateur</label>
+                        <select class="form-select" id="editOperatorSelect" required>
+                            <option value="">Sélectionner un opérateur</option>
                             {% for operator in operators %}
                             <option value="{{ operator.id }}">{{ operator.name }}</option>
                             {% endfor %}
@@ -564,8 +566,14 @@
                         <input type="date" class="form-control" id="editEndDate" required>
                     </div>
                     <div class="mb-3">
-                        <label for="editReason" class="form-label">Raison</label>
-                        <input type="text" class="form-control" id="editReason" required>
+                        <label for="editAbsenceReason" class="form-label">Raison</label>
+                        <select class="form-select" id="editAbsenceReason" required>
+                            <option value="">Sélectionner une raison</option>
+                            <option value="Congé maladie">Congé maladie</option>
+                            <option value="Vacances">Vacances</option>
+                            <option value="Congé personnel">Congé personnel</option>
+                            <option value="Autre">Autre</option>
+                        </select>
                     </div>
                 </form>
             </div>
