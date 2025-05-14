@@ -839,6 +839,26 @@ function saveAbsenceEdit() {
     });
 }
 
+function deleteAbsence(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette absence ?')) {
+        fetch(`/api/absences/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Absence supprimée avec succès');
+                location.reload();
+            } else {
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur :', error);
+            alert('Erreur lors de la suppression de l\'absence');
+        });
+    }
+}
 
 // Schedule Management
 function assignOperator(machineId, shiftId, weekNumber, year) {
