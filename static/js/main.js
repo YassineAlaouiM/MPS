@@ -775,13 +775,24 @@ function saveAbsence() {
 }
 
 function editAbsence(id) {
-    
     // Fetch absence details and populate the edit modal
     fetch(`/api/absences/${id}`)
-        .then(response => response.json())
-        .then(absence => {
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur lors de la récupération des détails de l\'absence');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const absence = data.absence || data; // Handle both response formats
+            if (!absence) {
+                throw new Error('Données d\'absence non trouvées');
+            }
+
             document.getElementById('editAbsenceId').value = absence.id;
-            document.getElementById('editOperatorName').value = absence.operator_id;
+            document.getElementById('editOperatorSelect').value = absence.operator_id;
+            
+            // Format dates to YYYY-MM-DD
             if (absence.start_date) {
                 const startDate = new Date(absence.start_date);
                 document.getElementById('editStartDate').value = startDate.toISOString().split('T')[0];
@@ -790,34 +801,48 @@ function editAbsence(id) {
                 const endDate = new Date(absence.end_date);
                 document.getElementById('editEndDate').value = endDate.toISOString().split('T')[0];
             }
-
-            document.getElementById('editReason').value = absence.reason;
+            
+            document.getElementById('editAbsenceReason').value = absence.reason;
             
             // Show the modal
             new bootstrap.Modal(document.getElementById('editAbsenceModal')).show();
         })
         .catch(error => {
-            console.error('Error fetching absence details:', error);
-            alert('Error fetching absence details');
+            console.error('Error:', error);
+            alert(error.message || 'Erreur lors de la récupération des détails de l\'absence');
         });
 }
 
 function saveAbsenceEdit() {
     const id = document.getElementById('editAbsenceId').value;
-    const data = {
-        operator_id: document.getElementById('editOperatorName').value,
-        start_date: document.getElementById('editStartDate').value,
-        end_date: document.getElementById('editEndDate').value,
-        reason: document.getElementById('editReason').value
-    };
-
-    const startDate = data.start_date;
-    const endDate = data.end_date;
-
-    if (startDate > endDate) {
-        alert('La date de début doit être antérieure à la date de fin');
+    if (!id) {
+        alert('ID d\'absence non trouvé');
         return;
     }
+
+    const operatorId = document.getElementById('editOperatorSelect').value;
+    const startDate = document.getElementById('editStartDate').value;
+    const endDate = document.getElementById('editEndDate').value;
+    const reason = document.getElementById('editAbsenceReason').value;
+
+    // Validate all required fields
+    if (!operatorId || !startDate || !endDate || !reason) {
+        alert('Veuillez remplir tous les champs requis');
+        return;
+    }
+
+    // Validate dates
+    if (new Date(endDate) < new Date(startDate)) {
+        alert('La date de fin doit être postérieure à la date de début');
+        return;
+    }
+
+    const data = {
+        operator_id: operatorId,
+        start_date: startDate,
+        end_date: endDate,
+        reason: reason
+    };
 
     fetch(`/api/absences/${id}`, {
         method: 'PUT',
@@ -827,15 +852,22 @@ function saveAbsenceEdit() {
         body: JSON.stringify(data)
     })
     .then(response => {
-        if (response.ok) {
+        if (!response.ok) {
+            throw new Error('Erreur lors de la mise à jour de l\'absence');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('Absence mise à jour avec succès');
             location.reload();
         } else {
-            throw new Error('Failed to update absence');
+            throw new Error(data.message || 'Erreur lors de la mise à jour de l\'absence');
         }
     })
     .catch(error => {
-        console.error('Error updating absence:', error);
-        alert('Error updating absence');
+        console.error('Error:', error);
+        alert(error.message || 'Erreur lors de la mise à jour de l\'absence');
     });
 }
 
