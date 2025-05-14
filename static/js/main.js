@@ -298,6 +298,12 @@ function saveNonFunctioningMachine() {
 
     const reportedAt = `${reportedDate} ${reportedTime}`;
 
+    if (new Date(reportedAt) > new Date()) {
+        alert('La date et l\'heure de signalement ne peuvent pas être dans le futur');
+        return;
+    }
+
+
     fetch('/api/non_functioning_machines', {
         method: 'POST',
         headers: {
@@ -369,9 +375,6 @@ function submitMarkFixed(id) {
     const fixedDate = document.getElementById('fixedDate').value;
     const fixedTime = document.getElementById('fixedTime').value;
 
-    console.log('Fixed Date:', fixedDate); // Debug log
-    console.log('Fixed Time:', fixedTime); // Debug log
-
     if (!fixedDate || !fixedTime) {
         alert('Veuillez sélectionner la date et l\'heure');
         return;
@@ -379,7 +382,18 @@ function submitMarkFixed(id) {
 
     // Combine date and time into a proper format
     const fixedDateTime = `${fixedDate} ${fixedTime}`;
-    console.log('Fixed DateTime:', fixedDateTime); // Debug log
+
+    // Get the reported date from the table row
+    const row = document.querySelector(`tr[data-machine-id="${id}"]`);
+    const reportedDateStr = row.querySelector('td:nth-child(3)').textContent.trim();
+    const reportedDate = new Date(reportedDateStr);
+    const fixedDateObj = new Date(fixedDateTime);
+
+    // Compare dates
+    if (fixedDateObj <= reportedDate) {
+        alert('La date de réparation doit être postérieure à la date de signalement');
+        return;
+    }
 
     fetch(`/api/non_functioning_machines/${id}/fix`, {
         method: 'POST',
@@ -536,6 +550,15 @@ function saveProduction() {
     // Always include article and quantity if filled
     data.article_id = document.getElementById('productionArticle').value;
     data.quantity = document.getElementById('productionQuantity').value;
+
+    const startDate = data.start_date;
+    const endDate = data.end_date;
+
+    if (startDate > endDate) {
+        alert('La date de début doit être antérieure à la date de fin');
+        return;
+    }
+
     fetch('/api/production', {
         method: 'POST',
         headers: {
@@ -560,15 +583,31 @@ function saveProduction() {
 function saveProductionEdit() {
     const id = document.getElementById('editProductionId').value;
     const machineSelect = document.getElementById('editProductionMachine');
+    const startDate = document.getElementById('editProductionStartDate').value;
+    const endDate = document.getElementById('editProductionEndDate').value;
+    const status = document.getElementById('editProductionStatus').value;
+
+    // Validate dates if both are provided
+    if (startDate && endDate) {
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+        
+        if (endDateObj <= startDateObj) {
+            alert('La date de fin doit être postérieure à la date de début');
+            return;
+        }
+    }
+
     const data = {
         machine_id: machineSelect.value,
-        start_date: document.getElementById('editProductionStartDate').value,
-        end_date: document.getElementById('editProductionEndDate').value || null,
-        status: document.getElementById('editProductionStatus').value
+        start_date: startDate,
+        end_date: endDate || null,
+        status: status
     };
     // Always include article and quantity if filled
     data.article_id = document.getElementById('editProductionArticle').value;
     data.quantity = document.getElementById('editProductionQuantity').value;
+
     fetch(`/api/production/${id}`, {
         method: 'PUT',
         headers: {
@@ -660,6 +699,7 @@ function editProduction(id) {
             
             document.getElementById('editProductionStatus').value = production.status;
             new bootstrap.Modal(document.getElementById('editProductionModal')).show();
+
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des détails de la production :', error);
@@ -701,6 +741,11 @@ function saveAbsence() {
         alert('Veuillez remplir tous les champs');
         return;
     }
+
+    if (startDate > endDate) {
+        alert('La date de début doit être antérieure à la date de fin');
+        return;
+    }
     
     fetch('/api/absences', {
         method: 'POST',
@@ -730,6 +775,7 @@ function saveAbsence() {
 }
 
 function editAbsence(id) {
+    
     // Fetch absence details and populate the edit modal
     fetch(`/api/absences/${id}`)
         .then(response => response.json())
@@ -764,6 +810,14 @@ function saveAbsenceEdit() {
         end_date: document.getElementById('editEndDate').value,
         reason: document.getElementById('editReason').value
     };
+
+    const startDate = data.start_date;
+    const endDate = data.end_date;
+
+    if (startDate > endDate) {
+        alert('La date de début doit être antérieure à la date de fin');
+        return;
+    }
 
     fetch(`/api/absences/${id}`, {
         method: 'PUT',
@@ -1000,7 +1054,6 @@ function updateOperatorDropdowns() {
         }
     });
 }
-
 // Add event listeners for modal show events
 document.addEventListener('DOMContentLoaded', function() {
     // Machine modal reset
@@ -1021,10 +1074,47 @@ document.addEventListener('DOMContentLoaded', function() {
         // Only reset if we're not in edit mode (check if button text is not 'Update')
         if (document.querySelector('#addOperatorModal .btn-primary').textContent !== 'Mettre à jour') {
             document.getElementById('operatorName').value = '';
+            document.getElementById('operatorArabicName').value = '';
             document.getElementById('operatorStatus').value = 'active';
             document.querySelector('#addOperatorModal .modal-title').textContent = 'Ajouter un opérateur';
             document.querySelector('#addOperatorModal .btn-primary').textContent = 'Enregistrer';
             document.querySelector('#addOperatorModal .btn-primary').onclick = saveOperator;
         }
+    });
+
+    // Non-Functioning Machine modal reset
+    document.getElementById('addNonFunctioningMachineModal').addEventListener('show.bs.modal', function() {
+        document.getElementById('machineSelect').value = '';
+        document.getElementById('issueDescription').value = '';
+        document.getElementById('reportedDate').value = '';
+        document.getElementById('reportedTime').value = '';
+    });
+
+    // Absence modal reset
+    document.getElementById('addAbsenceModal').addEventListener('show.bs.modal', function() {
+        document.getElementById('operatorSelect').value = '';
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        document.getElementById('absenceReason').value = '';
+    });
+
+    // Production modal reset
+    document.getElementById('addProductionModal').addEventListener('show.bs.modal', function() {
+        document.getElementById('productionMachine').value = '';
+        document.getElementById('productionArticle').value = '';
+        document.getElementById('productionQuantity').value = '';
+        document.getElementById('productionStartDate').value = '';
+        document.getElementById('productionEndDate').value = '';
+        // Reset article fields visibility
+        const articleFields = document.querySelectorAll('.article-field');
+        articleFields.forEach(field => {
+            field.style.display = 'none';
+        });
+    });
+
+    // Article modal reset
+    document.getElementById('addArticleModal').addEventListener('show.bs.modal', function() {
+        document.getElementById('articleName').value = '';
+        document.getElementById('articleDescription').value = '';
     });
 });
