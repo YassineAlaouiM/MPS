@@ -11,9 +11,40 @@
     
     <!-- Week Navigation -->
     <div class="week-navigation">
-        <button type="button" onclick="previousWeek()">Semaine précédente</button>
-        <span id="current-week">Semaine {{ week }}, {{ year }}</span>
-        <button type="button" onclick="nextWeek()">Semaine suivante</button>
+        <div class="week-selector-container">
+            <div class="calendar-preview">
+                <div class="navigation-row">
+                    <span class="week-label">Semaine</span>
+                    <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="week-info">
+                        <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                    </div>
+                    <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+
+                    <div class="separator"></div>
+
+                    <div class="week-dates" id="weekDatesDisplay"></div>
+                    
+                    <div class="separator"></div>
+
+                    <span class="year-label">Année</span>
+                    <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="year-display">
+                        <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
+                    </div>
+                    <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+            </div>
+        </div>
     </div>
 
     <!-- Schedule Grid -->
@@ -91,8 +122,6 @@
         </div>
     </div>
 </div>
-
-
 
 <script>
 function exportToPDF(nameType) {
@@ -350,6 +379,7 @@ function initializeSelects() {
 
 // Update DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', function() {
+    updateWeekDatesDisplay();
     loadStoredAssignments();
     initializeSelects();
     updateOperatorDropdowns();
@@ -579,6 +609,188 @@ function handleDrop(event) {
 
     // Update the UI
     updateOperatorDropdowns();
+}
+
+function updateWeekDatesDisplay() {
+    const year = parseInt(document.getElementById('yearInput').value);
+    const week = parseInt(document.getElementById('weekInput').value);
+    
+    const jan4 = new Date(year, 0, 4);
+    const mondayWeek1 = new Date(jan4);
+    mondayWeek1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
+    
+    const targetMonday = new Date(mondayWeek1);
+    targetMonday.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+    
+    const targetSunday = new Date(targetMonday);
+    targetSunday.setDate(targetMonday.getDate() + 6);
+    
+    const formatDate = (date) => {
+        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    };
+    
+    const dateDisplay = `${formatDate(targetMonday)} - ${formatDate(targetSunday)}`;
+    const weekDatesElement = document.getElementById('weekDatesDisplay');
+    if (weekDatesElement) {
+        weekDatesElement.textContent = dateDisplay;
+    }
+}
+
+function updateYearFromInput(value) {
+    const year = parseInt(value);
+    const weekElement = document.getElementById('weekInput');
+    const week = parseInt(weekElement.value);
+    
+    if (isNaN(year) || year < 1900 || year > 2100) {
+        alert('Veuillez entrer une année valide entre 1900 et 2100');
+        document.getElementById('yearInput').value = {{ year }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        weekElement.value = lastWeek;
+    }
+    
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function updateWeekFromInput(value) {
+    const week = parseInt(value);
+    const yearElement = document.getElementById('yearInput');
+    const year = parseInt(yearElement.value);
+    
+    if (isNaN(week) || week < 1 || week > 53) {
+        alert('Veuillez entrer un numéro de semaine valide entre 1 et 53');
+        document.getElementById('weekInput').value = {{ week }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        alert(`La semaine ${week} n'est pas valide pour l'année ${year}. La dernière semaine de ${year} est ${lastWeek}`);
+        document.getElementById('weekInput').value = lastWeek;
+        return;
+    }
+    
+    updateNavigation(year, week);
+}
+
+function changeYear(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    year += delta;
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        week = lastWeek;
+        weekElement.value = week;
+    }
+    
+    yearElement.value = year;
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function changeWeek(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week += delta;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    } else if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function updateNavigation(year, week) {
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    updateWeekDatesDisplay();
+    
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('year', year);
+    currentUrl.searchParams.set('week', week);
+    window.location.href = currentUrl.toString();
+}
+
+// Add keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if (event.altKey) {
+        switch(event.key) {
+            case 'ArrowLeft':
+                changeWeek(-1);
+                break;
+            case 'ArrowRight':
+                changeWeek(1);
+                break;
+            case 'ArrowUp':
+                changeYear(1);
+                break;
+            case 'ArrowDown':
+                changeYear(-1);
+                break;
+        }
+    }
+});
+
+function goToCurrentWeek() {
+    const current = getCurrentWeekYear();
+    document.getElementById('yearInput').value = current.year;
+    document.getElementById('weekInput').value = current.week;
+    updateNavigation(current.year, current.week);
+}
+
+function goToNextWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week++;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function goToPreviousWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week--;
+    if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
 }
 </script>
 {% endblock %}

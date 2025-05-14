@@ -7,17 +7,10 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    role ENUM('admin', 'operator') NOT NULL DEFAULT 'operator',
+    role ENUM('admin', 'operator') NOT NULL DEFAULT 'admin',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
--- Machines Table
-CREATE TABLE IF NOT EXISTS machines (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    status ENUM('operational', 'maintenance', 'broken') NOT NULL DEFAULT 'operational',
-    type BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+
 -- Shifts Table
 CREATE TABLE IF NOT EXISTS shifts (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -26,29 +19,23 @@ CREATE TABLE IF NOT EXISTS shifts (
     end_time TIME NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Machines Table
+CREATE TABLE IF NOT EXISTS machines (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    status ENUM('operational', 'broken') NOT NULL DEFAULT 'operational',
+    type BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 -- Operators Table
 CREATE TABLE IF NOT EXISTS operators (
-    id INT NOT NULL PRIMARY KEY,
+    id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     arabic_name VARCHAR(100) NOT NULL,
     status ENUM('active', 'inactive', 'absent') NOT NULL DEFAULT 'active',
     last_shift_id INT DEFAULT NULL,
     FOREIGN KEY (last_shift_id) REFERENCES shifts(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
--- ALTER TABLE operators ADD COLUMN last_shift_id INT DEFAULT NULL, ADD FOREIGN KEY (last_shift_id) REFERENCES shifts(id);
-
--- Schedule Table
-CREATE TABLE IF NOT EXISTS schedule (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    machine_id INT,
-    operator_id INT,
-    shift_id INT,
-    week_number INT NOT NULL,
-    year INT NOT NULL,
-    FOREIGN KEY (machine_id) REFERENCES machines(id),
-    FOREIGN KEY (operator_id) REFERENCES operators(id),
-    FOREIGN KEY (shift_id) REFERENCES shifts(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -93,4 +80,20 @@ CREATE TABLE IF NOT EXISTS production (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (machine_id) REFERENCES machines(id),
     FOREIGN KEY (article_id) REFERENCES articles(id)
+);
+
+-- Schedule Table
+CREATE TABLE IF NOT EXISTS schedule (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    machine_id INT,
+    production_id INT,
+    operator_id INT,
+    shift_id INT,
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    FOREIGN KEY (machine_id) REFERENCES machines(id),
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (shift_id) REFERENCES shifts(id),
+    FOREIGN KEY (production_id) REFERENCES production(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

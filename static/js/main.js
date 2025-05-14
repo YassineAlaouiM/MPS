@@ -938,69 +938,6 @@ function getCurrentWeekYear() {
     return { week, year };
 }
 
-function nextWeek() {
-    const currentUrl = new URL(window.location.href);
-    const current = getCurrentWeekYear();
-    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
-    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-    
-    // Validate current week/year
-    if (!isValidWeek(week, year)) {
-        week = current.week;
-        year = current.year;
-    }
-    
-    // Calculate next week
-    const lastWeek = getLastWeekOfYear(year);
-    if (week === lastWeek) {
-        week = 1;
-        year++;
-    } else {
-        week++;
-    }
-    
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    currentUrl.searchParams.set('week', week);
-    currentUrl.searchParams.set('year', year);
-    window.location.href = currentUrl.toString();
-}
-
-function previousWeek() {
-    const currentUrl = new URL(window.location.href);
-    const current = getCurrentWeekYear();
-    let week = parseInt(currentUrl.searchParams.get('week')) || current.week;
-    let year = parseInt(currentUrl.searchParams.get('year')) || current.year;
-    
-    // Validate current week/year
-    if (!isValidWeek(week, year)) {
-        week = current.week;
-        year = current.year;
-    }
-    
-    // Calculate previous week
-    if (week === 1) {
-        year--;
-        week = getLastWeekOfYear(year);
-    } else {
-        week--;
-    }
-    
-    // Double-check the result is valid
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    currentUrl.searchParams.set('week', week);
-    currentUrl.searchParams.set('year', year);
-    window.location.href = currentUrl.toString();
-}
-
 //Schedule Operator Selection
 function updateOperatorDropdowns() {
     // Get all operator dropdowns

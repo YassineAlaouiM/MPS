@@ -35,7 +35,7 @@
                                 <tr>
                                     <td>{{ machine.name }}</td>
                                     <td>
-                                        <span class="badge bg-{{ 'success' if machine.status == 'operational' else 'warning' if machine.status == 'maintenance' else 'danger' }}">
+                                        <span class="badge bg-{{ 'success' if machine.status == 'operational' else 'light' if machine.status == 'maintenance' else 'danger' }}">
                                             {{ machine.status }}
                                         </span>
                                     </td>
@@ -43,7 +43,7 @@
                                         {{ 'Service' if machine.type else 'Machine' }}
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" onclick="editMachine('{{ machine.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-light" onclick="editMachine('{{ machine.id }}')"><i class='bx bx-edit-alt' ></i></button>
                                         <button class="btn btn-sm btn-danger" onclick="deleteMachine('{{ machine.id }}')"><i class='bx bx-x'></i></button>
                                     </td>
                                 </tr>
@@ -95,7 +95,7 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" onclick="editOperator('{{ operator.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-light" onclick="editOperator('{{ operator.id }}')"><i class='bx bx-edit-alt' ></i></button>
                                         <button class="btn btn-sm btn-danger" onclick="deleteOperator('{{ operator.id }}')"><i class='bx bx-x'></i></button>
                                     </td>
                                 </tr>
@@ -144,7 +144,7 @@
                                     <td>{{ machine.reported_date }}</td>
                                     <td>
                                         {% if not machine.fixed_date %}
-                                            <button class="btn btn-sm btn-success" onclick="markMachineFixed('{{ machine.id }}')">Marquer réparée</button>
+                                            <button id="btn-text" class="btn btn-sm btn-light" onclick="markMachineFixed('{{ machine.id }}')">Marquer Réparée</button>
                                         {% else %}
                                             {{ machine.fixed_date.strftime('%Y-%m-%d %H:%M:%S') }}
                                         {% endif %}
@@ -194,7 +194,7 @@
                                     <td>{{ absence.end_date }}</td>
                                     <td>{{ absence.reason }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" onclick="editAbsence('{{ absence.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-light" onclick="editAbsence('{{ absence.id }}')"><i class='bx bx-edit-alt' ></i></button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -239,7 +239,7 @@
                                     <td>{{ article.name }}</td>
                                     <td>{{ article.description }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" onclick="editArticle('{{ article.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-light" onclick="editArticle('{{ article.id }}')"><i class='bx bx-edit-alt' ></i></button>
                                         <button class="btn btn-sm btn-danger" onclick="deleteArticle('{{ article.id }}')"><i class='bx bx-x'></i></button>
                                     </td>
                                 </tr>
@@ -278,7 +278,7 @@
                                 <input type="date" class="form-control" id="endDateSearch" placeholder="Date de fin">
                             </div>
                             <div class="col-md-2">
-                                <button class="btn btn-secondary w-100" onclick="clearDateSearch()">Effacer</button>
+                                <button id="btn-text" class="btn btn-light w-100" onclick="clearDateSearch()">Effacer</button>
                             </div>
                         </div>
                     </div>
@@ -314,7 +314,7 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" onclick="editProduction('{{ prod.id }}')"><i class='bx bx-edit-alt' ></i></button>
+                                        <button class="btn btn-sm btn-light" onclick="editProduction('{{ prod.id }}')"><i class='bx bx-edit-alt' ></i></button>
                                         <button class="btn btn-sm btn-danger" onclick="deleteProduction('{{ prod.id }}')"><i class='bx bx-x'></i></button>
                                     </td>
                                 </tr>
@@ -361,8 +361,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveMachine()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveMachine()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -396,8 +396,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveOperator()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveOperator()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -432,8 +432,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveOperatorEdit()">Mettre à jour</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveOperatorEdit()">Mettre à jour</button>
             </div>
         </div>
     </div>
@@ -479,8 +479,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveNonFunctioningMachine()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveNonFunctioningMachine()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -526,8 +526,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveAbsence()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveAbsence()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -567,8 +567,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveAbsenceEdit()">Mettre à jour</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveAbsenceEdit()">Mettre à jour</button>
             </div>
         </div>
     </div>
@@ -595,8 +595,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -624,8 +624,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveArticleEdit()">Mettre à jour</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveArticleEdit()">Mettre à jour</button>
             </div>
         </div>
     </div>
@@ -676,8 +676,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveProduction()">Enregistrer</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveProduction()">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -735,8 +735,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="saveProductionEdit()">Mettre à jour</button>
+                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveProductionEdit()">Mettre à jour</button>
             </div>
         </div>
     </div>
