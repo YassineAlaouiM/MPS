@@ -590,6 +590,21 @@ def update_absence(id):
     finally:
         connection.close()
 
+@app.route('/api/absences/<int:id>', methods=['DELETE'])
+@login_required
+def delete_absence(absence_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "DELETE FROM absences WHERE id = %s"
+            cursor.execute(sql, (absence_id,))
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Absence deleted successfully'})
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
 #Article Management
 @app.route('/api/articles', methods=['POST'])
 @login_required
