@@ -513,18 +513,27 @@ def mark_machine_fixed(id):
         connection.close()
 
 #Absences Management
-@app.route('/get_absence/<int:absence_id>')
-def get_absence(absence_id):
-    absence = Absence.query.get(absence_id)
-    if absence:
-        return jsonify({
-            "id": absence.id,
-            "operator_id": absence.operator_id,
-            "start_date": absence.start_date.strftime('%Y-%m-%d'),
-            "end_date": absence.end_date.strftime('%Y-%m-%d'),
-            "reason": absence.reason
-        })
-    return jsonify({"error": "Absence introuvable"}), 404
+@app.route('/api/absences/<int:id>', methods=['GET'])
+@login_required
+def get_absence(id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = """
+                SELECT a.*, o.name as operator_name
+                FROM absences a
+                JOIN operators o ON a.operator_id = o.id
+                WHERE a.id = %s
+            """
+            cursor.execute(sql, (id,))
+            absence = cursor.fetchone()
+            if not absence:
+                return jsonify({'success': False, 'message': 'Absence not found'}), 404
+            return jsonify(absence)
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        connection.close()
 
 @app.route('/api/absences', methods=['POST'])
 @login_required
