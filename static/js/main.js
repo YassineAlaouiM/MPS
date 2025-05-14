@@ -841,7 +841,7 @@ function saveAbsenceEdit() {
 
 function deleteAbsence(id) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette absence ?')) {
-        fetch(`/api/machines/${id}`, {
+        fetch(`/api/absences/${id}`, {
             method: 'DELETE'
         })
         .then(response => response.json())
