@@ -95,7 +95,7 @@ body {
     transition: all 0.3s ease;
 }
 
-#btn-text:hover {
+.btn:hover #btn-text{
     transform: translateY(-3px);
 }
 
