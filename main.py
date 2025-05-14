@@ -592,12 +592,27 @@ def update_absence(id):
 
 @app.route('/api/absences/<int:id>', methods=['DELETE'])
 @login_required
-def delete_absence(absence_id):
+def delete_absence(id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
+            # Get operator_id before deleting
+            sql = "SELECT operator_id FROM absences WHERE id = %s"
+            cursor.execute(sql, (id,))
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({'success': False, 'message': 'Record not found'})
+            
+            operator_id = result['operator_id']
+            
+            # Delete from absences
             sql = "DELETE FROM absences WHERE id = %s"
-            cursor.execute(sql, (absence_id,))
+            cursor.execute(sql, (id,))
+            
+            # Update operator status to active
+            sql = "UPDATE operators SET status = 'active' WHERE id = %s"
+            cursor.execute(sql, (operator_id,))
+            
             connection.commit()
             return jsonify({'success': True, 'message': 'Absence deleted successfully'})
     except pymysql.Error as e:
