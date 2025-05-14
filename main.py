@@ -374,7 +374,7 @@ def get_operator(operator_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT id, name, arabic_name, status FROM operators WHERE id = %s ORDER BY id"
+            sql = "SELECT id, name, arabic_name, status FROM operators WHERE id = %s"
             cursor.execute(sql, (operator_id,))
             operator = cursor.fetchone()
             if operator:
@@ -571,7 +571,7 @@ def update_absence(id):
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     reason = data.get('reason')
-    operator_id = data.get('operator_id')  # ✅ Make sure this is included
+    operator_id = data.get('operator_id')
 
     # ✅ Validate all fields are provided
     if not all([start_date, end_date, reason, operator_id]):
