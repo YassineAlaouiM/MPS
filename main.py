@@ -585,7 +585,7 @@ def update_absence(id):
 		WHERE id = %s
 
             """
-            cursor.execute(sql, (start_date, end_date, reason, id))
+            cursor.execute(sql, (start_date, end_date, reason, operator_id, id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Absence updated successfully'})
     except pymysql.Error as e:
