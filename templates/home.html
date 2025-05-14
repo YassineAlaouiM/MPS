@@ -138,7 +138,7 @@
                             </thead>
                             <tbody id="nonFunctioningMachinesBody">
                                 {% for machine in non_functioning_machines %}
-                                <tr>
+                                <tr data-machine-id="{{ machine.id }}">
                                     <td>{{ machine.name }}</td>
                                     <td>{{ machine.issue }}</td>
                                     <td>{{ machine.reported_date }}</td>
