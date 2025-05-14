@@ -570,6 +570,8 @@ def update_absence(id):
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     reason = data.get('reason')
+    operator_id = data.get('operator_id')
+
     
     if not all([start_date, end_date, reason]):
         return jsonify({'success': False, 'message': 'All fields are required'})
@@ -578,9 +580,10 @@ def update_absence(id):
     try:
         with connection.cursor() as cursor:
             sql = """
-                UPDATE absences 
-                SET start_date = %s, end_date = %s, reason = %s
-                WHERE id = %s
+		UPDATE absences 
+		SET start_date = %s, end_date = %s, reason = %s, operator_id = %s
+		WHERE id = %s
+
             """
             cursor.execute(sql, (start_date, end_date, reason, id))
             connection.commit()
