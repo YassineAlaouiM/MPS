@@ -374,7 +374,7 @@ def get_operator(operator_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT id, name, arabic_name, status FROM operators WHERE id = %s"
+            sql = "SELECT id, name, arabic_name, status FROM operators WHERE id = %s ORDER BY id"
             cursor.execute(sql, (operator_id,))
             operator = cursor.fetchone()
             if operator:
