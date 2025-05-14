@@ -501,6 +501,7 @@
                         <select class="form-select" id="operatorSelect" required>
                             <option value="">Sélectionner un opérateur</option>
                             {% for operator in operators %}
+                            {% if operator.status == 'active' %}
                             <option value="{{ operator.id }}">{{ operator.name }}</option>
                             {% endfor %}
                         </select>
