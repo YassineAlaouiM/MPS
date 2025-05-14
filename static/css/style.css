@@ -41,6 +41,10 @@ body {
     margin: 2px;
 }
 
+button {
+    transition: all 0.2 ease;
+}
+
 button:hover {
         transform: translateY(-3px);
 }
