@@ -62,9 +62,9 @@ def get_db_connection():
     return pymysql.connect(**db_config)
 
 @app.route('/')
-def index():
+def dashboard():
     if current_user.is_authenticated:
-        return redirect(url_for('home'))
+        return render_template('dashboard.html')
     return redirect(url_for('login'))
 
 #Login and Registration
@@ -84,7 +84,7 @@ def login():
                 if user and check_password_hash(user['password'], password):
                     user_obj = User(user['id'], user['username'], user['role'])
                     login_user(user_obj)
-                    return redirect(url_for('home'))
+                    return redirect(url_for('dashboard'))
                 else:
                     flash('Invalid username or password')
         finally:
@@ -124,85 +124,69 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-#Home Page
-@app.route('/home')
+@app.route('/machines')
 @login_required
-def home():
+def machines():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            current_date = datetime.now().date()
-            
-            # Update operator statuses based on current absences
-            sql = """
-                UPDATE operators o
-                LEFT JOIN absences a ON o.id = a.operator_id 
-                    AND %s BETWEEN a.start_date AND a.end_date
-                SET o.status = CASE 
-                    WHEN a.id IS NOT NULL THEN 'absent'
-                    WHEN o.status = 'absent' AND (a.id IS NULL OR %s NOT BETWEEN a.start_date AND a.end_date) THEN 'active'
-                    ELSE o.status
-                END
-            """
-            cursor.execute(sql, (current_date, current_date))
-            
-            # Get machines
             sql = "SELECT * FROM machines ORDER BY status"
             cursor.execute(sql)
             machines = cursor.fetchall()
-            
-            # Get operators
-            sql = "SELECT * FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
-            cursor.execute(sql)
-            operators = cursor.fetchall()
-            
-            # Get non-functioning machines
-            sql = """
+            sql = '''
                 SELECT nfm.*, m.name 
                 FROM non_functioning_machines nfm
                 JOIN machines m ON nfm.machine_id = m.id
                 ORDER BY (nfm.fixed_date),(nfm.reported_date) DESC
-            """
+            '''
             cursor.execute(sql)
             non_functioning_machines = cursor.fetchall()
-            
-            # Get absences
-            sql = """
+    finally:
+        connection.close()
+    return render_template('machines.html', machines=machines, non_functioning_machines=non_functioning_machines)
+
+@app.route('/operators')
+@login_required
+def operators():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT * FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
+            cursor.execute(sql)
+            operators = cursor.fetchall()
+            sql = '''
                 SELECT a.*, o.name as operator_name
                 FROM absences a
                 JOIN operators o ON a.operator_id = o.id
                 ORDER BY a.end_date DESC
-            """
+            '''
             cursor.execute(sql)
             absences = cursor.fetchall()
-            
-            # Get articles
+    finally:
+        connection.close()
+    return render_template('operators.html', operators=operators, absences=absences)
+
+@app.route('/production')
+@login_required
+def production():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
             sql = "SELECT * FROM articles ORDER BY name"
             cursor.execute(sql)
             articles = cursor.fetchall()
-            
-            # Get production records with machine and article names
-            sql = """
+            sql = '''
                 SELECT p.*, m.name as machine_name, m.type as machine_type, a.name as article_name
                 FROM production p
                 JOIN machines m ON p.machine_id = m.id
                 LEFT JOIN articles a ON p.article_id = a.id
                 ORDER BY p.status, p.start_date DESC
-            """
+            '''
             cursor.execute(sql)
             production = cursor.fetchall()
-            
-            connection.commit()
     finally:
         connection.close()
-    
-    return render_template('home.html', 
-                         machines=machines, 
-                         operators=operators,
-                         non_functioning_machines=non_functioning_machines,
-                         absences=absences,
-                         articles=articles,
-                         production=production)
+    return render_template('production.html', articles=articles, production=production)
 
 def init_db():
     schema_file = "schema.sql"
