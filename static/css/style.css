@@ -41,6 +41,10 @@ body {
     margin: 2px;
 }
 
+button:hover {
+        transform: translateY(-3px);
+}
+
 /* Icon Styles */
 .btn i {
     font-size: 1.5em; /* Adjust the size of the icons */
