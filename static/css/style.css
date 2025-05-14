@@ -42,7 +42,7 @@ body {
 }
 
 button {
-    transition: all 0.2 ease;
+    transition: all 0.2s ease;
 }
 
 button:hover {
