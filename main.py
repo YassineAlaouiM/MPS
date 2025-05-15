@@ -264,7 +264,7 @@ def get_machine(machine_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT * FROM machines WHERE id = %s AND status = 'operational'"
+            sql = "SELECT * FROM machines WHERE id = %s"
             cursor.execute(sql, (machine_id,))
             machine = cursor.fetchone()
             if machine:
