@@ -1,11 +1,10 @@
 // Machine Management
 function saveMachine() {
-    const name = document.getElementById('machineName').value;
-    const status = document.getElementById('machineStatus').value;
-    const type = document.getElementById('machineType').value === 'true';  // Convert string to boolean
+    const name = document.getElementById('machineName').value.trim();
+    const type = document.getElementById('machineType').value === 'true';
 
     if (!name) {
-        alert('Veuillez entrer un nom de machine');
+        alert('Le nom de la machine est requis');
         return;
     }
 
@@ -14,60 +13,51 @@ function saveMachine() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, status, type })
+        body: JSON.stringify({
+            name: name,
+            status: 'operational',
+            type: type
+        })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Machine créée avec succès');
+            hideModal('addMachineModal');
             location.reload();
         } else {
-            alert('Erreur : ' + data.message);
+            alert(data.message || 'Erreur lors de la création de la machine');
         }
     })
     .catch(error => {
-        console.error('Erreur :', error);
+        console.error('Error:', error);
         alert('Erreur lors de la création de la machine');
     });
 }
 
 function editMachine(id) {
-    // Get machine details
     fetch(`/api/machines/${id}`)
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const machine = data.machine;
-            // Populate the modal form
             document.getElementById('machineName').value = machine.name;
-            document.getElementById('machineStatus').value = machine.status;
             document.getElementById('machineType').value = machine.type ? 'true' : 'false';
 
-            // Change modal title and button
+            // Update modal for edit mode
             document.querySelector('#addMachineModal .modal-title').textContent = 'Modifier la machine';
-            document.querySelector('#addMachineModal .btn-primary').textContent = 'Mettre à jour';
-            document.querySelector('#addMachineModal .btn-primary').onclick = () => updateMachine(id);
-
-            // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('addMachineModal'));
-            modal.show();
-
-            // Add event listener to reset form when modal is hidden
-            document.getElementById('addMachineModal').addEventListener('hidden.bs.modal', function () {
-                document.getElementById('machineName').value = '';
-                document.getElementById('machineStatus').value = 'operational';
-                document.getElementById('machineType').value = 'false';
-                document.querySelector('#addMachineModal .modal-title').textContent = 'Ajouter une machine';
-                document.querySelector('#addMachineModal .btn-primary').textContent = 'Enregistrer';
-                document.querySelector('#addMachineModal .btn-primary').onclick = saveMachine;
-            }, { once: true });
+            const saveButton = document.getElementById('machineSaveButton');
+            saveButton.textContent = 'Mettre à jour';
+            saveButton.setAttribute('data-action', 'save-machine-edit');
+            saveButton.setAttribute('data-id', id);
+            
+            showModal('addMachineModal');
         } else {
-            alert('Erreur : ' + data.message);
+            alert(data.message || 'Erreur lors de la récupération des détails de la machine');
         }
     })
     .catch(error => {
-        console.error('Erreur :', error);
-        alert('Erreur lors du chargement des détails de la machine');
+        console.error('Error:', error);
+        alert('Erreur lors de la récupération des détails de la machine');
     });
 }
 
@@ -126,12 +116,12 @@ function deleteMachine(id) {
 
 // Operator Management
 function saveOperator() {
-    const name = document.getElementById('operatorName').value;
-    const arabic_name = document.getElementById('operatorArabicName').value;
+    const name = document.getElementById('operatorName').value.trim();
+    const arabicName = document.getElementById('operatorArabicName').value.trim();
     const status = document.getElementById('operatorStatus').value;
 
-    if (!name || !arabic_name) {
-        alert('Veuillez entrer le nom et le nom arabe de l\'opérateur');
+    if (!name || !arabicName) {
+        alert('Le nom et le nom arabe sont requis');
         return;
     }
 
@@ -140,60 +130,46 @@ function saveOperator() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, arabic_name, status })
+        body: JSON.stringify({
+            name: name,
+            arabic_name: arabicName,
+            status: status
+        })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Opérateur créé avec succès');
+            hideModal('addOperatorModal');
             location.reload();
         } else {
-            alert('Erreur : ' + data.message);
+            alert(data.message || 'Erreur lors de la création de l\'opérateur');
         }
     })
     .catch(error => {
-        console.error('Erreur :', error);
+        console.error('Error:', error);
         alert('Erreur lors de la création de l\'opérateur');
     });
 }
 
 function editOperator(id) {
-    // Get operator details
     fetch(`/api/operators/${id}`)
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const operator = data.operator;
-            // Populate the modal form
-            document.getElementById('operatorName').value = operator.name;
-            document.getElementById('operatorArabicName').value = operator.arabic_name;
-            document.getElementById('operatorStatus').value = operator.status;
-
-            // Change modal title and button
-            document.querySelector('#addOperatorModal .modal-title').textContent = 'Modifier l\'opérateur';
-            document.querySelector('#addOperatorModal .btn-primary').textContent = 'Mettre à jour';
-            document.querySelector('#addOperatorModal .btn-primary').onclick = () => updateOperator(id);
-
-            // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('addOperatorModal'));
-            modal.show();
-
-            // Add event listener to reset form when modal is hidden
-            document.getElementById('addOperatorModal').addEventListener('hidden.bs.modal', function () {
-                document.getElementById('operatorName').value = '';
-                document.getElementById('operatorArabicName').value = '';
-                document.getElementById('operatorStatus').value = 'active';
-                document.querySelector('#addOperatorModal .modal-title').textContent = 'Ajouter un opérateur';
-                document.querySelector('#addOperatorModal .btn-primary').textContent = 'Enregistrer';
-                document.querySelector('#addOperatorModal .btn-primary').onclick = saveOperator;
-            }, { once: true });
+            document.getElementById('editOperatorId').value = operator.id;
+            document.getElementById('editOperatorName').value = operator.name;
+            document.getElementById('editOperatorArabicName').value = operator.arabic_name;
+            document.getElementById('editOperatorStatus').value = operator.status;
+            
+            showModal('editOperatorModal');
         } else {
-            alert('Erreur : ' + data.message);
+            alert(data.message || 'Erreur lors de la récupération des détails de l\'opérateur');
         }
     })
     .catch(error => {
-        console.error('Erreur :', error);
-        alert('Erreur lors du chargement des détails de l\'opérateur');
+        console.error('Error:', error);
+        alert('Erreur lors de la récupération des détails de l\'opérateur');
     });
 }
 
@@ -419,55 +395,63 @@ function submitMarkFixed(id) {
 
 // Articles Management
 function saveArticle() {
-    const data = {
-        name: document.getElementById('articleName').value,
-        description: document.getElementById('articleDescription').value
-    };
+    const name = document.getElementById('articleName').value.trim();
+    const description = document.getElementById('articleDescription').value.trim();
+    
+    if (!name) {
+        alert('Le nom de l\'article est requis');
+        return;
+    }
 
     fetch('/api/articles', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ name, description })
     })
-    .then(response => {
-        if (response.ok) {
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
             location.reload();
         } else {
-            throw new Error('Failed to create article');
+            alert(data.message || 'Erreur lors de la création de l\'article');
         }
     })
     .catch(error => {
-        console.error('Error creating article:', error);
-        alert('Error creating article');
+        console.error('Error:', error);
+        alert('Erreur lors de la création de l\'article');
     });
 }
 
 function saveArticleEdit() {
     const id = document.getElementById('editArticleId').value;
-    const data = {
-        name: document.getElementById('editArticleName').value,
-        description: document.getElementById('editArticleDescription').value
-    };
+    const name = document.getElementById('editArticleName').value.trim();
+    const description = document.getElementById('editArticleDescription').value.trim();
+    
+    if (!name) {
+        alert('Le nom de l\'article est requis');
+        return;
+    }
 
     fetch(`/api/articles/${id}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ name, description })
     })
-    .then(response => {
-        if (response.ok) {
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
             location.reload();
         } else {
-            throw new Error('Failed to update article');
+            alert(data.message || 'Erreur lors de la mise à jour de l\'article');
         }
     })
     .catch(error => {
-        console.error('Error updating article:', error);
-        alert('Error updating article');
+        console.error('Error:', error);
+        alert('Erreur lors de la mise à jour de l\'article');
     });
 }
 
@@ -542,21 +526,35 @@ function deleteProduction(id) {
 function saveProduction() {
     const machineSelect = document.getElementById('productionMachine');
     const machineId = machineSelect.value;
+    const startDate = document.getElementById('productionStartDate').value;
+    const endDate = document.getElementById('productionEndDate').value;
+    
+    if (!machineId || !startDate) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+
     const data = {
         machine_id: machineId,
-        start_date: document.getElementById('productionStartDate').value,
-        end_date: document.getElementById('productionEndDate').value
+        start_date: startDate,
+        end_date: endDate || null
     };
-    // Always include article and quantity if filled
-    data.article_id = document.getElementById('productionArticle').value;
-    data.quantity = document.getElementById('productionQuantity').value;
 
-    const startDate = data.start_date;
-    const endDate = data.end_date;
-
-    if (startDate > endDate) {
-        alert('La date de début doit être antérieure à la date de fin');
+    // Add article data only if it's not a service machine
+    const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+    const isService = selectedOption.getAttribute('data-type') === 'true';
+    
+    if (!isService) {
+        const articleId = document.getElementById('productionArticle').value;
+        const quantity = document.getElementById('productionQuantity').value;
+        
+        if (!articleId || !quantity) {
+            alert('Veuillez remplir les informations sur l\'article');
         return;
+        }
+        
+        data.article_id = articleId;
+        data.quantity = quantity;
     }
 
     fetch('/api/production', {
@@ -571,42 +569,49 @@ function saveProduction() {
         if (data.success) {
             location.reload();
         } else {
-            alert(data.message || 'Error creating production');
+            alert(data.message || 'Erreur lors de la création de la production');
         }
     })
     .catch(error => {
-        console.error('Error creating production:', error);
-        alert('Error creating production: ' + error.message);
+        console.error('Error:', error);
+        alert('Erreur lors de la création de la production');
     });
 }
 
 function saveProductionEdit() {
     const id = document.getElementById('editProductionId').value;
     const machineSelect = document.getElementById('editProductionMachine');
+    const machineId = machineSelect.value;
     const startDate = document.getElementById('editProductionStartDate').value;
     const endDate = document.getElementById('editProductionEndDate').value;
-    const status = document.getElementById('editProductionStatus').value;
-
-    // Validate dates if both are provided
-    if (startDate && endDate) {
-        const startDateObj = new Date(startDate);
-        const endDateObj = new Date(endDate);
-        
-        if (endDateObj <= startDateObj) {
-            alert('La date de fin doit être postérieure à la date de début');
+    
+    if (!machineId || !startDate) {
+        alert('Veuillez remplir tous les champs obligatoires');
             return;
-        }
     }
 
     const data = {
-        machine_id: machineSelect.value,
+        machine_id: machineId,
         start_date: startDate,
-        end_date: endDate || null,
-        status: status
+        end_date: endDate || null
     };
-    // Always include article and quantity if filled
-    data.article_id = document.getElementById('editProductionArticle').value;
-    data.quantity = document.getElementById('editProductionQuantity').value;
+
+    // Add article data only if it's not a service machine
+    const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+    const isService = selectedOption.getAttribute('data-type') === 'true';
+    
+    if (!isService) {
+        const articleId = document.getElementById('editProductionArticle').value;
+        const quantity = document.getElementById('editProductionQuantity').value;
+        
+        if (!articleId || !quantity) {
+            alert('Veuillez remplir les informations sur l\'article');
+            return;
+        }
+        
+        data.article_id = articleId;
+        data.quantity = quantity;
+    }
 
     fetch(`/api/production/${id}`, {
         method: 'PUT',
@@ -615,16 +620,17 @@ function saveProductionEdit() {
         },
         body: JSON.stringify(data)
     })
-    .then(response => {
-        if (response.ok) {
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
             location.reload();
         } else {
-            throw new Error('Failed to update production');
+            alert(data.message || 'Erreur lors de la mise à jour de la production');
         }
     })
     .catch(error => {
-        console.error('Error updating production:', error);
-        alert('Error updating production');
+        console.error('Error:', error);
+        alert('Erreur lors de la mise à jour de la production');
     });
 }
 
@@ -1169,4 +1175,464 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('articleName').value = '';
         document.getElementById('articleDescription').value = '';
     });
+
+    // Add this to the modal cleanup code in the DOMContentLoaded event listener
+    document.getElementById('addMachineModal').addEventListener('hidden.bs.modal', function() {
+        const form = this.querySelector('form');
+        if (form) {
+            form.reset();
+            // Reset machine status to operational
+            const statusSelect = form.querySelector('#machineStatus');
+            if (statusSelect) {
+                statusSelect.value = 'operational';
+            }
+            // Reset machine type to regular machine
+            const typeSelect = form.querySelector('#machineType');
+            if (typeSelect) {
+                typeSelect.value = 'false';
+            }
+        }
+        // Reset modal title and button
+        this.querySelector('.modal-title').textContent = 'Ajouter une machine';
+        const saveButton = document.getElementById('machineSaveButton');
+        saveButton.textContent = 'Enregistrer';
+        saveButton.setAttribute('data-action', 'save-machine');
+        saveButton.removeAttribute('data-id');
+    });
 });
+
+// Production filtering
+function filterProduction() {
+    const searchText = document.getElementById('productionSearch').value.toLowerCase();
+    const startDate = document.getElementById('startDateSearch').value;
+    const endDate = document.getElementById('endDateSearch').value;
+    const isDateSearchEnabled = document.getElementById('dateSearchToggle').checked;
+    
+    const rows = document.querySelectorAll('#productionBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const machineName = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const articleName = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        const rowStartDate = row.querySelector('td:nth-child(5)').textContent;
+        const rowEndDate = row.querySelector('td:nth-child(6)').textContent;
+        
+        let matchesText = machineName.includes(searchText) || articleName.includes(searchText);
+        let matchesDate = true;
+
+        if (isDateSearchEnabled && (startDate || endDate)) {
+            if (startDate && endDate) {
+                matchesDate = (rowStartDate >= startDate && (rowEndDate === '-' || rowEndDate <= endDate));
+            } else if (startDate) {
+                matchesDate = (rowStartDate >= startDate);
+            } else if (endDate) {
+                matchesDate = (rowEndDate === '-' || rowEndDate <= endDate);
+            }
+        }
+
+        const isVisible = matchesText && matchesDate;
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noProductionFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+// Article filtering
+function filterArticles() {
+    const searchText = document.getElementById('articleSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#articlesBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const description = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        
+        const isVisible = name.includes(searchText) || description.includes(searchText);
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noArticlesFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+// Toggle date search fields
+function toggleDateSearch() {
+    const dateInputs = document.getElementById('dateSearchInputs');
+    const isChecked = document.getElementById('dateSearchToggle').checked;
+    dateInputs.style.display = isChecked ? 'block' : 'none';
+    if (!isChecked) {
+        document.getElementById('startDateSearch').value = '';
+        document.getElementById('endDateSearch').value = '';
+        filterProduction();
+    }
+}
+
+// Clear date search
+function clearDateSearch() {
+    document.getElementById('startDateSearch').value = '';
+    document.getElementById('endDateSearch').value = '';
+    filterProduction();
+}
+
+// Toggle article fields based on machine type
+function toggleArticleFields() {
+    const machineSelect = document.getElementById('productionMachine');
+    const articleFields = document.querySelectorAll('.article-field');
+    
+    if (machineSelect && machineSelect.selectedIndex > 0) {
+        const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+        const isService = selectedOption.getAttribute('data-type') === 'true';
+        
+        articleFields.forEach(field => {
+            field.style.display = isService ? 'none' : 'block';
+            const input = field.querySelector('select, input');
+            if (input) {
+                input.required = !isService;
+            }
+        });
+    }
+}
+
+// Toggle article fields in edit form
+function toggleEditArticleFields() {
+    const machineSelect = document.getElementById('editProductionMachine');
+    const articleFields = document.querySelectorAll('.edit-article-field');
+    
+    if (machineSelect && machineSelect.selectedIndex > 0) {
+        const selectedOption = machineSelect.options[machineSelect.selectedIndex];
+        const isService = selectedOption.getAttribute('data-type') === 'true';
+        
+        articleFields.forEach(field => {
+            field.style.display = isService ? 'none' : 'block';
+            const input = field.querySelector('select, input');
+            if (input) {
+                input.required = !isService;
+            }
+        });
+    }
+}
+
+// Machine filtering
+function filterMachines() {
+    const searchText = document.getElementById('machineSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#machinesBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const status = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const type = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        
+        const isVisible = name.includes(searchText) || status.includes(searchText) || type.includes(searchText);
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noMachinesFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+function filterNonFunctioningMachines() {
+    const searchText = document.getElementById('nonFunctioningMachineSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#nonFunctioningMachinesBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const issue = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        
+        const isVisible = name.includes(searchText) || issue.includes(searchText);
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noNonFunctioningMachinesFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+// Operator filtering
+function filterOperators() {
+    const searchText = document.getElementById('operatorSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#operatorsBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const id = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const name = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const arabicName = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        const status = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
+        
+        const isVisible = id.includes(searchText) || 
+                         name.includes(searchText) || 
+                         arabicName.includes(searchText) || 
+                         status.includes(searchText);
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noOperatorsFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+function filterAbsences() {
+    const searchText = document.getElementById('absenceSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#absencesBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const operator = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const reason = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
+        
+        const isVisible = operator.includes(searchText) || reason.includes(searchText);
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noAbsencesFound').style.display = hasVisibleRows ? 'none' : 'block';
+}
+
+// Modal Management
+function showModal(modalId) {
+    const modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+}
+
+function hideModal(modalId) {
+    const modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+}
+
+function clearForm(formId) {
+    const form = document.getElementById(formId);
+    if (form) {
+        form.reset();
+    }
+}
+
+// User Management
+function saveUser() {
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const role = document.getElementById('role').value;
+
+    // Get selected pages
+    const accessiblePages = [];
+    ['machines', 'operators', 'production', 'schedule'].forEach(page => {
+        const checkbox = document.getElementById(`page_${page}`);
+        if (checkbox && checkbox.checked) {
+            accessiblePages.push(page);
+        }
+    });
+
+    // Validate form
+    if (!username || !email || !password || !confirmPassword) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert('Les mots de passe ne correspondent pas');
+        return;
+    }
+
+    if (accessiblePages.length === 0 && role !== 'admin') {
+        alert('Veuillez sélectionner au moins une page accessible');
+        return;
+    }
+
+    const data = {
+        username: username,
+        email: email,
+        password: password,
+        role: role,
+        accessible_pages: accessiblePages
+    };
+
+    fetch('/api/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            hideModal('addUserModal');
+            location.reload();
+        } else {
+            alert(data.message || 'Erreur lors de la création de l\'utilisateur');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de la création de l\'utilisateur');
+    });
+}
+
+function editUser(id) {
+    // Reset form and checkboxes first
+    const form = document.getElementById('editUserForm');
+    if (form) {
+        form.reset();
+        // Reset all checkboxes
+        ['machines', 'operators', 'production', 'schedule'].forEach(page => {
+            const checkbox = document.getElementById(`edit_page_${page}`);
+            if (checkbox) {
+                checkbox.checked = false;
+            }
+        });
+    }
+
+    fetch(`/api/users/${id}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const user = data.user;
+            document.getElementById('editUserId').value = user.id;
+            document.getElementById('editUsername').value = user.username;
+            document.getElementById('editEmail').value = user.email;
+            document.getElementById('editRole').value = user.role;
+            
+            // Clear password fields
+            document.getElementById('editPassword').value = '';
+            document.getElementById('editConfirmPassword').value = '';
+
+            // Set accessible pages
+            if (Array.isArray(user.accessible_pages)) {
+                user.accessible_pages.forEach(page => {
+                    const checkbox = document.getElementById(`edit_page_${page}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+
+            showModal('editUserModal');
+        } else {
+            alert(data.message || 'Erreur lors de la récupération des détails de l\'utilisateur');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de la récupération des détails de l\'utilisateur');
+    });
+}
+
+function saveUserEdit() {
+    const id = document.getElementById('editUserId').value;
+    const username = document.getElementById('editUsername').value.trim();
+    const email = document.getElementById('editEmail').value.trim();
+    const password = document.getElementById('editPassword').value;
+    const confirmPassword = document.getElementById('editConfirmPassword').value;
+    const role = document.getElementById('editRole').value;
+
+    // Get selected pages
+    const accessiblePages = [];
+    ['machines', 'operators', 'production', 'schedule'].forEach(page => {
+        const checkbox = document.getElementById(`edit_page_${page}`);
+        if (checkbox && checkbox.checked) {
+            accessiblePages.push(page);
+        }
+    });
+
+    // Validate form
+    if (!username || !email) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+
+    if (password && password !== confirmPassword) {
+        alert('Les mots de passe ne correspondent pas');
+        return;
+    }
+
+    if (accessiblePages.length === 0 && role !== 'admin') {
+        alert('Veuillez sélectionner au moins une page accessible');
+        return;
+    }
+
+    const data = {
+        username: username,
+        email: email,
+        role: role,
+        accessible_pages: accessiblePages
+    };
+
+    // Only include password if it's being changed
+    if (password) {
+        data.password = password;
+    }
+
+    fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            hideModal('editUserModal');
+            location.reload();
+        } else {
+            alert(data.message || 'Erreur lors de la mise à jour de l\'utilisateur');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de la mise à jour de l\'utilisateur');
+    });
+}
+
+function deleteUser(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+        fetch(`/api/users/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Erreur lors de la suppression de l\'utilisateur');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de la suppression de l\'utilisateur');
+        });
+    }
+}
+
+function filterUsers() {
+    const searchText = document.getElementById('userSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#usersBody tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+        const username = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const role = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        const pages = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
+        
+        const isVisible = username.includes(searchText) || 
+                         email.includes(searchText) || 
+                         role.includes(searchText) ||
+                         pages.includes(searchText);
+        
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+    });
+    
+    document.getElementById('noUsersFound').style.display = hasVisibleRows ? 'none' : 'block';
+}

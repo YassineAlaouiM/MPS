@@ -1,12 +1,96 @@
 {% extends "base.html" %}
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
-    <script src="{{ url_for('static', filename='js/home.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle all data-action buttons
+            document.addEventListener('click', function(e) {
+                const button = e.target.closest('[data-action]');
+                if (!button) return;
+
+                const action = button.getAttribute('data-action');
+                const id = button.getAttribute('data-id');
+
+                switch (action) {
+                    case 'edit-operator':
+                        editOperator(id);
+                        break;
+                    case 'delete-operator':
+                        deleteOperator(id);
+                        break;
+                    case 'edit-absence':
+                        editAbsence(id);
+                        break;
+                    case 'delete-absence':
+                        deleteAbsence(id);
+                        break;
+                    case 'save-operator':
+                        saveOperator();
+                        break;
+                    case 'save-operator-edit':
+                        saveOperatorEdit();
+                        break;
+                    case 'save-absence':
+                        saveAbsence();
+                        break;
+                    case 'save-absence-edit':
+                        saveAbsenceEdit();
+                        break;
+                }
+            });
+
+            // Add search functionality
+            const operatorSearchInput = document.getElementById('operatorSearch');
+            if (operatorSearchInput) {
+                operatorSearchInput.addEventListener('input', filterOperators);
+            }
+
+            const absenceSearchInput = document.getElementById('absenceSearch');
+            if (absenceSearchInput) {
+                absenceSearchInput.addEventListener('input', filterAbsences);
+            }
+
+            // Add form submission handlers
+            ['addOperatorForm', 'editOperatorForm', 'addAbsenceForm', 'editAbsenceForm'].forEach(formId => {
+                const form = document.getElementById(formId);
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        const action = this.getAttribute('data-form-action');
+                        if (action) {
+                            window[action]();
+                        }
+                    });
+                }
+            });
+
+            // Initialize modals
+            const modals = {
+                addOperator: new bootstrap.Modal(document.getElementById('addOperatorModal')),
+                editOperator: new bootstrap.Modal(document.getElementById('editOperatorModal')),
+                addAbsence: new bootstrap.Modal(document.getElementById('addAbsenceModal')),
+                editAbsence: new bootstrap.Modal(document.getElementById('editAbsenceModal'))
+            };
+
+            // Add modal cleanup on hide
+            Object.entries(modals).forEach(([key, modal]) => {
+                if (modal && modal._element) {
+                    modal._element.addEventListener('hidden.bs.modal', function() {
+                        const form = this.querySelector('form');
+                        if (form) {
+                            form.reset();
+                        }
+                    });
+                }
+            });
+        });
+    </script>
 {% endblock %}
 {% block title %}Opérateurs{% endblock %}
 {% block content %}
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-md-6">
         <!-- Operators Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -43,8 +127,12 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-light" onclick="editOperator('{{ operator.id }}')"><i class='bx bx-edit-alt' ></i></button>
-                                        <button class="btn btn-sm btn-danger" onclick="deleteOperator('{{ operator.id }}')"><i class='bx bx-x'></i></button>
+                                        <button class="btn btn-sm btn-light" data-action="edit-operator" data-id="{{ operator.id }}">
+                                            <i class='bx bx-edit-alt'></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-action="delete-operator" data-id="{{ operator.id }}">
+                                            <i class='bx bx-x'></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -58,7 +146,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-12">
+    <div class="col-md-6">
         <!-- Absences Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -91,8 +179,12 @@
                                     <td>{{ absence.end_date }}</td>
                                     <td>{{ absence.reason }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-light" onclick="editAbsence('{{ absence.id }}')"><i class='bx bx-edit-alt' ></i></button>
-                                        <button class="btn btn-sm btn-danger" onclick="deleteAbsence('{{ absence.id }}')"><i class='bx bx-x' ></i></button>
+                                        <button class="btn btn-sm btn-light" data-action="edit-absence" data-id="{{ absence.id }}">
+                                            <i class='bx bx-edit-alt'></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-action="delete-absence" data-id="{{ absence.id }}">
+                                            <i class='bx bx-x'></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -116,7 +208,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addOperatorForm">
+                <form id="addOperatorForm" data-form-action="saveOperator">
                     <div class="mb-3">
                         <label for="operatorName" class="form-label">Nom de l'opérateur</label>
                         <input type="text" class="form-control" id="operatorName" required>
@@ -135,8 +227,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveOperator()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-operator">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -150,7 +242,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="editOperatorForm">
+                <form id="editOperatorForm" data-form-action="saveOperatorEdit">
                     <input type="hidden" id="editOperatorId">
                     <div class="mb-3">
                         <label for="editOperatorName" class="form-label">Nom de l'opérateur</label>
@@ -170,8 +262,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveOperatorEdit()">Mettre à jour</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-operator-edit">Mettre à jour</button>
             </div>
         </div>
     </div>
@@ -185,7 +277,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addAbsenceForm">
+                <form id="addAbsenceForm" data-form-action="saveAbsence">
                     <div class="mb-3">
                         <label for="operatorSelect" class="form-label">Opérateur</label>
                         <select class="form-select" id="operatorSelect" required>
@@ -218,8 +310,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveAbsence()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-absence">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -233,7 +325,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="editAbsenceForm">
+                <form id="editAbsenceForm" data-form-action="saveAbsenceEdit">
                     <input type="hidden" id="editAbsenceId">
                     <div class="mb-3">
                         <label for="editOperatorSelect" class="form-label">Opérateur</label>
@@ -265,8 +357,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveAbsenceEdit()">Mettre à jour</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-absence-edit">Mettre à jour</button>
             </div>
         </div>
     </div>

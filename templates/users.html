@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <style>
+        .user-card {
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-card .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            padding: 1rem 1.5rem;
+        }
+
+        .user-table {
+            margin-top: 1rem;
+        }
+
+        .user-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .user-table td {
+            vertical-align: middle;
+        }
+
+        .badge {
+            font-size: 0.85rem;
+            padding: 0.4em 0.8em;
+        }
+
+        .badge.bg-admin {
+            background-color: #26438c !important;
+            color: white;
+        }
+
+        .badge.bg-operator {
+            background-color: #6c757d !important;
+            color: white;
+        }
+
+        .badge.bg-page {
+            background-color: #17a2b8 !important;
+            color: white;
+            margin-right: 0.3rem;
+            margin-bottom: 0.3rem;
+            display: inline-block;
+        }
+
+        .action-buttons .btn {
+            padding: 0.25rem 0.5rem;
+            margin-left: 0.3rem;
+        }
+
+        .action-buttons .btn i {
+            font-size: 1.1rem;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        .search-box input {
+            padding-left: 2.5rem;
+            border-radius: 20px;
+            border: 1px solid #ced4da;
+        }
+
+        .search-box input:focus {
+            box-shadow: none;
+            border-color: #26438c;
+        }
+
+        .modal-content {
+            border-radius: 10px;
+        }
+
+        .modal-header {
+            background-color: #f8f9fa;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+
+        .form-check {
+            margin-bottom: 0.5rem;
+        }
+
+        .form-check-input:checked {
+            background-color: #26438c;
+            border-color: #26438c;
+        }
+
+        .btn-add-user {
+            background-color: #26438c;
+            border-color: #26438c;
+        }
+
+        .btn-add-user:hover {
+            background-color: #1c3166;
+            border-color: #1c3166;
+        }
+
+        #noUsersFound {
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        .scrollable-section {
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+
+        /* Custom scrollbar */
+        .scrollable-section::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .scrollable-section::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .scrollable-section::-webkit-scrollbar-thumb {
+            background: #26438c;
+            border-radius: 4px;
+        }
+
+        .scrollable-section::-webkit-scrollbar-thumb:hover {
+            background: #1c3166;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle all data-action buttons
+            document.addEventListener('click', function(e) {
+                const button = e.target.closest('[data-action]');
+                if (!button) return;
+
+                const action = button.getAttribute('data-action');
+                const id = button.getAttribute('data-id');
+
+                switch (action) {
+                    case 'edit-user':
+                        editUser(id);
+                        break;
+                    case 'delete-user':
+                        deleteUser(id);
+                        break;
+                    case 'save-user':
+                        saveUser();
+                        break;
+                    case 'save-user-edit':
+                        saveUserEdit();
+                        break;
+                }
+            });
+
+            // Add search functionality
+            const userSearchInput = document.getElementById('userSearch');
+            if (userSearchInput) {
+                userSearchInput.addEventListener('input', filterUsers);
+            }
+
+            // Add form submission handlers
+            ['addUserForm', 'editUserForm'].forEach(formId => {
+                const form = document.getElementById(formId);
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        const action = this.getAttribute('data-form-action');
+                        if (action) {
+                            window[action]();
+                        }
+                    });
+                }
+            });
+
+            // Initialize modals
+            const modals = {
+                addUser: new bootstrap.Modal(document.getElementById('addUserModal')),
+                editUser: new bootstrap.Modal(document.getElementById('editUserModal'))
+            };
+
+            // Add modal cleanup on hide
+            Object.entries(modals).forEach(([key, modal]) => {
+                if (modal && modal._element) {
+                    modal._element.addEventListener('hidden.bs.modal', function() {
+                        const form = this.querySelector('form');
+                        if (form) {
+                            form.reset();
+                            // Reset password fields
+                            const passwordFields = form.querySelectorAll('input[type="password"]');
+                            passwordFields.forEach(field => field.value = '');
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+{% endblock %}
+{% block title %}Gestion des Utilisateurs{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card user-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Gestion des Utilisateurs</h3>
+                    <button type="button" class="btn btn-add-user text-white" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class='bx bx-plus me-1'></i>Ajouter un utilisateur
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="search-box">
+                        <i class='bx bx-search'></i>
+                        <input type="text" class="form-control" id="userSearch" placeholder="Rechercher des utilisateurs...">
+                    </div>
+                    <div class="scrollable-section">
+                        <div class="table-responsive">
+                            <table class="table table-hover user-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nom d'utilisateur</th>
+                                        <th>Email</th>
+                                        <th>Rôle</th>
+                                        <th>Pages Accessibles</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersBody">
+                                    {% for user in users %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class='bx bx-user me-2'></i>
+                                                {{ user.username }}
+                                            </div>
+                                        </td>
+                                        <td>{{ user.email }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ 'admin' if user.role == 'admin' else 'operator' }}">
+                                                {{ user.role }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if user.role == 'admin' %}
+                                                <span class="badge bg-page">Toutes les pages</span>
+                                            {% else %}
+                                                {% for page in user.accessible_pages %}
+                                                <span class="badge bg-page">{{ page }}</span>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons text-end">
+                                                <button class="btn btn-light" data-action="edit-user" data-id="{{ user.id }}" title="Modifier">
+                                                    <i class='bx bx-edit-alt'></i>
+                                                </button>
+                                                <button class="btn btn-danger" data-action="delete-user" data-id="{{ user.id }}" title="Supprimer">
+                                                    <i class='bx bx-trash'></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div id="noUsersFound" class="text-center py-3" style="display: none;">
+                                <i class='bx bx-search-alt' style="font-size: 2rem;"></i>
+                                <p class="mt-2">Aucun utilisateur trouvé correspondant à votre recherche</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un utilisateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm" data-form-action="saveUser">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Nom d'utilisateur</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-user'></i></span>
+                            <input type="text" class="form-control" id="username" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-envelope'></i></span>
+                            <input type="email" class="form-control" id="email" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Mot de passe</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-lock-alt'></i></span>
+                            <input type="password" class="form-control" id="password" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirmer le mot de passe</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-lock-alt'></i></span>
+                            <input type="password" class="form-control" id="confirmPassword" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Rôle</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-user-circle'></i></span>
+                            <select class="form-select" id="role" required>
+                                <option value="admin">Admin</option>
+                                <option value="operator">Opérateur</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pages accessibles</label>
+                        <div class="border rounded p-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="page_machines" value="machines">
+                                <label class="form-check-label" for="page_machines">
+                                    <i class='bx bx-cube me-2'></i>Machines
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="page_operators" value="operators">
+                                <label class="form-check-label" for="page_operators">
+                                    <i class='bx bx-group me-2'></i>Opérateurs
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="page_production" value="production">
+                                <label class="form-check-label" for="page_production">
+                                    <i class='bx bx-factory me-2'></i>Production
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="page_schedule" value="schedule">
+                                <label class="form-check-label" for="page_schedule">
+                                    <i class='bx bx-calendar me-2'></i>Planning
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary btn-add-user" data-action="save-user">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier l'utilisateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm" data-form-action="saveUserEdit">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">Nom d'utilisateur</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-user'></i></span>
+                            <input type="text" class="form-control" id="editUsername" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-envelope'></i></span>
+                            <input type="email" class="form-control" id="editEmail" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPassword" class="form-label">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-lock-alt'></i></span>
+                            <input type="password" class="form-control" id="editPassword">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editConfirmPassword" class="form-label">Confirmer le nouveau mot de passe</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-lock-alt'></i></span>
+                            <input type="password" class="form-control" id="editConfirmPassword">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editRole" class="form-label">Rôle</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class='bx bx-user-circle'></i></span>
+                            <select class="form-select" id="editRole" required>
+                                <option value="admin">Admin</option>
+                                <option value="operator">Opérateur</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pages accessibles</label>
+                        <div class="border rounded p-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_page_machines" value="machines">
+                                <label class="form-check-label" for="edit_page_machines">
+                                    <i class='bx bx-cube me-2'></i>Machines
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_page_operators" value="operators">
+                                <label class="form-check-label" for="edit_page_operators">
+                                    <i class='bx bx-group me-2'></i>Opérateurs
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_page_production" value="production">
+                                <label class="form-check-label" for="edit_page_production">
+                                    <i class='bx bx-factory me-2'></i>Production
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_page_schedule" value="schedule">
+                                <label class="form-check-label" for="edit_page_schedule">
+                                    <i class='bx bx-calendar me-2'></i>Planning
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary btn-add-user" data-action="save-user-edit">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

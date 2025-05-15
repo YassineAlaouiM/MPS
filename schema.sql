@@ -97,3 +97,13 @@ CREATE TABLE IF NOT EXISTS schedule (
     FOREIGN KEY (production_id) REFERENCES production(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- User Accessible Pages Table
+CREATE TABLE IF NOT EXISTS user_accessible_pages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    page_name VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_page (user_id, page_name)
+);

@@ -17,6 +17,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from waitress import serve
 import socket
+from functools import wraps
 
 load_dotenv()
 
@@ -127,6 +128,9 @@ def logout():
 @app.route('/machines')
 @login_required
 def machines():
+    if not has_page_access('machines'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
@@ -148,6 +152,9 @@ def machines():
 @app.route('/operators')
 @login_required
 def operators():
+    if not has_page_access('operators'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
@@ -169,12 +176,23 @@ def operators():
 @app.route('/production')
 @login_required
 def production():
+    if not has_page_access('production'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
+            # Get all articles
             sql = "SELECT * FROM articles ORDER BY name"
             cursor.execute(sql)
             articles = cursor.fetchall()
+            
+            # Get all operational machines
+            sql = "SELECT * FROM machines WHERE status = 'operational' ORDER BY name"
+            cursor.execute(sql)
+            machines = cursor.fetchall()
+            
+            # Get all production records with machine and article details
             sql = '''
                 SELECT p.*, m.name as machine_name, m.type as machine_type, a.name as article_name
                 FROM production p
@@ -186,7 +204,7 @@ def production():
             production = cursor.fetchall()
     finally:
         connection.close()
-    return render_template('production.html', articles=articles, production=production)
+    return render_template('production.html', articles=articles, machines=machines, production=production)
 
 def init_db():
     schema_file = "schema.sql"
@@ -534,12 +552,23 @@ def create_absence():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Add to absences table without changing operator status
+            # Check if the dates are valid
+            current_date = datetime.now().date()
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            
+            # Add to absences table
             sql = """
                 INSERT INTO absences (operator_id, start_date, end_date, reason)
                 VALUES (%s, %s, %s, %s)
             """
             cursor.execute(sql, (operator_id, start_date, end_date, reason))
+            
+            # Update operator status to 'absent' if the absence period includes current date
+            if start_date_obj <= current_date <= end_date_obj:
+                sql = "UPDATE operators SET status = 'absent' WHERE id = %s"
+                cursor.execute(sql, (operator_id,))
+            
             connection.commit()
             return jsonify({'success': True, 'message': 'Absence added successfully'})
     except pymysql.Error as e:
@@ -564,12 +593,77 @@ def update_absence(id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
+            # Get the current operator_id from the absence record
+            sql = "SELECT operator_id FROM absences WHERE id = %s"
+            cursor.execute(sql, (id,))
+            current_absence = cursor.fetchone()
+            
+            if not current_absence:
+                return jsonify({'success': False, 'message': 'Absence not found'}), 404
+            
+            old_operator_id = current_absence['operator_id']
+            
+            # Update the absence record
             sql = """
                 UPDATE absences 
                 SET start_date = %s, end_date = %s, reason = %s, operator_id = %s
                 WHERE id = %s
             """
             cursor.execute(sql, (start_date, end_date, reason, operator_id, id))
+            
+            # Check if the dates include current date
+            current_date = datetime.now().date()
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            
+            # If operator changed, reset old operator's status and update new operator's status
+            if old_operator_id != operator_id:
+                # Reset old operator's status to active if no current absences
+                sql = """
+                    UPDATE operators SET status = 'active'
+                    WHERE id = %s AND NOT EXISTS (
+                        SELECT 1 FROM absences 
+                        WHERE operator_id = %s 
+                        AND id != %s
+                        AND CURDATE() BETWEEN start_date AND end_date
+                    )
+                """
+                cursor.execute(sql, (old_operator_id, old_operator_id, id))
+                
+                # Update new operator's status if absence is current
+                if start_date_obj <= current_date <= end_date_obj:
+                    sql = "UPDATE operators SET status = 'absent' WHERE id = %s"
+                    cursor.execute(sql, (operator_id,))
+                else:
+                    # Check if operator has other current absences
+                    sql = """
+                        UPDATE operators SET status = 'active'
+                        WHERE id = %s AND NOT EXISTS (
+                            SELECT 1 FROM absences 
+                            WHERE operator_id = %s 
+                            AND id != %s
+                            AND CURDATE() BETWEEN start_date AND end_date
+                        )
+                    """
+                    cursor.execute(sql, (operator_id, operator_id, id))
+            else:
+                # Update current operator's status based on dates
+                if start_date_obj <= current_date <= end_date_obj:
+                    sql = "UPDATE operators SET status = 'absent' WHERE id = %s"
+                    cursor.execute(sql, (operator_id,))
+                else:
+                    # Check if operator has other current absences
+                    sql = """
+                        UPDATE operators SET status = 'active'
+                        WHERE id = %s AND NOT EXISTS (
+                            SELECT 1 FROM absences 
+                            WHERE operator_id = %s 
+                            AND id != %s
+                            AND CURDATE() BETWEEN start_date AND end_date
+                        )
+                    """
+                    cursor.execute(sql, (operator_id, operator_id, id))
+            
             connection.commit()
             return jsonify({'success': True, 'message': 'Absence updated successfully'}), 200
     except pymysql.Error as e:
@@ -1125,6 +1219,9 @@ def check_shifts():
 @app.route('/schedule')
 @login_required
 def schedule():
+    if not has_page_access('schedule'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
     week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
     year = request.args.get('year', default=datetime.now().year, type=int)
     
@@ -1804,6 +1901,191 @@ def get_local_ip():
     finally:
         s.close()
     return ip
+
+# Add this after the User class definition
+def get_user_accessible_pages(user_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT page_name FROM user_accessible_pages WHERE user_id = %s"
+            cursor.execute(sql, (user_id,))
+            pages = cursor.fetchall()
+            return [page['page_name'] for page in pages]
+    finally:
+        connection.close()
+
+def has_page_access(page):
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    accessible_pages = get_user_accessible_pages(current_user.id)
+    return page in accessible_pages
+
+# Add this decorator function
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Access denied. Admin privileges required.')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Add these routes after the existing routes
+@app.route('/users')
+@login_required
+@admin_required
+def users():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT id, username, email, role FROM users ORDER BY username"
+            cursor.execute(sql)
+            users = cursor.fetchall()
+            
+            # Get accessible pages for each user
+            for user in users:
+                user['accessible_pages'] = get_user_accessible_pages(user['id'])
+    finally:
+        connection.close()
+    return render_template('users.html', users=users)
+
+@app.route('/api/users', methods=['POST'])
+@login_required
+@admin_required
+def create_user():
+    data = request.get_json()
+    
+    if not all(key in data for key in ['username', 'email', 'password', 'role']):
+        return jsonify({'success': False, 'message': 'Missing required fields'})
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if username or email exists
+            sql = "SELECT id FROM users WHERE username = %s OR email = %s"
+            cursor.execute(sql, (data['username'], data['email']))
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Username or email already exists'})
+            
+            # Create user
+            sql = "INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)"
+            cursor.execute(sql, (
+                data['username'],
+                data['email'],
+                generate_password_hash(data['password']),
+                data['role']
+            ))
+            user_id = cursor.lastrowid
+            
+            # Add accessible pages
+            if 'accessible_pages' in data and data['accessible_pages']:
+                sql = "INSERT INTO user_accessible_pages (user_id, page_name) VALUES (%s, %s)"
+                for page in data['accessible_pages']:
+                    cursor.execute(sql, (user_id, page))
+            
+            connection.commit()
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+@login_required
+@admin_required
+def get_user(user_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT id, username, email, role FROM users WHERE id = %s"
+            cursor.execute(sql, (user_id,))
+            user = cursor.fetchone()
+            
+            if user:
+                user['accessible_pages'] = get_user_accessible_pages(user_id)
+                return jsonify({'success': True, 'user': user})
+            return jsonify({'success': False, 'message': 'User not found'})
+    finally:
+        connection.close()
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+@admin_required
+def update_user(user_id):
+    data = request.get_json()
+    
+    if not all(key in data for key in ['username', 'email', 'role']):
+        return jsonify({'success': False, 'message': 'Missing required fields'})
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if username or email exists for other users
+            sql = "SELECT id FROM users WHERE (username = %s OR email = %s) AND id != %s"
+            cursor.execute(sql, (data['username'], data['email'], user_id))
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Username or email already exists'})
+            
+            # Update user
+            if 'password' in data and data['password']:
+                sql = "UPDATE users SET username = %s, email = %s, password = %s, role = %s WHERE id = %s"
+                cursor.execute(sql, (
+                    data['username'],
+                    data['email'],
+                    generate_password_hash(data['password']),
+                    data['role'],
+                    user_id
+                ))
+            else:
+                sql = "UPDATE users SET username = %s, email = %s, role = %s WHERE id = %s"
+                cursor.execute(sql, (
+                    data['username'],
+                    data['email'],
+                    data['role'],
+                    user_id
+                ))
+            
+            # Update accessible pages
+            if 'accessible_pages' in data:
+                # Delete existing pages
+                sql = "DELETE FROM user_accessible_pages WHERE user_id = %s"
+                cursor.execute(sql, (user_id,))
+                
+                # Add new pages
+                if data['accessible_pages']:
+                    sql = "INSERT INTO user_accessible_pages (user_id, page_name) VALUES (%s, %s)"
+                    for page in data['accessible_pages']:
+                        cursor.execute(sql, (user_id, page))
+            
+            connection.commit()
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    # Prevent deleting yourself
+    if user_id == current_user.id:
+        return jsonify({'success': False, 'message': 'Cannot delete your own account'})
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Delete user (accessible pages will be deleted automatically due to CASCADE)
+            sql = "DELETE FROM users WHERE id = %s"
+            cursor.execute(sql, (user_id,))
+            connection.commit()
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
 
 if __name__ == "__main__":
     local_ip = get_local_ip()

@@ -1,12 +1,105 @@
 {% extends "base.html" %}
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
-    <script src="{{ url_for('static', filename='js/home.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle all data-action buttons
+            document.addEventListener('click', function(e) {
+                const button = e.target.closest('[data-action]');
+                if (!button) return;
+
+                const action = button.getAttribute('data-action');
+                const id = button.getAttribute('data-id');
+
+                switch (action) {
+                    case 'edit-machine':
+                        editMachine(id);
+                        break;
+                    case 'delete-machine':
+                        deleteMachine(id);
+                        break;
+                    case 'mark-fixed':
+                        markMachineFixed(id);
+                        break;
+                    case 'save-machine':
+                        saveMachine();
+                        break;
+                    case 'save-machine-edit':
+                        updateMachine(id);
+                        break;
+                    case 'save-non-functioning':
+                        saveNonFunctioningMachine();
+                        break;
+                }
+            });
+
+            // Add search functionality
+            const machineSearchInput = document.getElementById('machineSearch');
+            if (machineSearchInput) {
+                machineSearchInput.addEventListener('input', filterMachines);
+            }
+
+            const nonFunctioningSearchInput = document.getElementById('nonFunctioningMachineSearch');
+            if (nonFunctioningSearchInput) {
+                nonFunctioningSearchInput.addEventListener('input', filterNonFunctioningMachines);
+            }
+
+            // Add form submission handlers
+            ['addMachineForm', 'addNonFunctioningMachineForm'].forEach(formId => {
+                const form = document.getElementById(formId);
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        const action = this.getAttribute('data-form-action');
+                        if (action) {
+                            window[action]();
+                        }
+                    });
+                }
+            });
+
+            // Initialize modals
+            const modals = {
+                addMachine: new bootstrap.Modal(document.getElementById('addMachineModal')),
+                addNonFunctioning: new bootstrap.Modal(document.getElementById('addNonFunctioningMachineModal'))
+            };
+
+            // Add modal cleanup on hide
+            Object.entries(modals).forEach(([key, modal]) => {
+                if (modal && modal._element) {
+                    modal._element.addEventListener('hidden.bs.modal', function() {
+                        const form = this.querySelector('form');
+                        if (form) {
+                            form.reset();
+                            // Reset machine status to operational
+                            const statusSelect = form.querySelector('#machineStatus');
+                            if (statusSelect) {
+                                statusSelect.value = 'operational';
+                            }
+                            // Reset machine type to regular machine
+                            const typeSelect = form.querySelector('#machineType');
+                            if (typeSelect) {
+                                typeSelect.value = 'false';
+                            }
+                        }
+                        // Reset modal title and button if it's the machine modal
+                        if (this.id === 'addMachineModal') {
+                            this.querySelector('.modal-title').textContent = 'Ajouter une machine';
+                            const saveButton = this.querySelector('.btn-primary');
+                            saveButton.textContent = 'Enregistrer';
+                            saveButton.setAttribute('data-action', 'save-machine');
+                        }
+                    });
+                }
+            });
+        });
+    </script>
 {% endblock %}
 {% block title %}Machines{% endblock %}
 {% block content %}
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-md-6">
         <!-- Machines Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -43,8 +136,12 @@
                                         {{ 'Service' if machine.type else 'Machine' }}
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-light" onclick="editMachine('{{ machine.id }}')"><i class='bx bx-edit-alt' ></i></button>
-                                        <button class="btn btn-sm btn-danger" onclick="deleteMachine('{{ machine.id }}')"><i class='bx bx-x'></i></button>
+                                        <button class="btn btn-sm btn-light" data-action="edit-machine" data-id="{{ machine.id }}">
+                                            <i class='bx bx-edit-alt'></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-action="delete-machine" data-id="{{ machine.id }}">
+                                            <i class='bx bx-x'></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -58,7 +155,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-12">
+    <div class="col-md-6">
         <!-- Non-functioning Machines Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -90,7 +187,9 @@
                                     <td>{{ machine.reported_date }}</td>
                                     <td>
                                         {% if not machine.fixed_date %}
-                                            <button id="btn-text" class="btn btn-sm btn-light" onclick="markMachineFixed('{{ machine.id }}')">Marquer Réparée</button>
+                                            <button class="btn btn-sm btn-light" data-action="mark-fixed" data-id="{{ machine.id }}">
+                                                Marquer Réparée
+                                            </button>
                                         {% else %}
                                             {{ machine.fixed_date.strftime('%Y-%m-%d %H:%M:%S') }}
                                         {% endif %}
@@ -117,7 +216,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addMachineForm">
+                <form id="addMachineForm" data-form-action="saveMachine">
                     <div class="mb-3">
                         <label for="machineName" class="form-label">Nom de la machine</label>
                         <input type="text" class="form-control" id="machineName" required>
@@ -138,8 +237,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveMachine()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-machine" id="machineSaveButton">Enregistrer</button>
             </div>
         </div>
     </div>
@@ -153,7 +252,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addNonFunctioningMachineForm">
+                <form id="addNonFunctioningMachineForm" data-form-action="saveNonFunctioningMachine">
                     <div class="mb-3">
                         <label for="machineSelect" class="form-label">Machine</label>
                         <select class="form-select" id="machineSelect" required>
@@ -184,8 +283,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" id="btn-text" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" id="btn-text" class="btn btn-primary" onclick="saveNonFunctioningMachine()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-non-functioning">Enregistrer</button>
             </div>
         </div>
     </div>
