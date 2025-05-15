@@ -258,7 +258,9 @@
                         <select class="form-select" id="machineSelect" required>
                             <option value="">Sélectionner une machine</option>
                             {% for machine in machines %}
+                            {% if machine.status == "operational" %}
                             <option value="{{ machine.id }}">{{ machine.name }}</option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </div>
