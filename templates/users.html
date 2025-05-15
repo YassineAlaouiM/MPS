@@ -1,215 +1,8 @@
 {% extends "base.html" %}
 {% block head %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/users.css') }}">
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <style>
-        .user-card {
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .user-card .card-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-            padding: 1rem 1.5rem;
-        }
-
-        .user-table {
-            margin-top: 1rem;
-        }
-
-        .user-table th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #495057;
-        }
-
-        .user-table td {
-            vertical-align: middle;
-        }
-
-        .badge {
-            font-size: 0.85rem;
-            padding: 0.4em 0.8em;
-        }
-
-        .badge.bg-admin {
-            background-color: #26438c !important;
-            color: white;
-        }
-
-        .badge.bg-operator {
-            background-color: #6c757d !important;
-            color: white;
-        }
-
-        .badge.bg-page {
-            background-color: #17a2b8 !important;
-            color: white;
-            margin-right: 0.3rem;
-            margin-bottom: 0.3rem;
-            display: inline-block;
-        }
-
-        .action-buttons .btn {
-            padding: 0.25rem 0.5rem;
-            margin-left: 0.3rem;
-        }
-
-        .action-buttons .btn i {
-            font-size: 1.1rem;
-        }
-
-        .search-box {
-            position: relative;
-            margin-bottom: 1.5rem;
-        }
-
-        .search-box i {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6c757d;
-        }
-
-        .search-box input {
-            padding-left: 2.5rem;
-            border-radius: 20px;
-            border: 1px solid #ced4da;
-        }
-
-        .search-box input:focus {
-            box-shadow: none;
-            border-color: #26438c;
-        }
-
-        .modal-content {
-            border-radius: 10px;
-        }
-
-        .modal-header {
-            background-color: #f8f9fa;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-        }
-
-        .form-check {
-            margin-bottom: 0.5rem;
-        }
-
-        .form-check-input:checked {
-            background-color: #26438c;
-            border-color: #26438c;
-        }
-
-        .btn-add-user {
-            background-color: #26438c;
-            border-color: #26438c;
-        }
-
-        .btn-add-user:hover {
-            background-color: #1c3166;
-            border-color: #1c3166;
-        }
-
-        #noUsersFound {
-            padding: 2rem;
-            color: #6c757d;
-        }
-
-        .scrollable-section {
-            max-height: calc(100vh - 250px);
-            overflow-y: auto;
-        }
-
-        /* Custom scrollbar */
-        .scrollable-section::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .scrollable-section::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        .scrollable-section::-webkit-scrollbar-thumb {
-            background: #26438c;
-            border-radius: 4px;
-        }
-
-        .scrollable-section::-webkit-scrollbar-thumb:hover {
-            background: #1c3166;
-        }
-    </style>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Handle all data-action buttons
-            document.addEventListener('click', function(e) {
-                const button = e.target.closest('[data-action]');
-                if (!button) return;
-
-                const action = button.getAttribute('data-action');
-                const id = button.getAttribute('data-id');
-
-                switch (action) {
-                    case 'edit-user':
-                        editUser(id);
-                        break;
-                    case 'delete-user':
-                        deleteUser(id);
-                        break;
-                    case 'save-user':
-                        saveUser();
-                        break;
-                    case 'save-user-edit':
-                        saveUserEdit();
-                        break;
-                }
-            });
-
-            // Add search functionality
-            const userSearchInput = document.getElementById('userSearch');
-            if (userSearchInput) {
-                userSearchInput.addEventListener('input', filterUsers);
-            }
-
-            // Add form submission handlers
-            ['addUserForm', 'editUserForm'].forEach(formId => {
-                const form = document.getElementById(formId);
-                if (form) {
-                    form.addEventListener('submit', function(e) {
-                        e.preventDefault();
-                        const action = this.getAttribute('data-form-action');
-                        if (action) {
-                            window[action]();
-                        }
-                    });
-                }
-            });
-
-            // Initialize modals
-            const modals = {
-                addUser: new bootstrap.Modal(document.getElementById('addUserModal')),
-                editUser: new bootstrap.Modal(document.getElementById('editUserModal'))
-            };
-
-            // Add modal cleanup on hide
-            Object.entries(modals).forEach(([key, modal]) => {
-                if (modal && modal._element) {
-                    modal._element.addEventListener('hidden.bs.modal', function() {
-                        const form = this.querySelector('form');
-                        if (form) {
-                            form.reset();
-                            // Reset password fields
-                            const passwordFields = form.querySelectorAll('input[type="password"]');
-                            passwordFields.forEach(field => field.value = '');
-                        }
-                    });
-                }
-            });
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/users.js') }}"></script>
 {% endblock %}
 {% block title %}Gestion des Utilisateurs{% endblock %}
 {% block content %}
@@ -220,17 +13,16 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="mb-0">Gestion des Utilisateurs</h3>
                     <button type="button" class="btn btn-add-user text-white" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                        <i class='bx bx-plus me-1'></i>Ajouter un utilisateur
+                        <i class='bx bx-plus'></i>
                     </button>
                 </div>
                 <div class="card-body">
                     <div class="search-box">
-                        <i class='bx bx-search'></i>
                         <input type="text" class="form-control" id="userSearch" placeholder="Rechercher des utilisateurs...">
                     </div>
                     <div class="scrollable-section">
                         <div class="table-responsive">
-                            <table class="table table-hover user-table">
+                            <table class="table user-table">
                                 <thead>
                                     <tr>
                                         <th>Nom d'utilisateur</th>
@@ -251,7 +43,7 @@
                                         </td>
                                         <td>{{ user.email }}</td>
                                         <td>
-                                            <span class="badge bg-{{ 'admin' if user.role == 'admin' else 'operator' }}">
+                                            <span class="badge bg-{{ 'admin' if user.role == 'admin' else 'user' }}">
                                                 {{ user.role }}
                                             </span>
                                         </td>
@@ -334,7 +126,7 @@
                             <span class="input-group-text"><i class='bx bx-user-circle'></i></span>
                             <select class="form-select" id="role" required>
                                 <option value="admin">Admin</option>
-                                <option value="operator">Opérateur</option>
+                                <option value="user">Utilisateur</option>
                             </select>
                         </div>
                     </div>
@@ -422,7 +214,7 @@
                             <span class="input-group-text"><i class='bx bx-user-circle'></i></span>
                             <select class="form-select" id="editRole" required>
                                 <option value="admin">Admin</option>
-                                <option value="operator">Opérateur</option>
+                                <option value="user">Utilisateur</option>
                             </select>
                         </div>
                     </div>
@@ -444,7 +236,7 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="edit_page_production" value="production">
                                 <label class="form-check-label" for="edit_page_production">
-                                    <i class='bx bx-factory me-2'></i>Production
+                                    <i class='bx bx-cube-alt me-2'></i>Production
                                 </label>
                             </div>
                             <div class="form-check">

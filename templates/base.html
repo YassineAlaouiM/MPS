@@ -38,9 +38,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('shifts') }}">Shifts</a>
                         </li>
+                        {% if current_user.role == 'admin' %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('users') }}">Utilisateurs</a>
                         </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('logout') }}">Déconnexion</a>
                         </li>
