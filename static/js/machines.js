@@ -48,6 +48,22 @@ document.addEventListener('DOMContentLoaded', function() {
                             window[action]();
                         }
                     });
+            // Add keydown event listener to handle Enter key
+                    form.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const saveButton = document.getElementById('machineSaveButton');
+                            if (saveButton) {
+                                const action = saveButton.getAttribute('data-action');
+                                const id = saveButton.getAttribute('data-id');
+                                if (action === 'save-machine-edit' && id) {
+                                    updateMachine(id);
+                                } else if (action === 'save-machine') {
+                                    saveMachine();
+                                }
+                            }
+                        }
+                    });
                 }
             });
 
