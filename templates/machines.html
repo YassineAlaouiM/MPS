@@ -100,15 +100,15 @@
                                     <td>{{ machine.issue }}</td>
                                     <td>{{ machine.reported_date }}</td>
                                     <td>
-                                        {% if can_edit %}
-                                            {% if not machine.fixed_date  %}
+                                        {% if not machine.fixed_date  %}
+                                            {% if can_edit %}
                                                 <button class="btn btn-sm btn-light" data-action="mark-fixed" data-id="{{ machine.id }}">
                                                     Marquer Réparée
                                                 </button>
-                                            {% else %}
-                                                {{ machine.fixed_date.strftime('%Y-%m-%d %H:%M:%S') }}
                                             {% endif %}
-                                        {% endif %}    
+                                        {% else %}
+                                                {{ machine.fixed_date.strftime('%Y-%m-%d %H:%M:%S') }}
+                                        {% endif %}   
                                     </td>
                                 </tr>
                                 {% endfor %}
