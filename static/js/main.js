@@ -548,11 +548,6 @@ function saveProduction() {
         const articleId = document.getElementById('productionArticle').value;
         const quantity = document.getElementById('productionQuantity').value;
         
-        if (!articleId || !quantity) {
-            alert('Veuillez remplir les informations sur l\'article');
-        return;
-        }
-        
         data.article_id = articleId;
         data.quantity = quantity;
     }
@@ -603,11 +598,6 @@ function saveProductionEdit() {
     if (!isService) {
         const articleId = document.getElementById('editProductionArticle').value;
         const quantity = document.getElementById('editProductionQuantity').value;
-        
-        if (!articleId || !quantity) {
-            alert('Veuillez remplir les informations sur l\'article');
-            return;
-        }
         
         data.article_id = articleId;
         data.quantity = quantity;
