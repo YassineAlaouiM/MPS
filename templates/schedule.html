@@ -1,0 +1,825 @@
+{% extends "base.html" %}
+{%block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
+    <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+{% endblock %}
+{% block title %}Planning{% endblock %}
+
+{% block content %}
+<div class="container">
+    
+    <!-- Week Navigation -->
+    <div class="week-navigation">
+        <div class="week-selector-container">
+            <div class="calendar-preview">
+                <div class="navigation-row">
+                    <span class="week-label">Semaine</span>
+                    <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="week-info">
+                        <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                    </div>
+                    <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+
+                    <div class="separator"></div>
+
+                    <div class="week-dates" id="weekDatesDisplay"></div>
+                    
+                    <div class="separator"></div>
+
+                    <span class="year-label">Année</span>
+                    <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="year-display">
+                        <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
+                    </div>
+                    <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Grid -->
+    <div class="assignments-table">
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all-machines" onclick="toggleAllMachines(this)"></th>
+                    <th>Machine</th>
+                    <th>7h->15h</th>
+                    <th>15h->23h</th>
+                    <th>23h->7h</th>
+                    <th>7h->19h</th>
+                    <th>19h->7h</th>
+                    <th>9h->17h</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for machine in machines %}
+                <tr>
+                    <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
+                    <td>
+                        {{ machine.name }}
+                        {% if machine.article_name %}
+                        <br><small class="text-muted">{{ machine.article_name }}</small>
+                        {% endif %}
+                    </td>
+                    {% for shift_id in range(1, 7) %}
+                    <td class="schedule-cell" 
+                        data-machine-id="{{ machine.id }}"
+                        data-production-id="{{ machine.production_id }}"
+                        data-shift-id="{{ shift_id }}"
+                        draggable="true"
+                        ondragstart="handleDragStart(event)"
+                        ondragover="handleDragOver(event)"
+                        ondrop="handleDrop(event)"
+                        ondragend="handleDragEnd(event)">
+                        <select class="operator-select" 
+                                data-machine-id="{{ machine.id }}"
+                                data-production-id="{{ machine.production_id }}"
+                                data-shift-id="{{ shift_id }}" 
+                                onchange="handleOperatorSelection(this)">
+                            <option value="">Sélectionner un opérateur</option>
+                            {% for operator in operators %}
+                            <option value="{{ operator.id }}" 
+                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first).operator_id == operator.id %}selected{% endif %}
+                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                    data-last-shift="{{ operator.last_shift_id }}"
+                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                {{ operator.name }} 
+                                {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
+                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="actions-container" style="margin-top: 20px;">
+            <div class="button-group">
+                {% if can_edit %}
+                <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
+                <div class="export-buttons">
+                    <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
+                    <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
+                </div>
+                <div class="button-pair">
+                    <button id="remove-display-button" onclick="removeFromDisplay()">Réinitialiser</button>
+                    <button id="confirm-button" onclick="confirmAssignments()">Confirmer</button>
+                </div>
+                {% else %}    
+                <div class="export-buttons">
+                    <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
+                    <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportToPDF(nameType) {
+    // Get current week and year from the page
+    const week = {{ week }};
+    const year = {{ year }};
+    
+    // Create a loading state
+    const button = document.getElementById(`export-${nameType}-pdf-button`);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = nameType === 'latin' ? 'Génération du PDF...' : 'جاري التصدير...';
+    
+    // Open the export URL in a new tab with the name type parameter
+    window.open(`/export_schedule?week=${week}&year=${year}&name_type=${nameType}`, '_blank');
+    
+    // Restore button state after a short delay
+    setTimeout(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+    }, 1000);
+}
+
+const selectedOperators = new Set();
+
+function handleOperatorSelection(selectElement) {
+    const wrapper = selectElement.parentElement;
+
+    // Remove previously selected operator from the set
+    const previousOperator = selectElement.dataset.selectedOperator;
+    if (previousOperator) {
+        selectedOperators.delete(previousOperator);
+    }
+
+    // Add the new operator to the set
+    if (selectElement.value) {
+        if (selectedOperators.has(selectElement.value)) {
+            alert('Cet opérateur est déjà affecté à un autre poste.');
+            selectElement.value = ""; // Reset the selection
+            return;
+        }
+        selectedOperators.add(selectElement.value);
+    }
+
+    // Update the dataset to track the selected operator
+    selectElement.dataset.selectedOperator = selectElement.value;
+
+    // Disable the selected operator in other dropdowns
+    updateOperatorDropdowns();
+}
+
+function updateOperatorDropdowns() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        const currentOperator = dropdown.dataset.selectedOperator;
+        const currentShiftId = parseInt(dropdown.dataset.shiftId);
+        const options = Array.from(dropdown.querySelectorAll('option'));
+        
+        // Clear the dropdown
+        dropdown.innerHTML = '';
+        
+        // Add the default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Sélectionner un opérateur';
+        dropdown.appendChild(defaultOption);
+        
+        // Add enabled options first
+        options.forEach(option => {
+            if (option.value && !selectedOperators.has(option.value) && !option.disabled) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
+                }
+                
+                // Check if this is the operator's next expected shift
+                const lastShift = parseInt(option.dataset.lastShift);
+                const nextShift = parseInt(option.dataset.nextShift);
+                const isNextExpectedShift = nextShift === currentShiftId;
+                
+                option.disabled = false;
+                option.style.color = isNextExpectedShift ? '#4CAF50' : 'black';
+                option.style.fontWeight = isNextExpectedShift ? 'bold' : 'normal';
+                dropdown.appendChild(option);
+            }
+        });
+        
+        // Add disabled options at the bottom
+        options.forEach(option => {
+            if (option.value && (selectedOperators.has(option.value) || option.disabled)) {
+                // Check if operator is in long absence
+                if (option.style.display === 'none') {
+                    return; // Skip operators in long absence
+                }
+                option.disabled = true;
+                option.style.color = '#b3b3b3';
+                dropdown.appendChild(option);
+            }
+        });
+        
+        // Restore the current selection
+        if (currentOperator) {
+            dropdown.value = currentOperator;
+        }
+    });
+}
+
+function confirmAssignments() {
+    // Remove any existing messages first
+    const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
+    existingMessages.forEach(message => message.remove());
+
+    const assignments = [];
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    
+    allDropdowns.forEach(dropdown => {
+        if (dropdown.value) {
+            assignments.push({
+                machine_id: dropdown.dataset.machineId,
+                production_id: dropdown.dataset.productionId,
+                shift_id: dropdown.dataset.shiftId,
+                operator_id: dropdown.value
+            });
+        }
+    });
+
+    if (assignments.length === 0) {
+        alert('Aucune affectation sélectionnée.');
+        return;
+    }
+
+    // Send the assignments to the backend
+    fetch('/api/schedule/confirm', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            assignments: assignments,
+            week_number: {{ week }},
+            year: {{ year }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store assignments in session storage
+            const weekKey = `week_{{ week }}_year_{{ year }}`;
+            sessionStorage.setItem(weekKey, JSON.stringify(assignments));
+            sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
+            
+            const successMessage = document.createElement('div');
+            successMessage.className = 'alert-success';
+            successMessage.textContent = 'Affectations confirmées avec succès.';
+            document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+            
+            // Remove success message after 3 seconds
+            setTimeout(() => {
+                successMessage.remove();
+            }, 3000);
+        } else {
+            // Remove any existing success messages
+            const existingSuccessMessages = document.querySelectorAll('.alert-success');
+            existingSuccessMessages.forEach(message => message.remove());
+
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = 'Erreur : ' + data.message;
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+            
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        // Remove any existing success messages
+        const existingSuccessMessages = document.querySelectorAll('.alert-success');
+        existingSuccessMessages.forEach(message => message.remove());
+
+        console.error('Erreur:', error);
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = 'Erreur lors de la confirmation des affectations.';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    });
+}
+
+function loadStoredAssignments() {
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    const storedAssignments = sessionStorage.getItem(weekKey);
+    const isConfirmed = sessionStorage.getItem(`${weekKey}_confirmed`);
+    
+    if (storedAssignments && isConfirmed) {
+        const assignments = JSON.parse(storedAssignments);
+        const allDropdowns = document.querySelectorAll('.operator-select');
+        
+        // Apply stored assignments
+        assignments.forEach(assignment => {
+            const dropdown = Array.from(allDropdowns).find(d => 
+                d.dataset.productionId === assignment.production_id.toString() && 
+                d.dataset.shiftId === assignment.shift_id.toString()
+            );
+            if (dropdown) {
+                dropdown.value = assignment.operator_id;
+                handleOperatorSelection(dropdown);
+            }
+        });
+        
+        // Show confirmation message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'alert-success';
+        successMessage.textContent = 'Affectations confirmées avec succès.';
+        document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    }
+}
+
+// Initialize select containers and clear icons
+function initializeSelects() {
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    
+    allDropdowns.forEach(dropdown => {
+        // Create container
+        const container = document.createElement('div');
+        container.className = 'select-wrapper';
+        
+        // Wrap the select
+        dropdown.parentNode.insertBefore(container, dropdown);
+        container.appendChild(dropdown);
+        
+        // Add click handler for the wrapper
+        container.addEventListener('click', function(e) {
+            if (e.target === container && dropdown.value) {
+                e.stopPropagation();
+                selectedOperators.delete(dropdown.value);
+                dropdown.value = '';
+                delete dropdown.dataset.selectedOperator;
+                updateOperatorDropdowns();
+            }
+        });
+        
+        // Initialize if has value
+        if (dropdown.value) {
+            selectedOperators.add(dropdown.value);
+            dropdown.dataset.selectedOperator = dropdown.value;
+        }
+    });
+}
+
+// Update DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+    updateWeekDatesDisplay();
+    loadStoredAssignments();
+    initializeSelects();
+    updateOperatorDropdowns();
+});
+
+function removeFromDisplay() {
+    // Get checked machines
+    const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+        .map(checkbox => ({
+            machineId: checkbox.dataset.machineId,
+            productionId: checkbox.dataset.productionId
+        }));
+    
+    // Clear session storage for current week
+    const weekKey = `week_{{ week }}_year_{{ year }}`;
+    sessionStorage.removeItem(weekKey);
+    sessionStorage.removeItem(`${weekKey}_confirmed`);
+    
+    // Clear all dropdowns for checked machines
+    const allDropdowns = document.querySelectorAll('.operator-select');
+    allDropdowns.forEach(dropdown => {
+        if (checkedMachines.length === 0 || 
+            checkedMachines.some(m => m.machineId === dropdown.dataset.machineId && 
+                                    m.productionId === dropdown.dataset.productionId)) {
+            dropdown.value = '';
+            const previousOperator = dropdown.dataset.selectedOperator;
+            if (previousOperator) {
+                selectedOperators.delete(previousOperator);
+                delete dropdown.dataset.selectedOperator;
+            }
+        }
+    });
+    
+    // Update dropdowns
+    updateOperatorDropdowns();
+    
+    // Show success message
+    const successMessage = document.createElement('div');
+    successMessage.className = 'alert-success';
+    successMessage.textContent = checkedMachines.length > 0 
+        ? 'Affectations effacées pour les machines sélectionnées.' 
+        : 'Toutes les affectations ont été réinitialisées.';
+    document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+    
+    // Remove success message after 3 seconds
+    setTimeout(() => {
+        successMessage.remove();
+    }, 3000);
+}
+
+function randomAssignment() {
+    const button = document.getElementById('random-assignment-button');
+    const originalText = button.textContent;
+    
+    // Show loading state
+    button.disabled = true;
+    button.textContent = 'Génération des affectations aléatoires...';
+    
+    try {
+        // Get checked machines
+        const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
+            .map(checkbox => checkbox.dataset.machineId);
+        
+        if (checkedMachines.length === 0) {
+            throw new Error('Veuillez sélectionner au moins une machine');
+        }
+        
+        // Make API call to backend
+        fetch('/api/schedule/random', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                week_number: {{ week }},
+                year: {{ year }},
+                machine_ids: checkedMachines
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the UI with new assignments
+                const allDropdowns = document.querySelectorAll('.operator-select');
+                
+                // Clear existing selections for checked machines
+                allDropdowns.forEach(dropdown => {
+                    if (checkedMachines.includes(dropdown.dataset.machineId)) {
+                        dropdown.value = '';
+                        delete dropdown.dataset.selectedOperator;
+                    }
+                });
+                
+                // Apply new assignments
+                data.assignments.forEach(assignment => {
+                    const dropdown = Array.from(allDropdowns).find(d => 
+                        d.dataset.machineId === assignment.machine_id.toString() && 
+                        d.dataset.productionId === assignment.production_id.toString() &&
+                        d.dataset.shiftId === assignment.shift_id.toString()
+                    );
+                    
+                    if (dropdown) {
+                        if (assignment.operator_id === null) {
+                            dropdown.value = '';
+                            delete dropdown.dataset.selectedOperator;
+                        } else {
+                            dropdown.value = assignment.operator_id;
+                            dropdown.dataset.selectedOperator = assignment.operator_id;
+                        }
+                    }
+                });
+                
+                // Update the UI
+                updateOperatorDropdowns();
+                
+                // Show success message
+                const successMessage = document.createElement('div');
+                successMessage.className = 'alert-success';
+                successMessage.textContent = data.message || 'Affectations aléatoires générées avec succès';
+                document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
+                
+                // Remove success message after 3 seconds
+                setTimeout(() => {
+                    successMessage.remove();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Erreur lors de la génération des affectations aléatoires');
+            }
+        })
+        .catch(error => {
+            // Show error message
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'alert-error';
+            errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+            document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+            
+            // Remove error message after 5 seconds
+            setTimeout(() => {
+                errorMessage.remove();
+            }, 5000);
+        });
+        
+    } catch (error) {
+        // Show error message
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'alert-error';
+        errorMessage.textContent = error.message || 'Erreur lors de la génération des affectations aléatoires';
+        document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            errorMessage.remove();
+        }, 5000);
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+function toggleAllMachines(checkbox) {
+    const machineCheckboxes = document.querySelectorAll('.machine-checkbox');
+    machineCheckboxes.forEach(box => {
+        box.checked = checkbox.checked;
+    });
+}
+
+// Add these new functions for drag and drop functionality
+let draggedCell = null;
+
+function handleDragStart(event) {
+    draggedCell = event.target;
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', JSON.stringify({
+        machineId: event.target.dataset.machineId,
+        productionId: event.target.dataset.productionId,
+        shiftId: event.target.dataset.shiftId
+    }));
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    event.target.classList.add('drag-over');
+}
+
+function handleDragEnd(event) {
+    event.target.classList.remove('dragging');
+    document.querySelectorAll('.schedule-cell').forEach(cell => {
+        cell.classList.remove('drag-over');
+    });
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    const targetCell = event.target.closest('.schedule-cell');
+    if (!targetCell || !draggedCell) return;
+
+    targetCell.classList.remove('drag-over');
+
+    // Get the select elements
+    const sourceSelect = draggedCell.querySelector('select');
+    const targetSelect = targetCell.querySelector('select');
+
+    // Store the current values and selected operators
+    const sourceValue = sourceSelect.value;
+    const targetValue = targetSelect.value;
+    const sourceOperator = sourceSelect.dataset.selectedOperator;
+    const targetOperator = targetSelect.dataset.selectedOperator;
+
+    // Remove both operators from the selected set
+    if (sourceOperator) selectedOperators.delete(sourceOperator);
+    if (targetOperator) selectedOperators.delete(targetOperator);
+
+    // Swap the values
+    sourceSelect.value = targetValue;
+    targetSelect.value = sourceValue;
+
+    // Update the dataset to track the selected operators
+    sourceSelect.dataset.selectedOperator = targetValue;
+    targetSelect.dataset.selectedOperator = sourceValue;
+
+    // Add both operators back to the selected set if they have values
+    if (targetValue) selectedOperators.add(targetValue);
+    if (sourceValue) selectedOperators.add(sourceValue);
+
+    // Update the UI
+    updateOperatorDropdowns();
+}
+
+function updateWeekDatesDisplay() {
+    const year = parseInt(document.getElementById('yearInput').value);
+    const week = parseInt(document.getElementById('weekInput').value);
+    
+    const jan4 = new Date(year, 0, 4);
+    const mondayWeek1 = new Date(jan4);
+    mondayWeek1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
+    
+    const targetMonday = new Date(mondayWeek1);
+    targetMonday.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+    
+    const targetSunday = new Date(targetMonday);
+    targetSunday.setDate(targetMonday.getDate() + 6);
+    
+    const formatDate = (date) => {
+        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    };
+    
+    const dateDisplay = `${formatDate(targetMonday)} - ${formatDate(targetSunday)}`;
+    const weekDatesElement = document.getElementById('weekDatesDisplay');
+    if (weekDatesElement) {
+        weekDatesElement.textContent = dateDisplay;
+    }
+}
+
+function updateYearFromInput(value) {
+    const year = parseInt(value);
+    const weekElement = document.getElementById('weekInput');
+    const week = parseInt(weekElement.value);
+    
+    if (isNaN(year) || year < 1900 || year > 2100) {
+        alert('Veuillez entrer une année valide entre 1900 et 2100');
+        document.getElementById('yearInput').value = {{ year }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        weekElement.value = lastWeek;
+    }
+    
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function updateWeekFromInput(value) {
+    const week = parseInt(value);
+    const yearElement = document.getElementById('yearInput');
+    const year = parseInt(yearElement.value);
+    
+    if (isNaN(week) || week < 1 || week > 53) {
+        alert('Veuillez entrer un numéro de semaine valide entre 1 et 53');
+        document.getElementById('weekInput').value = {{ week }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        alert(`La semaine ${week} n'est pas valide pour l'année ${year}. La dernière semaine de ${year} est ${lastWeek}`);
+        document.getElementById('weekInput').value = lastWeek;
+        return;
+    }
+    
+    updateNavigation(year, week);
+}
+
+function changeYear(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    year += delta;
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        week = lastWeek;
+        weekElement.value = week;
+    }
+    
+    yearElement.value = year;
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function changeWeek(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week += delta;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    } else if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function updateNavigation(year, week) {
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    updateWeekDatesDisplay();
+    
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('year', year);
+    currentUrl.searchParams.set('week', week);
+    window.location.href = currentUrl.toString();
+}
+
+// Add keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if (event.altKey) {
+        switch(event.key) {
+            case 'ArrowLeft':
+                changeWeek(-1);
+                break;
+            case 'ArrowRight':
+                changeWeek(1);
+                break;
+            case 'ArrowUp':
+                changeYear(1);
+                break;
+            case 'ArrowDown':
+                changeYear(-1);
+                break;
+        }
+    }
+});
+
+function goToCurrentWeek() {
+    const current = getCurrentWeekYear();
+    document.getElementById('yearInput').value = current.year;
+    document.getElementById('weekInput').value = current.week;
+    updateNavigation(current.year, current.week);
+}
+
+function goToNextWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week++;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function goToPreviousWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week--;
+    if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function deselectOperator(event, element) {
+    event.stopPropagation();
+    event.preventDefault();
+    const cell = element.closest('.schedule-cell');
+    const select = cell.querySelector('.operator-select');
+    if (select.value) {
+        selectedOperators.delete(select.value);
+        select.value = '';
+        delete select.dataset.selectedOperator;
+        updateOperatorDropdowns();
+    }
+}
+
+// Prevent select from opening when clicking the x
+const schedule = document.querySelector('.assignments-table');
+schedule && schedule.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('deselect-operator')) {
+        e.preventDefault();
+    }
+}, true);
+</script>
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/production.js') }}"></script>
+{% endblock %}
+{% block title %}Production{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <!-- Articles Section -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Articles</h3>
+                {% if can_edit %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addArticleModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="articleSearch" placeholder="Rechercher des articles...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="articlesBody">
+                                {% for article in articles %}
+                                <tr>
+                                    <td>{{ article.name }}</td>
+                                    <td>{{ article.description }}</td>
+                                    <td>
+                                        {% if can_edit %}
+                                        <button class="btn btn-sm btn-light" data-action="edit-article" data-id="{{ article.id }}">
+                                            <i class='bx bx-edit-alt'></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-action="delete-article" data-id="{{ article.id }}">
+                                            <i class='bx bx-x'></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noArticlesFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucun article trouvé correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-12">
+        <!-- Production Section -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Production</h3>
+                {% if can_edit %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductionModal">
+                    <i class='bx bx-plus'></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="dateSearchToggle" onchange="toggleDateSearch()">
+                        <label class="form-check-label" for="dateSearchToggle">Rechercher par date</label>
+                    </div>
+                    <div id="dateSearchInputs" style="display: none;" class="mb-2">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="startDateSearch" placeholder="Date de début">
+                            </div>
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="endDateSearch" placeholder="Date de fin">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-light w-100" data-action="clear-date">Effacer</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control" id="productionSearch" placeholder="Rechercher la production...">
+                </div>
+                <div class="scrollable-section">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>Type</th>
+                                    <th>Article</th>
+                                    <th>Quantité</th>
+                                    <th>Date de début</th>
+                                    <th>Date de fin</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productionBody">
+                                {% for prod in production %}
+                                <tr>
+                                    <td>{{ prod.machine_name }}</td>
+                                    <td>{{ 'Service' if prod.machine_type else 'Machine' }}</td>
+                                    <td>{{ prod.article_name if prod.article_name else '-' }}</td>
+                                    <td>{{ prod.quantity if prod.quantity else '-' }}</td>
+                                    <td>{{ prod.start_date }}</td>
+                                    <td>{{ prod.end_date if prod.end_date else '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if prod.status == 'active' else 'secondary' if prod.status == 'completed' else 'danger' }}">
+                                            {{ prod.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if can_edit %}
+                                            <button class="btn btn-sm btn-light" data-action="edit-production" data-id="{{ prod.id }}">
+                                                <i class='bx bx-edit-alt'></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" data-action="delete-production" data-id="{{ prod.id }}">
+                                                <i class='bx bx-x'></i>
+                                            </button>
+                                        {% endif %}    
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div id="noProductionFound" class="text-center py-3" style="display: none;">
+                            <p class="text-muted">Aucun enregistrement de production trouvé correspondant à votre recherche</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% if can_edit %}
+<!-- Add Article Modal -->
+<div class="modal fade" id="addArticleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un article</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addArticleForm" data-form-action="saveArticle">
+                    <div class="mb-3">
+                        <label for="articleName" class="form-label">Nom de l'article</label>
+                        <input type="text" class="form-control" id="articleName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="articleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="articleDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-article">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Edit Article Modal -->
+<div class="modal fade" id="editArticleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier l'article</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editArticleForm" data-form-action="saveArticleEdit">
+                    <input type="hidden" id="editArticleId">
+                    <div class="mb-3">
+                        <label for="editArticleName" class="form-label">Nom de l'article</label>
+                        <input type="text" class="form-control" id="editArticleName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editArticleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editArticleDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-article-edit">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Add Production Modal -->
+<div class="modal fade" id="addProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProductionForm" data-form-action="saveProduction">
+                    <div class="mb-3">
+                        <label for="productionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="productionMachine" required onchange="toggleArticleFields()">
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in machines %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="productionArticle">
+                            <option value="">Sélectionner un article</option>
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="productionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="productionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="productionEndDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-production">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Edit Production Modal -->
+<div class="modal fade" id="editProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier la production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductionForm" data-form-action="saveProductionEdit">
+                    <input type="hidden" id="editProductionId">
+                    <div class="mb-3">
+                        <label for="editProductionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="editProductionMachine" required onchange="toggleEditArticleFields()">
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in machines %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 edit-article-field">
+                        <label for="editProductionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="editProductionArticle">
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 edit-article-field">
+                        <label for="editProductionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="editProductionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="editProductionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="editProductionEndDate">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="editProductionStatus" required>
+                            <option value="active">Actif</option>
+                            <option value="completed">Terminé</option>
+                            <option value="cancelled">Annulé</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-production-edit">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 

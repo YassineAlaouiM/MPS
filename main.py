@@ -145,9 +145,11 @@ def machines():
             '''
             cursor.execute(sql)
             non_functioning_machines = cursor.fetchall()
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('machines', True) if current_user.role != 'admin' else True
     finally:
         connection.close()
-    return render_template('machines.html', machines=machines, non_functioning_machines=non_functioning_machines)
+    return render_template('machines.html', machines=machines, non_functioning_machines=non_functioning_machines, can_edit=can_edit)
 
 @app.route('/operators')
 @login_required
@@ -169,9 +171,11 @@ def operators():
             '''
             cursor.execute(sql)
             absences = cursor.fetchall()
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('operators', True) if current_user.role != 'admin' else True
     finally:
         connection.close()
-    return render_template('operators.html', operators=operators, absences=absences)
+    return render_template('operators.html', operators=operators, absences=absences, can_edit=can_edit)
 
 @app.route('/production')
 @login_required
@@ -182,17 +186,12 @@ def production():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Get all articles
             sql = "SELECT * FROM articles ORDER BY name"
             cursor.execute(sql)
             articles = cursor.fetchall()
-            
-            # Get all operational machines
             sql = "SELECT * FROM machines WHERE status = 'operational' ORDER BY name"
             cursor.execute(sql)
             machines = cursor.fetchall()
-            
-            # Get all production records with machine and article details
             sql = '''
                 SELECT p.*, m.name as machine_name, m.type as machine_type, a.name as article_name
                 FROM production p
@@ -202,9 +201,11 @@ def production():
             '''
             cursor.execute(sql)
             production = cursor.fetchall()
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('production', True) if current_user.role != 'admin' else True
     finally:
         connection.close()
-    return render_template('production.html', articles=articles, machines=machines, production=production)
+    return render_template('production.html', articles=articles, machines=machines, production=production, can_edit=can_edit)
 
 def init_db():
     schema_file = "schema.sql"
@@ -1132,11 +1133,13 @@ def shifts():
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM shifts")
                 shifts = cursor.fetchall()
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('shifts', True) if current_user.role != 'admin' else True
     except Exception as e:
         flash(f"Error loading shifts: {str(e)}", "error")
         shifts = []
-    
-    return render_template('shifts.html', shifts=shifts)
+        can_edit = False
+    return render_template('shifts.html', shifts=shifts, can_edit=can_edit)
 
 @app.route('/api/shifts', methods=['POST'])
 @login_required
@@ -1224,25 +1227,19 @@ def schedule():
         return redirect(url_for('dashboard'))
     week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
     year = request.args.get('year', default=datetime.now().year, type=int)
-    
-    # Get machines that were in production during the selected week
     machines = []
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                # Get the start and end dates of the selected week
                 cursor.execute("""
                     SELECT 
                         STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
                         STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
                 """, (year, week, year, week))
                 week_dates = cursor.fetchone()
-                
                 if not week_dates or not week_dates['week_start'] or not week_dates['week_end']:
                     flash(f"Error calculating week dates for week {week} of {year}", "error")
-                    return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
-                
-                # Get machines and their production records that were active during this week
+                    return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[], can_edit=False)
                 cursor.execute("""
                     SELECT m.*, p.id as production_id, p.article_id, a.name as article_name
                     FROM machines m
@@ -1259,12 +1256,8 @@ def schedule():
                       week_dates['week_start'], week_dates['week_end'],
                       week_dates['week_start'], week_dates['week_end']))
                 machines = cursor.fetchall()
-                
-                # Get operators and shifts
                 operators = get_operators(week, year)
                 shifts = get_shifts()
-                
-                # Get current assignments for the selected week
                 cursor.execute("""
                     SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.week_number, s.year,
                            m.name as machine_name, o.name as operator_name, sh.name as shift_name,
@@ -1279,18 +1272,19 @@ def schedule():
                     ORDER BY m.name, p.start_date, sh.id
                 """, (week, year))
                 assignments = cursor.fetchall()
-                
+            current_access = get_user_accessible_pages(current_user.id)
+            can_edit = current_access.get('schedule', True) if current_user.role != 'admin' else True
     except Exception as e:
         flash(f"Error loading machines: {str(e)}", "error")
-        return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[])
-    
+        return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[], can_edit=False)
     return render_template('schedule.html', 
                          week=week,
                          year=year,
                          machines=machines,
                          operators=operators,
                          shifts=shifts,
-                         assignments=assignments)
+                         assignments=assignments,
+                         can_edit=can_edit)
 
 @app.route('/api/schedule', methods=['GET'])
 @login_required
@@ -1907,20 +1901,25 @@ def get_user_accessible_pages(user_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT page_name FROM user_accessible_pages WHERE user_id = %s"
+            sql = "SELECT page_name, can_edit FROM user_accessible_pages WHERE user_id = %s"
             cursor.execute(sql, (user_id,))
             pages = cursor.fetchall()
-            return [page['page_name'] for page in pages]
+            # Return as dict: {page_name: can_edit}
+            return {page['page_name']: page['can_edit'] for page in pages}
     finally:
         connection.close()
 
-def has_page_access(page):
+def has_page_access(page, require_edit=False):
     if not current_user.is_authenticated:
         return False
     if current_user.role == 'admin':
         return True
     accessible_pages = get_user_accessible_pages(current_user.id)
-    return page in accessible_pages
+    if page not in accessible_pages:
+        return False
+    if require_edit:
+        return accessible_pages[page]
+    return True
 
 # Add this decorator function
 def admin_required(f):
@@ -1943,33 +1942,30 @@ def users():
             sql = "SELECT id, username, email, role FROM users ORDER BY username"
             cursor.execute(sql)
             users = cursor.fetchall()
-            
             # Get accessible pages for each user
             for user in users:
                 user['accessible_pages'] = get_user_accessible_pages(user['id'])
+        # Pass can_edit for the current user for the 'users' page
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('users', True) if current_user.role != 'admin' else True
     finally:
         connection.close()
-    return render_template('users.html', users=users)
+    return render_template('users.html', users=users, can_edit=can_edit)
 
 @app.route('/api/users', methods=['POST'])
 @login_required
 @admin_required
 def create_user():
     data = request.get_json()
-    
     if not all(key in data for key in ['username', 'email', 'password', 'role']):
         return jsonify({'success': False, 'message': 'Missing required fields'})
-    
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Check if username or email exists
             sql = "SELECT id FROM users WHERE username = %s OR email = %s"
             cursor.execute(sql, (data['username'], data['email']))
             if cursor.fetchone():
                 return jsonify({'success': False, 'message': 'Username or email already exists'})
-            
-            # Create user
             sql = "INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)"
             cursor.execute(sql, (
                 data['username'],
@@ -1978,13 +1974,14 @@ def create_user():
                 data['role']
             ))
             user_id = cursor.lastrowid
-            
-            # Add accessible pages
+            # Add accessible pages with can_edit
             if 'accessible_pages' in data and data['accessible_pages']:
-                sql = "INSERT INTO user_accessible_pages (user_id, page_name) VALUES (%s, %s)"
+                sql = "INSERT INTO user_accessible_pages (user_id, page_name, can_edit) VALUES (%s, %s, %s)"
                 for page in data['accessible_pages']:
-                    cursor.execute(sql, (user_id, page))
-            
+                    if isinstance(page, dict):
+                        cursor.execute(sql, (user_id, page['page_name'], page.get('can_edit', True)))
+                    else:
+                        cursor.execute(sql, (user_id, page, True))
             connection.commit()
             return jsonify({'success': True})
     except Exception as e:
@@ -2002,7 +1999,6 @@ def get_user(user_id):
             sql = "SELECT id, username, email, role FROM users WHERE id = %s"
             cursor.execute(sql, (user_id,))
             user = cursor.fetchone()
-            
             if user:
                 user['accessible_pages'] = get_user_accessible_pages(user_id)
                 return jsonify({'success': True, 'user': user})
@@ -2055,9 +2051,12 @@ def update_user(user_id):
                 
                 # Add new pages
                 if data['accessible_pages']:
-                    sql = "INSERT INTO user_accessible_pages (user_id, page_name) VALUES (%s, %s)"
+                    sql = "INSERT INTO user_accessible_pages (user_id, page_name, can_edit) VALUES (%s, %s, %s)"
                     for page in data['accessible_pages']:
-                        cursor.execute(sql, (user_id, page))
+                        if isinstance(page, dict):
+                            cursor.execute(sql, (user_id, page['page_name'], page.get('can_edit', True)))
+                        else:
+                            cursor.execute(sql, (user_id, page, True))
             
             connection.commit()
             return jsonify({'success': True})

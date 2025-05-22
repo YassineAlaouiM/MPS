@@ -333,3 +333,47 @@ table td:first-child {
         flex-direction: column;
     }
 }
+
+
+.schedule-cell {
+    position: relative;
+}
+.deselect-operator {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 18px;
+    color: #999;
+    padding: 2px 5px;
+    z-index: 2;
+    background: white;
+    border-radius: 50%;
+    transition: color 0.2s;
+    display: block;
+    pointer-events: auto;
+}
+.schedule-cell:hover .deselect-operator {
+    display: block;
+}
+.deselect-operator:hover {
+    color: #ff0000;
+}
+.operator-select {
+    width: 100%;
+    padding-right: 24px;
+    /* Hide default arrow */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: transparent;
+    /* Remove the arrow completely */
+    background-image: none !important;
+}
+.schedule-cell:hover .operator-select {
+    background-image: none;
+}
+.operator-select::-ms-expand {
+    display: none;
+}
