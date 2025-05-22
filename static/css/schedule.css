@@ -348,7 +348,7 @@ table td:first-child {
     color: #999;
     padding: 2px 5px;
     z-index: 2;
-    background: white;
+    background: transparent;
     border-radius: 50%;
     transition: color 0.2s;
     display: block;
