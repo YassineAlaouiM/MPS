@@ -1607,6 +1607,7 @@ def export_schedule():
         cursor.execute(f'''
             SELECT 
                 m.name AS machine_name,
+		m.type AS machine_type,
                 p.id as production_id,
                 a.name as article_name,
                 GROUP_CONCAT(
@@ -1818,7 +1819,7 @@ def export_schedule():
             for row in page_data:
                 # Create machine name with article name if available
                 machine_name = row['machine_name']
-                if row['article_name']:
+                if row['article_name'] and row['machine_type']:
                     machine_name = f"{machine_name}\n({row['article_name']})"
                 
                 table_row = [process_text(machine_name, is_machine=True)]
@@ -1851,6 +1852,7 @@ def export_schedule():
                 ('WORDWRAP', (0, 0), (-1, -1), True),
                 ('LEFTPADDING', (0, 0), (-1, -1), 3),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+		('FONTSIZE', (0, 1), (0, -1), 8, 'contains', '('),
             ])
 
             # Add alternating row colors
