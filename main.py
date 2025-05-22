@@ -1738,16 +1738,16 @@ def export_schedule():
             return text
         
         # Set colors
-        header_color = colors.HexColor('#26438c')  # Blue
-        table_header_color = colors.HexColor('#23335b')  # Lighter Blue
-        row_color = colors.HexColor('#ecf0f1')  # Light Gray
-        text_color = colors.HexColor('#23335b')  # Dark Blue
+        header_color = colors.HexColor('#ff0000')  # Blue
+        table_header_color = colors.HexColor('#ffffff')  # Lighter Blue
+        row_color = colors.HexColor('#ffffff')  # Light Gray
+        text_color = colors.HexColor('#000000')  # Dark Blue
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title
             canvas.setFont(font_name, 16)
             canvas.setFillColor(header_color)
-            title_text = "جدول المناوبة" if name_type == 'arabic' else "Planning"
+            title_text = "Programme"
             canvas.drawCentredString(page_width/2, page_height - 40, process_text(title_text))
             
             # Add Week dates 
@@ -1759,10 +1759,7 @@ def export_schedule():
                 return target_monday, target_sunday
 
             week_start, week_end = get_week_dates(year, week)
-            if name_type == 'arabic':
-                week_dates = f"{week_start.strftime('%d/%m/%Y')} -> {week_end.strftime('%d/%m/%Y')}"
-            else:
-                week_dates = f"De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
+            week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
             
             canvas.setFont(font_name, 10)
             canvas.setFillColor(text_color)
@@ -1838,12 +1835,12 @@ def export_schedule():
             )
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.green),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 8),  # First column (machine names)
