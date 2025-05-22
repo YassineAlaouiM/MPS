@@ -1,0 +1,379 @@
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    width: auto;
+    justify-content: center;
+    margin: 8px 0;
+    padding: 8px;
+    background: transparent;
+    border-radius: 6px;
+}
+
+.week-selector-container {
+    width: 100%;
+}
+
+.calendar-preview {
+    background: transparent;
+    padding: 8px;
+}
+
+.navigation-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.year-display, .week-info {
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 10px;
+    padding: 4px 10px;
+}
+
+.separator {
+    width: 2px;
+    height: 24px;
+    background: #e9ecef;
+}
+
+.current-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: #000;
+    text-align: center;
+    padding: 3px 6px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    width: 100px;
+    height: 35px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.current-value:focus {
+    border-color: #1461d4;
+    outline: none;
+}
+
+.year-label, .week-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #b7babd;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.nav-btn {
+    background: white;
+    width: 75px;
+    height: 35px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin: 8px 10px;
+    padding: 4px 15px;
+    cursor: pointer;
+    color: #1461d4;
+    box-shadow: none;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    border-color: #1461d4;
+}
+
+.week-dates {
+    font-size: 16px;
+    color: #1461d4;
+    margin-top: 8px;
+    text-align: center;
+    font-weight: 500;
+    padding: 6px 8px;
+    background-color: transparent;
+    display: block;
+    width: 30%;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.assignments-table {
+    margin-bottom: 30px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: white;
+    border-radius: 0.8rem;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    overflow: hidden;
+}
+
+th, td {
+    font-weight: 500;
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    transition: all 0.2s ease;
+}
+
+
+th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.schedule-cell {
+    position: relative;
+    cursor: move;
+    transition: all 0.2s ease;
+}
+
+.schedule-cell.dragging {
+    opacity: 0.3;
+    background-color: #f0f0f0;
+}
+
+.schedule-cell.drag-over {
+    background-color: #e3f2fd;
+    border: 1px dashed #1170ff;
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.button-pair {
+    display: flex;
+    gap: 15px;
+}
+
+.export-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+}
+
+button {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 2px solid #1461d4;
+    font-weight: 600;
+    color: white;
+    background-color: #1461d4;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    cursor: pointer;
+}
+
+#confirm-button {
+    background-color: #1461d4;
+}
+
+#remove-display-button {
+    background-color: transparent;
+    border: 2px solid #d51837;
+    color: #d51837;
+}
+
+#remove-display-button:hover {
+    background-color: #d51837;
+    color: white;
+}
+
+#random-assignment-button {
+    background-color: #1461d4;
+    border: 2px solid #1461d4;
+    color: #fff;
+}
+
+.export-btn {
+    border: 2px solid #d7dde4;
+    background-color: #d7dde4;
+    color: #000;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.export-btn:hover,
+#confirm-button:hover,
+#remove-display-button:hover,
+#random-assignment-button:hover {
+    transform: translateY(-3px);
+}
+
+#export-arabic-pdf-button {
+    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 12px 20px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+    display: inline-block;
+}
+
+select {
+    width: 100%;
+    padding: 10px 35px 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 7px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); /*arrow*/
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    transition: all 0.2s ease;
+}
+
+select:focus {
+    border-color: #1461d4;
+    outline: none;
+}
+
+.actions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #85111d;
+    padding: 12px 20px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+table input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    vertical-align: middle;
+    cursor: pointer;
+    border-radius: 4px;
+    border: 2px solid #ddd;
+    transition: all 0.2s ease;
+}
+
+table input[type="checkbox"]:checked {
+    background-color: #2196F3;
+    border-color: #2196F3;
+}
+
+table th:first-child,
+table td:first-child {
+    width: 50px;
+    text-align: center;
+    padding: 12px 8px;
+}
+
+#select-all-machines {
+    margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .week-navigation {
+        padding: 6px;
+        margin: 6px 0;
+    }
+    
+    .calendar-preview {
+        padding: 6px;
+    }
+    
+    .current-value {
+        width: 60px;
+        font-size: 14px;
+        padding: 2px 4px;
+    }
+
+    .week-dates {
+        font-size: 12px;
+        padding: 4px 6px;
+    }
+    
+    .nav-btn {
+        padding: 3px 6px;
+    }
+    
+    .button-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .export-buttons {
+        flex-direction: column;
+    }
+    
+    .button-pair {
+        flex-direction: column;
+    }
+}
+
+
+.schedule-cell {
+    position: relative;
+}
+.deselect-operator {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #999;
+    padding: 2px 5px;
+    z-index: 2;
+    display: none;
+    background: white;
+    border-radius: 50%;
+    transition: color 0.2s;
+}
+.schedule-cell:hover .deselect-operator {
+    display: block;
+}
+.deselect-operator:hover {
+    color: #ff0000;
+}
+.operator-select {
+    width: 100%;
+    padding-right: 24px;
+    /* Hide default arrow */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: transparent;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23999" height="16" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px 16px;
+}
+.schedule-cell:hover .operator-select {
+    background-image: none;
+}
+.operator-select::-ms-expand {
+    display: none;
+}
