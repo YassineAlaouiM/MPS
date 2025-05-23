@@ -1830,9 +1830,9 @@ def export_schedule():
                 article_name = row.get('article_name')
                 article_abbr = row.get('article_abbreviation')
                 if article_name and row.get('machine_type'):
-                    # Use abbreviation if article name is longer than 17 chars and abbreviation exists
+                    # Use abbreviation if article name is longer than 14 chars and abbreviation exists
                     display_article = article_name
-                    if len(article_name) > 17 and article_abbr:
+                    if len(article_name) > 14 and article_abbr:
                         display_article = article_abbr
                     machine_name = f"{machine_name}\n({display_article})"
                 table_row = [process_text(machine_name, is_machine=True)]
@@ -1857,7 +1857,7 @@ def export_schedule():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (0, -1), 10),  # First column (machine names)
+                ('FONTSIZE', (0, 1), (0, -1), 14),  # First column (machine names)
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
                 ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 14),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
