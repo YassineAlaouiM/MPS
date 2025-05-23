@@ -1673,8 +1673,6 @@ def export_schedule():
                     words = text.split()
                     processed_words = []
                     for i in range(0, len(words), 2):
-                        if len(words[1]) > 10:
-                            text = '\n'.join(processed_words)
                         if i + 1 < len(words):
                             processed_words.append(words[i] + ' ' + words[i + 1])
                         else:
