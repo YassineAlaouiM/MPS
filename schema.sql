@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS non_functioning_machines (
 CREATE TABLE IF NOT EXISTS articles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    abbreviation VARCHAR(20),
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
