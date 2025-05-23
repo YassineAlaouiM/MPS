@@ -1861,7 +1861,6 @@ def export_schedule():
                 ('WORDWRAP', (0, 0), (-1, -1), True),
                 ('LEFTPADDING', (0, 0), (-1, -1), 3),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ('FONTSIZE', (0, 1), (0, -1), 8, 'contains', '('),
             ])
 
             # Add alternating row colors
