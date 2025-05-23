@@ -1743,7 +1743,7 @@ def export_schedule():
         
         # Set colors
         header_color = colors.HexColor('#ff0000')  # Blue
-        table_header_color = colors.HexColor('#ffffff')  # Lighter Blue
+        table_header_color = colors.HexColor(colors.green)  # Green
         row_color = colors.HexColor('#ffffff')  # Light Gray
         text_color = colors.HexColor('#000000')  # Dark Blue
 
@@ -1844,7 +1844,7 @@ def export_schedule():
             )
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.green),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
@@ -1852,7 +1852,7 @@ def export_schedule():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (0, -1), 8),  # First column (machine names)
+                ('FONTSIZE', (0, 1), (0, -1), 10),  # First column (machine names)
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
                 ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 14),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
