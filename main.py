@@ -1742,8 +1742,8 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (12 rows + 1 header row = 13 total)
-        rows_per_page = 12
-        row_height = min((page_height - 75) / 12, 40)
+        row_height = min((page_height - 75) / 13, 60)
+        rows_per_page = int((page_height - 75) / row_height)
 
         # Split data into pages
         pages = []
