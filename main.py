@@ -1765,7 +1765,7 @@ def export_schedule():
             week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
 
             y = page_height - 40
-            margin = 70
+            margin = 540
             # Concatenate title and week dates
             header_text = f"{title_text} {week_dates}"
             canvas.drawString(margin, y, process_text(header_text))
