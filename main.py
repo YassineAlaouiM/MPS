@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1620,8 +1620,8 @@ def export_schedule():
         buffer = BytesIO()
         
         # Create the PDF object, using BytesIO as its "file"
-        page_width, page_height = landscape(A4)
-        p = canvas.Canvas(buffer, pagesize=landscape(A4))
+        page_width, page_height = portrait(A4)
+        p = canvas.Canvas(buffer, pagesize=portrait(A4))
         
         # Register appropriate font based on name type
         try:
@@ -1742,7 +1742,7 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (10 rows + 1 header row = 11 total)
-        rows_per_page = 10
+        rows_per_page = 15
         row_height = min((page_height - 75) / 12, 50)
 
         # Split data into pages
@@ -1762,7 +1762,7 @@ def export_schedule():
         for page_num, page_data in enumerate(pages, 1):
             if page_num > 1:
                 p.showPage()
-                p.setPageSize(landscape(A4))
+                p.setPageSize(portrait(A4))
 
             add_page_header(p, page_num, total_pages)
 
