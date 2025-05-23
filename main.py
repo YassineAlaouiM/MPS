@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, portrait, landscape
+from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1742,17 +1742,8 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (10 rows + 1 header row = 11 total)
+        rows_per_page = 15
         row_height = min((page_height - 75) / 12, 50)
-
-        # Determine if landscape orientation and 10 rows per page are needed
-        landscape_needed = any(shift_key in ('shift_4', 'shift_5', 'shift_6') for shift_key, _ in active_shifts)
-        if landscape_needed:
-            page_width, page_height = landscape(A4)
-            rows_per_page = 10
-        else:
-            page_width, page_height = portrait(A4)
-            rows_per_page = 15
-        p = canvas.Canvas(buffer, pagesize=(page_width, page_height))
 
         # Split data into pages
         pages = []
@@ -1771,10 +1762,8 @@ def export_schedule():
         for page_num, page_data in enumerate(pages, 1):
             if page_num > 1:
                 p.showPage()
-                if landscape_needed:
-                    p.setPageSize(landscape(A4))
-                else:
-                    p.setPageSize(portrait(A4))
+                p.setPageSize(portrait(A4))
+
             add_page_header(p, page_num, total_pages)
 
             # Prepare table data for this page
