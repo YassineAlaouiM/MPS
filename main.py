@@ -1609,9 +1609,10 @@ def export_schedule():
         cursor.execute(f'''
             SELECT 
                 m.name AS machine_name,
-		m.type AS machine_type,
+                m.type AS machine_type,
                 p.id as production_id,
                 a.name as article_name,
+                a.abbreviation as article_abbreviation,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 1 THEN {name_field}
@@ -1654,7 +1655,7 @@ def export_schedule():
             LEFT JOIN articles a ON p.article_id = a.id
             LEFT JOIN shifts s ON sc.shift_id = s.id
             LEFT JOIN operators o ON sc.operator_id = o.id
-            GROUP BY m.id, m.name, p.id, a.name
+            GROUP BY m.id, m.name, p.id, a.name, a.abbreviation
             HAVING shift_1 IS NOT NULL 
                 OR shift_2 IS NOT NULL 
                 OR shift_3 IS NOT NULL 
@@ -1821,9 +1822,14 @@ def export_schedule():
             for row in page_data:
                 # Create machine name with article name if available
                 machine_name = row['machine_name']
-                if row['article_name'] and row['machine_type']:
-                    machine_name = f"{machine_name}\n({row['article_name']})"
-                
+                article_name = row.get('article_name')
+                article_abbr = row.get('article_abbreviation')
+                if article_name and row.get('machine_type'):
+                    # Use abbreviation if article name is longer than 17 chars and abbreviation exists
+                    display_article = article_name
+                    if len(article_name) > 17 and article_abbr:
+                        display_article = article_abbr
+                    machine_name = f"{machine_name}\n({display_article})"
                 table_row = [process_text(machine_name, is_machine=True)]
                 for shift_key, _ in active_shifts:
                     cell_text = row[shift_key] if row[shift_key] else ""
@@ -1854,7 +1860,7 @@ def export_schedule():
                 ('WORDWRAP', (0, 0), (-1, -1), True),
                 ('LEFTPADDING', (0, 0), (-1, -1), 3),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-		('FONTSIZE', (0, 1), (0, -1), 8, 'contains', '('),
+                ('FONTSIZE', (0, 1), (0, -1), 8, 'contains', '('),
             ])
 
             # Add alternating row colors
@@ -2091,4 +2097,3 @@ if __name__ == "__main__":
     local_ip = get_local_ip()
     print(f"Server is starting on http://{local_ip}:8000 ...")
     serve(app, host="0.0.0.0", port=8000)
-    
