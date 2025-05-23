@@ -1749,7 +1749,7 @@ def export_schedule():
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title and week dates as a single string
-            canvas.setFont(font_name, 16)
+            canvas.setFont(font_name, 20)
             canvas.setFillColor(header_color)
             title_text = "Programme"
             
@@ -1848,7 +1848,7 @@ def export_schedule():
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 20),  # Header font size
+                ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
