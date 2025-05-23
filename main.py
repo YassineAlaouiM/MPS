@@ -1743,7 +1743,7 @@ def export_schedule():
         
         # Fixed number of rows per page (12 rows + 1 header row = 13 total)
         rows_per_page = 12
-        row_height = min((page_height - 75) / 12, 50)
+        row_height = min((page_height - 75) / 12, 40)
 
         # Split data into pages
         pages = []
