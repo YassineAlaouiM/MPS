@@ -1673,6 +1673,8 @@ def export_schedule():
                     words = text.split()
                     processed_words = []
                     for i in range(0, len(words), 2):
+                        if len(words[1]) > 10:
+                            text = '\n'.join(processed_words)
                         if i + 1 < len(words):
                             processed_words.append(words[i] + ' ' + words[i + 1])
                         else:
@@ -1776,7 +1778,7 @@ def export_schedule():
                 if article_name and row.get('machine_type'):
                     # Use abbreviation if article name is longer than 17 chars and abbreviation exists
                     display_article = article_name
-                    if len(article_name) > 17 and article_abbr:
+                    if len(article_name) > 12 and article_abbr:
                         display_article = article_abbr
                     machine_name = f"{machine_name}\n({display_article})"
                 table_row = [process_text(machine_name, is_machine=True)]
