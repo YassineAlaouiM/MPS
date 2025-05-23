@@ -1261,7 +1261,8 @@ def schedule():
                 operators = get_operators(week, year)
                 shifts = get_shifts()
                 cursor.execute("""
-                    SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.week_number, s.year,
+                    SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position,
+                           s.week_number, s.year,
                            m.name as machine_name, o.name as operator_name, sh.name as shift_name,
                            p.article_id, a.name as article_name
                     FROM schedule s
@@ -1271,7 +1272,7 @@ def schedule():
                     JOIN operators o ON s.operator_id = o.id
                     JOIN shifts sh ON s.shift_id = sh.id
                     WHERE s.week_number = %s AND s.year = %s
-                    ORDER BY m.name, p.start_date, sh.id
+                    ORDER BY m.name, p.start_date, sh.id, s.position
                 """, (week, year))
                 assignments = cursor.fetchall()
             current_access = get_user_accessible_pages(current_user.id)
@@ -1360,71 +1361,19 @@ def confirm_assignments():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Validate that no operator is assigned to multiple shifts
-            operator_assignments = set()
-            for assignment in assignments:
-                operator_id = assignment['operator_id']
-                if operator_id in operator_assignments:
-                    return jsonify({'success': False, 'message': f'Operateur {operator_id} est affecté à plusieurs shifts.'}), 400
-                operator_assignments.add(operator_id)
-
-            # Define shift models
-            # Adding shifts is static
-            shift_model_1 = {"1", "2", "3"}
-            shift_model_2 = {"4", "5"}
-            shift_model_3 = {"6"}
-
-            # Validate that each machine+production combination is assigned to only one shift model per week
-            machine_shift_models = {}
-            for assignment in assignments:
-                machine_id = assignment['machine_id']
-                production_id = assignment['production_id']
-                shift_id = assignment['shift_id']
-                key = f"{machine_id}_{production_id}"
-
-                # Determine the shift model for the current shift
-                if shift_id in shift_model_1:
-                    current_model = "model_1"
-                elif shift_id in shift_model_2:
-                    current_model = "model_2"
-                elif shift_id in shift_model_3:
-                    current_model = "model_3"
-                else:
-                    return jsonify({'success': False, 'message': f'Invalid shift ID {shift_id}.'}), 400
-
-                # Check if the machine+production is already assigned to a different shift model
-                if key in machine_shift_models:
-                    if machine_shift_models[key] != current_model:
-                        return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} is assigned to multiple shift models in the same week.'}), 400
-                else:
-                    machine_shift_models[key] = current_model
-
-            # Validate that each machine+production has the exact number of operators for the shift model
-            for key, model in machine_shift_models.items():
-                machine_id, production_id = key.split('_')
-                assigned_operators = [a for a in assignments if a['machine_id'] == machine_id and a['production_id'] == production_id]
-
-                if model == "model_1" and len(assigned_operators) != 3:
-                    return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} must have exactly 3 operators for shift model 1.'}), 400
-
-                if model == "model_2" and len(assigned_operators) != 2:
-                    return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} must have exactly 2 operators for shift model 2.'}), 400
-
-                if model == "model_3" and len(assigned_operators) != 1:
-                    return jsonify({'success': False, 'message': f'Machine {machine_id} with production {production_id} must have exactly 1 operator for shift model 3.'}), 400
-	        # Clear existing assignments for this week
+            # Clear existing assignments for this week
             cursor.execute("""
                 DELETE FROM schedule 
                 WHERE week_number = %s AND year = %s
             """, (week_number, year))
             
-            #Save new assignments to the database
+            # Save new assignments to the database
             for assignment in assignments:
                 cursor.execute("""
-                    INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, week_number, year)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, position, week_number, year)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (assignment['machine_id'], assignment['production_id'], assignment['operator_id'], 
-                      assignment['shift_id'], week_number, year))
+                      assignment['shift_id'], assignment['position'], week_number, year))
 
             connection.commit()
             return jsonify({'success': True, 'message': 'Assignments confirmed successfully.'})

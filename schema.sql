@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS machines (
     type BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 -- Operators Table
 CREATE TABLE IF NOT EXISTS operators (
     id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -90,6 +91,7 @@ CREATE TABLE IF NOT EXISTS schedule (
     production_id INT,
     operator_id INT,
     shift_id INT,
+    position INT NOT NULL DEFAULT 1,
     week_number INT NOT NULL,
     year INT NOT NULL,
     FOREIGN KEY (machine_id) REFERENCES machines(id),
