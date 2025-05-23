@@ -1755,15 +1755,30 @@ def export_schedule():
             current_page.append(row)
         if current_page:
             pages.append(current_page)
-
         total_pages = len(pages)
+
+        # Determine if landscape orientation and 10 rows per page are needed
+        landscape_needed = any(shift_key in ('shift_4', 'shift_5', 'shift_6') for shift_key, _ in active_shifts)
+        if landscape_needed:
+            from reportlab.lib.pagesizes import landscape
+            page_width, page_height = landscape(A4)
+            rows_per_page = 10
+        else:
+            from reportlab.lib.pagesizes import portrait
+            page_width, page_height = portrait(A4)
+            rows_per_page = 15
+        p = canvas.Canvas(buffer, pagesize=(page_width, page_height))
 
         # Generate each page
         for page_num, page_data in enumerate(pages, 1):
             if page_num > 1:
                 p.showPage()
-                p.setPageSize(portrait(A4))
-
+                if landscape_needed:
+                    from reportlab.lib.pagesizes import landscape
+                    p.setPageSize(landscape(A4))
+                else:
+                    from reportlab.lib.pagesizes import portrait
+                    p.setPageSize(portrait(A4))
             add_page_header(p, page_num, total_pages)
 
             # Prepare table data for this page
