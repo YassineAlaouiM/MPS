@@ -943,6 +943,7 @@ function addOperator(button) {
     const shiftId = cell.dataset.shiftId;
     const position = operatorsList.children.length + 1;
 
+    // Create a new operator-item with only the default option
     const operatorItem = document.createElement('div');
     operatorItem.className = 'operator-item';
     operatorItem.innerHTML = `
@@ -953,9 +954,6 @@ function addOperator(button) {
                 data-position="${position}"
                 onchange="handleOperatorSelection(this)">
             <option value="">Sélectionner un opérateur</option>
-            ${Array.from(document.querySelector('.operator-select').options)
-                .map(opt => opt.outerHTML)
-                .join('')}
         </select>
         <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
     `;
