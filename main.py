@@ -1772,10 +1772,8 @@ def export_schedule():
             if page_num > 1:
                 p.showPage()
                 if landscape_needed:
-                    from reportlab.lib.pagesizes import landscape
                     p.setPageSize(landscape(A4))
                 else:
-                    from reportlab.lib.pagesizes import portrait
                     p.setPageSize(portrait(A4))
             add_page_header(p, page_num, total_pages)
 
