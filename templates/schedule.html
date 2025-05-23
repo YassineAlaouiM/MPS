@@ -92,7 +92,7 @@
                                             data-machine-id="{{ machine.id }}"
                                             data-production-id="{{ machine.production_id }}"
                                             data-shift-id="{{ shift_id }}"
-                                            data-position="{{ assignment.position }}"
+                                            data-position="{{ loop.index }}"
                                             onchange="handleOperatorSelection(this)">
                                         <option value="">Sélectionner un opérateur</option>
                                         {% for operator in operators %}
@@ -282,15 +282,6 @@ function handleOperatorSelection(selectElement) {
     // Update the dataset to track the selected operator
     selectElement.dataset.selectedOperator = selectElement.value;
 
-    // Update positions for all operators in the same cell
-    const operatorsList = selectElement.closest('.operators-list');
-    Array.from(operatorsList.children).forEach((item, index) => {
-        const itemSelect = item.querySelector('.operator-select');
-        if (itemSelect) {
-            itemSelect.dataset.position = index + 1;
-        }
-    });
-
     // Disable the selected operator in other dropdowns
     updateOperatorDropdowns();
 }
@@ -429,60 +420,19 @@ function loadStoredAssignments() {
     
     if (storedAssignments && isConfirmed) {
         const assignments = JSON.parse(storedAssignments);
+        const allDropdowns = document.querySelectorAll('.operator-select');
         
-        // Group assignments by machine, production, and shift
-        const groupedAssignments = {};
+        // Apply stored assignments
         assignments.forEach(assignment => {
-            const key = `${assignment.machine_id}-${assignment.production_id}-${assignment.shift_id}`;
-            if (!groupedAssignments[key]) {
-                groupedAssignments[key] = [];
-            }
-            groupedAssignments[key].push(assignment);
-        });
-        
-        // For each group of assignments
-        Object.values(groupedAssignments).forEach(groupAssignments => {
-            const firstAssignment = groupAssignments[0];
-            const cell = document.querySelector(`.schedule-cell[data-machine-id="${firstAssignment.machine_id}"][data-production-id="${firstAssignment.production_id}"][data-shift-id="${firstAssignment.shift_id}"]`);
-            
-            if (cell) {
-                const operatorsList = cell.querySelector('.operators-list');
-                // Clear existing operator items except the last empty one
-                while (operatorsList.children.length > 1) {
-                    operatorsList.removeChild(operatorsList.firstChild);
-                }
-                
-                // Add operator items for each assignment
-                groupAssignments.forEach((assignment, index) => {
-                    if (index === 0) {
-                        // Use the existing first select
-                        const firstSelect = operatorsList.querySelector('.operator-select');
-                        firstSelect.value = assignment.operator_id;
-                        firstSelect.dataset.selectedOperator = assignment.operator_id;
-                        firstSelect.dataset.position = assignment.position;
-                    } else {
-                        // Add new operator items for additional operators
-                        const operatorItem = document.createElement('div');
-                        operatorItem.className = 'operator-item';
-                        const select = operatorsList.querySelector('.operator-select').cloneNode(true);
-                        select.value = assignment.operator_id;
-                        select.dataset.selectedOperator = assignment.operator_id;
-                        select.dataset.position = assignment.position;
-                        operatorItem.appendChild(select);
-                        const deselectBtn = document.createElement('span');
-                        deselectBtn.className = 'deselect-operator';
-                        deselectBtn.textContent = '×';
-                        deselectBtn.onclick = (event) => deselectOperator(event, deselectBtn);
-                        operatorItem.appendChild(deselectBtn);
-                        operatorsList.insertBefore(operatorItem, operatorsList.lastElementChild);
-                    }
-                    selectedOperators.add(assignment.operator_id);
-                });
+            const dropdown = Array.from(allDropdowns).find(d => 
+                d.dataset.productionId === assignment.production_id.toString() && 
+                d.dataset.shiftId === assignment.shift_id.toString()
+            );
+            if (dropdown) {
+                dropdown.value = assignment.operator_id;
+                handleOperatorSelection(dropdown);
             }
         });
-        
-        // Update all dropdowns
-        updateOperatorDropdowns();
         
         // Show confirmation message
         const successMessage = document.createElement('div');
@@ -586,12 +536,9 @@ function randomAssignment() {
     button.textContent = 'Génération des affectations aléatoires...';
     
     try {
-        // Get checked machines with their production IDs
+        // Get checked machines
         const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
-            .map(checkbox => ({
-                machineId: checkbox.dataset.machineId,
-                productionId: checkbox.dataset.productionId
-            }));
+            .map(checkbox => checkbox.dataset.machineId);
         
         if (checkedMachines.length === 0) {
             throw new Error('Veuillez sélectionner au moins une machine');
@@ -606,97 +553,38 @@ function randomAssignment() {
             body: JSON.stringify({
                 week_number: {{ week }},
                 year: {{ year }},
-                machine_ids: checkedMachines.map(m => m.machineId)
+                machine_ids: checkedMachines
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Group assignments by machine and shift
-                const groupedAssignments = {};
-                data.assignments.forEach(assignment => {
-                    const key = `${assignment.machine_id}-${assignment.production_id}-${assignment.shift_id}`;
-                    if (!groupedAssignments[key]) {
-                        groupedAssignments[key] = [];
+                // Update the UI with new assignments
+                const allDropdowns = document.querySelectorAll('.operator-select');
+                
+                // Clear existing selections for checked machines
+                allDropdowns.forEach(dropdown => {
+                    if (checkedMachines.includes(dropdown.dataset.machineId)) {
+                        dropdown.value = '';
+                        delete dropdown.dataset.selectedOperator;
                     }
-                    groupedAssignments[key].push(assignment);
                 });
-
-                // Clear existing selections ONLY for checked machines
-                const allCells = document.querySelectorAll('.schedule-cell');
-                allCells.forEach(cell => {
-                    const isChecked = checkedMachines.some(m => 
-                        m.machineId === cell.dataset.machineId && 
-                        m.productionId === cell.dataset.productionId
+                
+                // Apply new assignments
+                data.assignments.forEach(assignment => {
+                    const dropdown = Array.from(allDropdowns).find(d => 
+                        d.dataset.machineId === assignment.machine_id.toString() && 
+                        d.dataset.productionId === assignment.production_id.toString() &&
+                        d.dataset.shiftId === assignment.shift_id.toString()
                     );
                     
-                    if (isChecked) {
-                        const operatorsList = cell.querySelector('.operators-list');
-                        // Clear all operator items except the last empty one
-                        while (operatorsList.children.length > 1) {
-                            const select = operatorsList.children[0].querySelector('.operator-select');
-                            if (select && select.dataset.selectedOperator) {
-                                selectedOperators.delete(select.dataset.selectedOperator);
-                            }
-                            operatorsList.removeChild(operatorsList.children[0]);
-                        }
-                        // Clear the last empty one
-                        const lastSelect = operatorsList.querySelector('.operator-select');
-                        if (lastSelect) {
-                            lastSelect.value = '';
-                            delete lastSelect.dataset.selectedOperator;
-                        }
-                    }
-                });
-
-                // Apply new assignments ONLY for checked machines
-                Object.values(groupedAssignments).forEach(assignments => {
-                    if (assignments.length > 0) {
-                        const firstAssignment = assignments[0];
-                        const isChecked = checkedMachines.some(m => 
-                            m.machineId === firstAssignment.machine_id.toString() && 
-                            m.productionId === firstAssignment.production_id.toString()
-                        );
-                        
-                        if (!isChecked) {
-                            return; // Skip unchecked machines
-                        }
-                        
-                        const cell = document.querySelector(`.schedule-cell[data-machine-id="${firstAssignment.machine_id}"][data-production-id="${firstAssignment.production_id}"][data-shift-id="${firstAssignment.shift_id}"]`);
-                        
-                        if (cell) {
-                            const operatorsList = cell.querySelector('.operators-list');
-                            
-                            assignments.forEach((assignment, index) => {
-                                if (assignment.operator_id === null) return;
-                                
-                                if (index === 0) {
-                                    // Use existing first select
-                                    const firstSelect = operatorsList.querySelector('.operator-select');
-                                    firstSelect.value = assignment.operator_id;
-                                    firstSelect.dataset.selectedOperator = assignment.operator_id;
-                                    firstSelect.dataset.position = index + 1;
-                                    selectedOperators.add(assignment.operator_id);
+                    if (dropdown) {
+                        if (assignment.operator_id === null) {
+                            dropdown.value = '';
+                            delete dropdown.dataset.selectedOperator;
                         } else {
-                                    // Add new operator item
-                                    const operatorItem = document.createElement('div');
-                                    operatorItem.className = 'operator-item';
-                                    const select = operatorsList.querySelector('.operator-select').cloneNode(true);
-                                    select.value = assignment.operator_id;
-                                    select.dataset.selectedOperator = assignment.operator_id;
-                                    select.dataset.position = index + 1;
-                                    operatorItem.appendChild(select);
-                                    
-                                    const deselectBtn = document.createElement('span');
-                                    deselectBtn.className = 'deselect-operator';
-                                    deselectBtn.textContent = '×';
-                                    deselectBtn.onclick = (event) => deselectOperator(event, deselectBtn);
-                                    operatorItem.appendChild(deselectBtn);
-                                    
-                                    operatorsList.insertBefore(operatorItem, operatorsList.lastElementChild);
-                                    selectedOperators.add(assignment.operator_id);
-                                }
-                            });
+                            dropdown.value = assignment.operator_id;
+                            dropdown.dataset.selectedOperator = assignment.operator_id;
                         }
                     }
                 });

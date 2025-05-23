@@ -1567,42 +1567,36 @@ def export_schedule():
                         WHEN 1 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_1,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 2 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_2,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 3 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_3,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 4 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_4,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 5 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_5,
                 GROUP_CONCAT(
                     CASE s.id
                         WHEN 6 THEN {name_field}
                         ELSE NULL
                     END
-                    ORDER BY sc.position
                 ) AS shift_6
             FROM machines m
             INNER JOIN schedule sc ON m.id = sc.machine_id AND sc.week_number = %s AND sc.year = %s
@@ -1674,35 +1668,26 @@ def export_schedule():
                 return ""
             text = str(text)
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
-                # For Arabic text, handle multiple operators
+                # For Arabic text, add line break after every two words
                 if not is_header and not is_machine:
-                    operators = text.split(',')
-                    processed_operators = []
-                    for operator in operators:
-                        operator = operator.strip()
-                        if len(operator) > 15:  # If name is too long, split it
-                            words = operator.split()
-                            if len(words) > 1:
-                                operator = words[0] + ' ' + words[-1]  # Keep first and last name only
-                        processed_operators.append(operator)
-                    text = ' + '.join(processed_operators)
+                    words = text.split()
+                    processed_words = []
+                    for i in range(0, len(words), 2):
+                        if i + 1 < len(words):
+                            processed_words.append(words[i] + ' ' + words[i + 1])
+                        else:
+                            processed_words.append(words[i])
+                    text = '\n'.join(processed_words)
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
                 return text.upper()
             elif not is_header:
-                # For Latin text, handle multiple operators
-                operators = text.split(',')
-                processed_operators = []
-                for operator in operators:
-                    operator = operator.strip()
-                    if len(operator) > 12:  # If name is too long, abbreviate
-                        words = operator.split()
-                        if len(words) > 1:
-                            # Keep first name and first letter of last name
-                            operator = f"{words[0]} {words[-1][0]}."
-                    processed_operators.append(operator.capitalize())
-                return ' + '.join(processed_operators)
+                # For Latin text in cells (not headers), add spaces and capitalize each word
+                words = text.split()
+                # Capitalize first letter of each word, rest lowercase
+                words = [word.strip().capitalize() for word in words]
+                return ' '.join(words)
             return text
         
         # Set colors
@@ -1817,15 +1802,13 @@ def export_schedule():
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 12),  # First column (machine names)
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), # machines uppercase
-                ('FONTSIZE', (1, 1), (-1, -1), 8 if name_type == 'latin' else 14),  # Adjusted font size for operators
+                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
+                ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 14),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('TOPPADDING', (0, 0), (-1, -1), 1),    # Reduced padding
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced padding
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
             ])
 
             # Add alternating row colors
