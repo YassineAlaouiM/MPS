@@ -708,6 +708,7 @@ def delete_absence(id):
 def create_article():
     data = request.get_json()
     name = data.get('name')
+    abbreviation = data.get('abbreviation')
     description = data.get('description')
     
     if not name:
@@ -716,8 +717,8 @@ def create_article():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "INSERT INTO articles (name, description) VALUES (%s, %s)"
-            cursor.execute(sql, (name, description))
+            sql = "INSERT INTO articles (name, abbreviation, description) VALUES (%s, %s, %s)"
+            cursor.execute(sql, (name, abbreviation, description))
             connection.commit()
             return jsonify({'success': True, 'message': 'Article created successfully'})
     except pymysql.Error as e:
@@ -748,6 +749,7 @@ def get_article(article_id):
 def update_article(article_id):
     data = request.get_json()
     name = data.get('name')
+    abbreviation = data.get('abbreviation')
     description = data.get('description')
 
     if not name:
@@ -756,8 +758,8 @@ def update_article(article_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "UPDATE articles SET name = %s, description = %s WHERE id = %s"
-            cursor.execute(sql, (name, description, article_id))
+            sql = "UPDATE articles SET name = %s, abbreviation = %s, description = %s WHERE id = %s"
+            cursor.execute(sql, (name, abbreviation, description, article_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Article updated successfully'})
     except pymysql.Error as e:

@@ -28,6 +28,7 @@
                             <thead>
                                 <tr>
                                     <th>Nom</th>
+                                    <th>abreviation</th>
                                     <th>Description</th>
                                     <th>Actions</th>
                                 </tr>
@@ -36,6 +37,7 @@
                                 {% for article in articles %}
                                 <tr>
                                     <td>{{ article.name }}</td>
+                                    <td>{{ article.abbreviation }}
                                     <td>{{ article.description }}</td>
                                     <td>
                                         {% if can_edit %}
@@ -159,6 +161,10 @@
                         <input type="text" class="form-control" id="articleName" required>
                     </div>
                     <div class="mb-3">
+                        <label for="articleAbbreviation" class="form-label">Abréviation</label>
+                        <input type="text" class="form-control" id="articleAbbreviation">
+                    </div>
+                    <div class="mb-3">
                         <label for="articleDescription" class="form-label">Description</label>
                         <textarea class="form-control" id="articleDescription" rows="3"></textarea>
                     </div>
@@ -185,6 +191,10 @@
                     <div class="mb-3">
                         <label for="editArticleName" class="form-label">Nom de l'article</label>
                         <input type="text" class="form-control" id="editArticleName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editArticleAbbreviation" class="form-label">abréviation</label>
+                        <input type="text" class="form-control" id="editArticleAbbreviation">
                     </div>
                     <div class="mb-3">
                         <label for="editArticleDescription" class="form-label">Description</label>

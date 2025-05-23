@@ -396,6 +396,7 @@ function submitMarkFixed(id) {
 // Articles Management
 function saveArticle() {
     const name = document.getElementById('articleName').value.trim();
+    const abbreviation = document.getElementById('articleAbbreviation').value.trim();
     const description = document.getElementById('articleDescription').value.trim();
     
     if (!name) {
@@ -408,7 +409,7 @@ function saveArticle() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify({ name, abbreviation, description })
     })
     .then(response => response.json())
     .then(data => {
@@ -427,6 +428,7 @@ function saveArticle() {
 function saveArticleEdit() {
     const id = document.getElementById('editArticleId').value;
     const name = document.getElementById('editArticleName').value.trim();
+    const abbreviation = document.getElementById('editArticleAbbreviation').value.trim();
     const description = document.getElementById('editArticleDescription').value.trim();
     
     if (!name) {
@@ -439,7 +441,7 @@ function saveArticleEdit() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify({ name, abbreviation, description })
     })
     .then(response => response.json())
     .then(data => {
@@ -489,6 +491,7 @@ function editArticle(id) {
                 const article = data.article; // Correctly access the article object
                 document.getElementById('editArticleId').value = article.id;
                 document.getElementById('editArticleName').value = article.name;
+                document.getElementById('editArticleAbbreviation').value = article.abbreviation;
                 document.getElementById('editArticleDescription').value = article.description;
                 new bootstrap.Modal(document.getElementById('editArticleModal')).show();
             } else {
@@ -1163,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Article modal reset
     document.getElementById('addArticleModal').addEventListener('show.bs.modal', function() {
         document.getElementById('articleName').value = '';
+        document.getElementById('articleAbbreviation').value = '';
         document.getElementById('articleDescription').value = '';
     });
 
@@ -1236,9 +1240,10 @@ function filterArticles() {
     
     rows.forEach(row => {
         const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
-        const description = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const abbreviation = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const description = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
         
-        const isVisible = name.includes(searchText) || description.includes(searchText);
+        const isVisible = name.includes(searchText) || abbreviation.includes(searchText) || description.includes(searchText);
         row.style.display = isVisible ? '' : 'none';
         if (isVisible) hasVisibleRows = true;
     });
