@@ -1748,13 +1748,12 @@ def export_schedule():
         text_color = colors.HexColor('#000000')  # Dark Blue
 
         def add_page_header(canvas, page_num, total_pages):
-            # Add title
+            # Add title and week dates on the same line
             canvas.setFont(font_name, 16)
             canvas.setFillColor(header_color)
             title_text = "Programme"
-            canvas.drawCentredString(page_width/2, page_height - 40, process_text(title_text))
             
-            # Add Week dates 
+            # Calculate week dates
             def get_week_dates(year, week):
                 jan_fourth = datetime(year, 1, 4)
                 monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
@@ -1764,10 +1763,16 @@ def export_schedule():
 
             week_start, week_end = get_week_dates(year, week)
             week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
-            
+
+            y = page_height - 40
+            margin = 40
+            # Draw title left-aligned
+            canvas.drawString(margin, y, process_text(title_text))
+            # Draw week dates right-aligned
             canvas.setFont(font_name, 10)
             canvas.setFillColor(text_color)
-            canvas.drawCentredString(page_width/2, page_height - 60, process_text(week_dates))
+            week_dates_width = canvas.stringWidth(process_text(week_dates), font_name, 10)
+            canvas.drawString(page_width - margin - week_dates_width, y, process_text(week_dates))
 
         # Shifts (headers)
         shift_headers = {
