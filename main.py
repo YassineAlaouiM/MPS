@@ -1748,8 +1748,8 @@ def export_schedule():
         text_color = colors.HexColor('#000000')  # Dark Blue
 
         def add_page_header(canvas, page_num, total_pages):
-            # Add title and week dates as a single string
-            canvas.setFont(font_name, 20)
+            # Add title and week dates as a single string, centered
+            canvas.setFont(font_name, 16)
             canvas.setFillColor(header_color)
             title_text = "Programme"
             
@@ -1765,10 +1765,9 @@ def export_schedule():
             week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
 
             y = page_height - 40
-            margin = 540
-            # Concatenate title and week dates
             header_text = f"{title_text} {week_dates}"
-            canvas.drawString(margin, y, process_text(header_text))
+            # Center the header text
+            canvas.drawCentredString(page_width / 2, y, process_text(header_text))
 
         # Shifts (headers)
         shift_headers = {
@@ -1848,12 +1847,12 @@ def export_schedule():
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),  # Header font size
+                ('FONTSIZE', (0, 0), (-1, 0), 12),  # Header font size
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (0, -1), 12),  # First column (machine names)
+                ('FONTSIZE', (0, 1), (0, -1), 10),  # First column (machine names)
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), #machines uppercase
                 ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 14),  # Other columns
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
@@ -1861,6 +1860,7 @@ def export_schedule():
                 ('WORDWRAP', (0, 0), (-1, -1), True),
                 ('LEFTPADDING', (0, 0), (-1, -1), 3),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                ('FONTSIZE', (0, 1), (0, -1), 8, 'contains', '('),
             ])
 
             # Add alternating row colors
@@ -1921,6 +1921,8 @@ def has_page_access(page, require_edit=False):
         return False
     if current_user.role == 'admin':
         return True
+
+   
 
     accessible_pages = get_user_accessible_pages(current_user.id)
     if page not in accessible_pages:
