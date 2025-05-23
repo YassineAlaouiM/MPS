@@ -943,9 +943,19 @@ function addOperator(button) {
     const shiftId = cell.dataset.shiftId;
     const position = operatorsList.children.length + 1;
 
-    // Create a new operator-item with only the default option
+    // Create a new operator-item with all available operators (but default selected)
     const operatorItem = document.createElement('div');
     operatorItem.className = 'operator-item';
+    // Find a reference select to copy all options
+    const referenceSelect = document.querySelector('.operator-select');
+    let optionsHtml = '';
+    if (referenceSelect) {
+        optionsHtml = Array.from(referenceSelect.options)
+            .map(opt => opt.outerHTML)
+            .join('');
+    } else {
+        optionsHtml = '<option value="">Sélectionner un opérateur</option>';
+    }
     operatorItem.innerHTML = `
         <select class="operator-select" 
                 data-machine-id="${machineId}"
@@ -953,11 +963,12 @@ function addOperator(button) {
                 data-shift-id="${shiftId}"
                 data-position="${position}"
                 onchange="handleOperatorSelection(this)">
-            <option value="">Sélectionner un opérateur</option>
+            ${optionsHtml}
         </select>
         <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
     `;
-
+    // Set default selection to empty
+    operatorItem.querySelector('select').value = '';
     operatorsList.appendChild(operatorItem);
     updateOperatorDropdowns();
 }
