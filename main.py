@@ -1742,8 +1742,8 @@ def export_schedule():
         col_width = available_width / num_columns
         
         # Fixed number of rows per page (12 rows + 1 header row = 13 total)
-        row_height = min((page_height - 75) / 13, 60)
-        rows_per_page = int((page_height - 75) / row_height)
+        rows_per_page = 12
+        row_height = min((page_height - 75) / 12, 45)
 
         # Split data into pages
         pages = []
@@ -1820,7 +1820,7 @@ def export_schedule():
 
             # Draw table
             table.wrapOn(p, page_width, page_height)
-            table_y = page_height - 85 - (len(table_data) * row_height)
+            table_y = page_height - 50 - (len(table_data) * row_height)
             table.drawOn(p, margin, table_y)
 
         # Save the PDF
