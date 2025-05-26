@@ -884,6 +884,8 @@ def update_production(id):
             if end_date is not None:
                 updates.append("end_date = %s")
                 params.append(end_date)
+            else: end_date = None
+                params.append(end_date)
             if status is not None:
                 updates.append("status = %s")
                 params.append(status)
