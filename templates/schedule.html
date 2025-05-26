@@ -82,26 +82,66 @@
                         ondragover="handleDragOver(event)"
                         ondrop="handleDrop(event)"
                         ondragend="handleDragEnd(event)">
-                        <select class="operator-select" 
-                                data-machine-id="{{ machine.id }}"
-                                data-production-id="{{ machine.production_id }}"
-                                data-shift-id="{{ shift_id }}" 
-                                onchange="handleOperatorSelection(this)">
-                            <option value="">Sélectionner un opérateur</option>
-                            {% for operator in operators %}
-                            <option value="{{ operator.id }}" 
-                                    {% if assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first and (assignments | selectattr("machine_id", "equalto", machine.id) | selectattr("production_id", "equalto", machine.production_id) | selectattr("shift_id", "equalto", shift_id) | first).operator_id == operator.id %}selected{% endif %}
-                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
-                                    data-last-shift="{{ operator.last_shift_id }}"
-                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
-                                {{ operator.name }} 
-                                {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
-                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                        <div class="operators-container">
+                            <button class="add-operator-btn" onclick="addOperator(this)">+</button>
+                            <div class="operators-list">
+                                {% set found = false %}
+                                {% for assignment in assignments if assignment.machine_id == machine.id and assignment.production_id == machine.production_id and assignment.shift_id == shift_id %}
+                                <div class="operator-item">
+                                    <div class="select-wrapper">
+                                        <select class="operator-select" 
+                                                data-machine-id="{{ machine.id }}"
+                                                data-production-id="{{ machine.production_id }}"
+                                                data-shift-id="{{ shift_id }}"
+                                                data-position="{{ assignment.position }}"
+                                                onchange="handleOperatorSelection(this)">
+                                            <option value="">Sélectionner un opérateur</option>
+                                            {% for operator in operators %}
+                                            <option value="{{ operator.id }}" 
+                                                    {% if assignment.operator_id == operator.id %}selected{% endif %}
+                                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                                    data-last-shift="{{ operator.last_shift_id }}"
+                                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                                {{ operator.name }} 
+                                                {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
+                                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                                                {% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                                    </div>
+                                </div>
+                                {% set found = true %}
+                                {% endfor %}
+                                {% if not found %}
+                                <div class="operator-item">
+                                    <div class="select-wrapper">
+                                        <select class="operator-select" 
+                                                data-machine-id="{{ machine.id }}"
+                                                data-production-id="{{ machine.production_id }}"
+                                                data-shift-id="{{ shift_id }}"
+                                                data-position="1"
+                                                onchange="handleOperatorSelection(this)">
+                                            <option value="">Sélectionner un opérateur</option>
+                                            {% for operator in operators %}
+                                            <option value="{{ operator.id }}" 
+                                                    {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
+                                                    data-last-shift="{{ operator.last_shift_id }}"
+                                                    data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
+                                                {{ operator.name }} 
+                                                {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
+                                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                                                {% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                                    </div>
+                                </div>
                                 {% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                            </div>
+                        </div>
                     </td>
                     {% endfor %}
                 </tr>
@@ -177,6 +217,15 @@ function handleOperatorSelection(selectElement) {
     // Update the dataset to track the selected operator
     selectElement.dataset.selectedOperator = selectElement.value;
 
+    // Update positions for all operators in the same cell
+    const operatorsList = selectElement.closest('.operators-list');
+    Array.from(operatorsList.children).forEach((item, index) => {
+        const itemSelect = item.querySelector('.operator-select');
+        if (itemSelect) {
+            itemSelect.dataset.position = index + 1;
+        }
+    });
+
     // Disable the selected operator in other dropdowns
     updateOperatorDropdowns();
 }
@@ -238,20 +287,17 @@ function updateOperatorDropdowns() {
 }
 
 function confirmAssignments() {
-    // Remove any existing messages first
-    const existingMessages = document.querySelectorAll('.alert-success, .alert-error');
-    existingMessages.forEach(message => message.remove());
-
     const assignments = [];
-    const allDropdowns = document.querySelectorAll('.operator-select');
+    const allOperatorSelects = document.querySelectorAll('.operator-select');
     
-    allDropdowns.forEach(dropdown => {
-        if (dropdown.value) {
+    allOperatorSelects.forEach(select => {
+        if (select.value) {
             assignments.push({
-                machine_id: dropdown.dataset.machineId,
-                production_id: dropdown.dataset.productionId,
-                shift_id: dropdown.dataset.shiftId,
-                operator_id: dropdown.value
+                machine_id: select.dataset.machineId,
+                production_id: select.dataset.productionId,
+                shift_id: select.dataset.shiftId,
+                operator_id: select.value,
+                position: select.dataset.position
             });
         }
     });
@@ -261,7 +307,6 @@ function confirmAssignments() {
         return;
     }
 
-    // Send the assignments to the backend
     fetch('/api/schedule/confirm', {
         method: 'POST',
         headers: {
@@ -276,7 +321,6 @@ function confirmAssignments() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Store assignments in session storage
             const weekKey = `week_{{ week }}_year_{{ year }}`;
             sessionStorage.setItem(weekKey, JSON.stringify(assignments));
             sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
@@ -286,38 +330,27 @@ function confirmAssignments() {
             successMessage.textContent = 'Affectations confirmées avec succès.';
             document.querySelector('.actions-container').insertBefore(successMessage, document.querySelector('.button-group'));
             
-            // Remove success message after 3 seconds
             setTimeout(() => {
                 successMessage.remove();
             }, 3000);
         } else {
-            // Remove any existing success messages
-            const existingSuccessMessages = document.querySelectorAll('.alert-success');
-            existingSuccessMessages.forEach(message => message.remove());
-
             const errorMessage = document.createElement('div');
             errorMessage.className = 'alert-error';
             errorMessage.textContent = 'Erreur : ' + data.message;
             document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
             
-            // Remove error message after 5 seconds
             setTimeout(() => {
                 errorMessage.remove();
             }, 5000);
         }
     })
     .catch(error => {
-        // Remove any existing success messages
-        const existingSuccessMessages = document.querySelectorAll('.alert-success');
-        existingSuccessMessages.forEach(message => message.remove());
-
         console.error('Erreur:', error);
         const errorMessage = document.createElement('div');
         errorMessage.className = 'alert-error';
         errorMessage.textContent = 'Erreur lors de la confirmation des affectations.';
         document.querySelector('.actions-container').insertBefore(errorMessage, document.querySelector('.button-group'));
         
-        // Remove error message after 5 seconds
         setTimeout(() => {
             errorMessage.remove();
         }, 5000);
@@ -331,19 +364,60 @@ function loadStoredAssignments() {
     
     if (storedAssignments && isConfirmed) {
         const assignments = JSON.parse(storedAssignments);
-        const allDropdowns = document.querySelectorAll('.operator-select');
         
-        // Apply stored assignments
+        // Group assignments by machine, production, and shift
+        const groupedAssignments = {};
         assignments.forEach(assignment => {
-            const dropdown = Array.from(allDropdowns).find(d => 
-                d.dataset.productionId === assignment.production_id.toString() && 
-                d.dataset.shiftId === assignment.shift_id.toString()
-            );
-            if (dropdown) {
-                dropdown.value = assignment.operator_id;
-                handleOperatorSelection(dropdown);
+            const key = `${assignment.machine_id}-${assignment.production_id}-${assignment.shift_id}`;
+            if (!groupedAssignments[key]) {
+                groupedAssignments[key] = [];
+            }
+            groupedAssignments[key].push(assignment);
+        });
+        
+        // For each group of assignments
+        Object.values(groupedAssignments).forEach(groupAssignments => {
+            const firstAssignment = groupAssignments[0];
+            const cell = document.querySelector(`.schedule-cell[data-machine-id="${firstAssignment.machine_id}"][data-production-id="${firstAssignment.production_id}"][data-shift-id="${firstAssignment.shift_id}"]`);
+            
+            if (cell) {
+                const operatorsList = cell.querySelector('.operators-list');
+                // Clear existing operator items except the last empty one
+                while (operatorsList.children.length > 1) {
+                    operatorsList.removeChild(operatorsList.firstChild);
+                }
+                
+                // Add operator items for each assignment
+                groupAssignments.forEach((assignment, index) => {
+                    if (index === 0) {
+                        // Use the existing first select
+                        const firstSelect = operatorsList.querySelector('.operator-select');
+                        firstSelect.value = assignment.operator_id;
+                        firstSelect.dataset.selectedOperator = assignment.operator_id;
+                        firstSelect.dataset.position = assignment.position;
+                    } else {
+                        // Add new operator items for additional operators
+                        const operatorItem = document.createElement('div');
+                        operatorItem.className = 'operator-item';
+                        const select = operatorsList.querySelector('.operator-select').cloneNode(true);
+                        select.value = assignment.operator_id;
+                        select.dataset.selectedOperator = assignment.operator_id;
+                        select.dataset.position = assignment.position;
+                        operatorItem.appendChild(select);
+                        const deselectBtn = document.createElement('span');
+                        deselectBtn.className = 'deselect-operator';
+                        deselectBtn.textContent = '×';
+                        deselectBtn.onclick = (event) => deselectOperator(event, deselectBtn);
+                        operatorItem.appendChild(deselectBtn);
+                        operatorsList.insertBefore(operatorItem, operatorsList.lastElementChild);
+                    }
+                    selectedOperators.add(assignment.operator_id);
+                });
             }
         });
+        
+        // Update all dropdowns
+        updateOperatorDropdowns();
         
         // Show confirmation message
         const successMessage = document.createElement('div');
@@ -447,9 +521,12 @@ function randomAssignment() {
     button.textContent = 'Génération des affectations aléatoires...';
     
     try {
-        // Get checked machines
+        // Get checked machines with their production IDs
         const checkedMachines = Array.from(document.querySelectorAll('.machine-checkbox:checked'))
-            .map(checkbox => checkbox.dataset.machineId);
+            .map(checkbox => ({
+                machineId: checkbox.dataset.machineId,
+                productionId: checkbox.dataset.productionId
+            }));
         
         if (checkedMachines.length === 0) {
             throw new Error('Veuillez sélectionner au moins une machine');
@@ -464,38 +541,97 @@ function randomAssignment() {
             body: JSON.stringify({
                 week_number: {{ week }},
                 year: {{ year }},
-                machine_ids: checkedMachines
+                machine_ids: checkedMachines.map(m => m.machineId)
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Update the UI with new assignments
-                const allDropdowns = document.querySelectorAll('.operator-select');
-                
-                // Clear existing selections for checked machines
-                allDropdowns.forEach(dropdown => {
-                    if (checkedMachines.includes(dropdown.dataset.machineId)) {
-                        dropdown.value = '';
-                        delete dropdown.dataset.selectedOperator;
-                    }
-                });
-                
-                // Apply new assignments
+                // Group assignments by machine and shift
+                const groupedAssignments = {};
                 data.assignments.forEach(assignment => {
-                    const dropdown = Array.from(allDropdowns).find(d => 
-                        d.dataset.machineId === assignment.machine_id.toString() && 
-                        d.dataset.productionId === assignment.production_id.toString() &&
-                        d.dataset.shiftId === assignment.shift_id.toString()
+                    const key = `${assignment.machine_id}-${assignment.production_id}-${assignment.shift_id}`;
+                    if (!groupedAssignments[key]) {
+                        groupedAssignments[key] = [];
+                    }
+                    groupedAssignments[key].push(assignment);
+                });
+
+                // Clear existing selections ONLY for checked machines
+                const allCells = document.querySelectorAll('.schedule-cell');
+                allCells.forEach(cell => {
+                    const isChecked = checkedMachines.some(m => 
+                        m.machineId === cell.dataset.machineId && 
+                        m.productionId === cell.dataset.productionId
                     );
                     
-                    if (dropdown) {
-                        if (assignment.operator_id === null) {
-                            dropdown.value = '';
-                            delete dropdown.dataset.selectedOperator;
+                    if (isChecked) {
+                        const operatorsList = cell.querySelector('.operators-list');
+                        // Clear all operator items except the last empty one
+                        while (operatorsList.children.length > 1) {
+                            const select = operatorsList.children[0].querySelector('.operator-select');
+                            if (select && select.dataset.selectedOperator) {
+                                selectedOperators.delete(select.dataset.selectedOperator);
+                            }
+                            operatorsList.removeChild(operatorsList.children[0]);
+                        }
+                        // Clear the last empty one
+                        const lastSelect = operatorsList.querySelector('.operator-select');
+                        if (lastSelect) {
+                            lastSelect.value = '';
+                            delete lastSelect.dataset.selectedOperator;
+                        }
+                    }
+                });
+
+                // Apply new assignments ONLY for checked machines
+                Object.values(groupedAssignments).forEach(assignments => {
+                    if (assignments.length > 0) {
+                        const firstAssignment = assignments[0];
+                        const isChecked = checkedMachines.some(m => 
+                            m.machineId === firstAssignment.machine_id.toString() && 
+                            m.productionId === firstAssignment.production_id.toString()
+                        );
+                        
+                        if (!isChecked) {
+                            return; // Skip unchecked machines
+                        }
+                        
+                        const cell = document.querySelector(`.schedule-cell[data-machine-id="${firstAssignment.machine_id}"][data-production-id="${firstAssignment.production_id}"][data-shift-id="${firstAssignment.shift_id}"]`);
+                        
+                        if (cell) {
+                            const operatorsList = cell.querySelector('.operators-list');
+                            
+                            assignments.forEach((assignment, index) => {
+                                if (assignment.operator_id === null) return;
+                                
+                                if (index === 0) {
+                                    // Use existing first select
+                                    const firstSelect = operatorsList.querySelector('.operator-select');
+                                    firstSelect.value = assignment.operator_id;
+                                    firstSelect.dataset.selectedOperator = assignment.operator_id;
+                                    firstSelect.dataset.position = index + 1;
+                                    selectedOperators.add(assignment.operator_id);
                         } else {
-                            dropdown.value = assignment.operator_id;
-                            dropdown.dataset.selectedOperator = assignment.operator_id;
+                                    // Add new operator item
+                                    const operatorItem = document.createElement('div');
+                                    operatorItem.className = 'operator-item';
+                                    const select = operatorsList.querySelector('.operator-select').cloneNode(true);
+                                    select.value = assignment.operator_id;
+                                    select.dataset.selectedOperator = assignment.operator_id;
+                                    select.dataset.position = index + 1;
+                                    operatorItem.appendChild(select);
+                                    
+                                    const deselectBtn = document.createElement('span');
+                                    deselectBtn.className = 'deselect-operator';
+                                    deselectBtn.textContent = '×';
+                                    deselectBtn.onclick = (event) => deselectOperator(event, deselectBtn);
+                                    operatorItem.appendChild(deselectBtn);
+                                    
+                                    operatorsList.insertBefore(operatorItem, operatorsList.lastElementChild);
+                                    selectedOperators.add(assignment.operator_id);
+                                }
+                            });
                         }
                     }
                 });
@@ -803,15 +939,39 @@ function goToPreviousWeek() {
 
 function deselectOperator(event, element) {
     event.stopPropagation();
-    event.preventDefault();
-    const cell = element.closest('.schedule-cell');
-    const select = cell.querySelector('.operator-select');
+    const operatorItem = element.closest('.operator-item');
+    const operatorsList = operatorItem.parentElement;
+    const select = operatorItem.querySelector('.operator-select');
+
+    // Remove the operator from selectedOperators set
     if (select.value) {
         selectedOperators.delete(select.value);
+    }
+
+    // If this is not the last item, remove it
+    if (operatorItem !== operatorsList.lastElementChild) {
+        operatorItem.remove();
+        // Update positions for remaining operators
+        Array.from(operatorsList.children).forEach((item, index) => {
+            const itemSelect = item.querySelector('.operator-select');
+            itemSelect.dataset.position = index + 1;
+        });
+    } else {
+        // If it's the last item, just clear the selection
         select.value = '';
         delete select.dataset.selectedOperator;
-        updateOperatorDropdowns();
     }
+
+    // Show the add button on the new last item
+    const lastItem = operatorsList.lastElementChild;
+    if (lastItem) {
+        const addButton = lastItem.querySelector('.add-operator-btn');
+        if (addButton) {
+            addButton.style.display = '';
+        }
+    }
+
+    updateOperatorDropdowns();
 }
 
 // Prevent select from opening when clicking the x
@@ -821,5 +981,45 @@ schedule && schedule.addEventListener('mousedown', function(e) {
         e.preventDefault();
     }
 }, true);
+
+function addOperator(button) {
+    const cell = button.closest('.schedule-cell');
+    const operatorsList = cell.querySelector('.operators-list');
+    const machineId = cell.dataset.machineId;
+    const productionId = cell.dataset.productionId;
+    const shiftId = cell.dataset.shiftId;
+    const position = operatorsList.children.length + 1;
+
+    // Create a new operator-item with all available operators (but default selected)
+    const operatorItem = document.createElement('div');
+    operatorItem.className = 'operator-item';
+    // Find a reference select to copy all options
+    const referenceSelect = document.querySelector('.operator-select');
+    let optionsHtml = '';
+    if (referenceSelect) {
+        optionsHtml = Array.from(referenceSelect.options)
+            .map(opt => opt.outerHTML)
+            .join('');
+    } else {
+        optionsHtml = '<option value="">Sélectionner un opérateur</option>';
+    }
+    operatorItem.innerHTML = `
+        <div class="select-wrapper">
+            <select class="operator-select" 
+                    data-machine-id="${machineId}"
+                    data-production-id="${productionId}"
+                    data-shift-id="${shiftId}"
+                    data-position="${position}"
+                    onchange="handleOperatorSelection(this)">
+                ${optionsHtml}
+            </select>
+            <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+        </div>
+    `;
+    // Set default selection to empty
+    operatorItem.querySelector('select').value = '';
+    operatorsList.appendChild(operatorItem);
+    updateOperatorDropdowns();
+}
 </script>
 {% endblock %}

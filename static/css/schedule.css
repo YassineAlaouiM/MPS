@@ -239,10 +239,8 @@ select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); /*arrow*/
     background-repeat: no-repeat;
     background-position: right 10px center;
-    background-size: 16px;
     transition: all 0.2s ease;
 }
 
@@ -341,24 +339,25 @@ table td:first-child {
 .deselect-operator {
     position: absolute;
     top: 50%;
-    right: 12px;
+    right: 5px;
     transform: translateY(-50%);
     cursor: pointer;
     font-size: 18px;
+    font-weight: bold;
     color: #999;
     padding: 2px 5px;
     z-index: 2;
-    background: transparent;
+    background: white;
     border-radius: 50%;
-    transition: color 0.2s;
     display: block;
     pointer-events: auto;
+    transition: color 0.2s;
 }
 .schedule-cell:hover .deselect-operator {
     display: block;
 }
 .deselect-operator:hover {
-    color: #ff0000;
+    color: #d51837;
 }
 .operator-select {
     width: 100%;
@@ -376,4 +375,53 @@ table td:first-child {
 }
 .operator-select::-ms-expand {
     display: none;
+}
+.operators-container {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.operators-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.operator-item {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.operator-select {
+    width: 100%;
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin: 2px 0;
+}
+
+.add-operator-btn {
+    position: static;
+    margin-left: 0;
+    top: auto;
+    right: auto;
+    transform: none;
+    font-size: 23px;
+    background: none;
+    border: none;
+    color: #1461d4;
+    box-shadow: none;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    align-self: flex-start;
+}
+
+.operators-container .add-operator-btn {
+    order: -1;
+}
+
+.operator-item .add-operator-btn {
+    display: none !important;
 }
