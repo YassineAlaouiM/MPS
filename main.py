@@ -1744,7 +1744,7 @@ def export_schedule():
             return text
         
         # Set colors
-        header_color = colors.HexColor('#0000ff')
+        header_color = colors.HexColor('#ff0000')
         table_header_color = colors.HexColor('#0a8231')
         row_color = colors.HexColor('#ffffff')
         text_color = colors.HexColor('#000000')
