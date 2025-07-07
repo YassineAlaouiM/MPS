@@ -28,7 +28,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'db': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
@@ -1631,7 +1631,7 @@ def export_sch():
         page_width, page_height = portrait(A4)
         p = canvas.Canvas(buffer, pagesize=portrait(A4))
         
-        # Register appropriate font based on name type
+        # Register fonts for normal and bold
         try:
             if name_type == 'arabic':
                 font_paths = [
@@ -1639,7 +1639,10 @@ def export_sch():
                     '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
                     'C:\\Windows\\Fonts\\arial.ttf'
                 ]
-                
+                bold_font_paths = [
+                    'C:\\Windows\\Fonts\\arialbd.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                ]
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
@@ -1647,16 +1650,27 @@ def export_sch():
                         font_name = 'Arabic'
                         font_found = True
                         break
-                
                 if not font_found:
                     pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
                     font_name = 'Arabic'
+                bold_font_found = False
+                for path in bold_font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arabic-Bold', path))
+                        bold_font_name = 'Arabic-Bold'
+                        bold_font_found = True
+                        break
+                if not bold_font_found:
+                    bold_font_name = font_name
             else:
                 font_paths = [
                     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
                     'C:\\Windows\\Fonts\\arial.ttf'
                 ]
-                
+                bold_font_paths = [
+                    'C:\\Windows\\Fonts\\arialbd.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                ]
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
@@ -1664,12 +1678,21 @@ def export_sch():
                         font_name = 'Arial'
                         font_found = True
                         break
-                
                 if not font_found:
                     font_name = 'Helvetica'
+                bold_font_found = False
+                for path in bold_font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arial-Bold', path))
+                        bold_font_name = 'Arial-Bold'
+                        bold_font_found = True
+                        break
+                if not bold_font_found:
+                    bold_font_name = font_name
         except Exception as e:
             print(f"Font registration error: {str(e)}")
             font_name = 'Helvetica'
+            bold_font_name = 'Helvetica-Bold'
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title and week dates as a single string, centered
@@ -1818,13 +1841,14 @@ def export_sch():
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTNAME', (0, 0), (-1, 0), bold_font_name),  # Table header row bold
+                ('FONTNAME', (0, 1), (0, -1), bold_font_name),  # First column (machines) bold
+                ('FONTNAME', (1, 1), (-1, -1), font_name),      # Other cells normal
                 ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 12),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
