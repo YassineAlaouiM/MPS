@@ -28,7 +28,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': '',
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'db': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
@@ -1542,7 +1542,7 @@ def random_assignments():
 #PDF
 @app.route('/export_schedule', methods=['GET'])
 @login_required
-def export_schedule():
+def export_sch():
     week = request.args.get('week', type=int)
     year = request.args.get('year', type=int)
     name_type = request.args.get('name_type', 'latin')  # Default to latin names
@@ -1635,30 +1635,36 @@ def export_schedule():
         try:
             if name_type == 'arabic':
                 font_paths = [
-                    'C:\\Windows\\Fonts\\arial.ttf',
-                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
+                    '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
+                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
+                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('ClassicArabic', path))
-                        font_name = 'ClassicArabic'
+                        pdfmetrics.registerFont(TTFont('Arabic', path))
+                        font_name = 'Arabic'
                         font_found = True
                         break
+                
                 if not font_found:
-                    font_name = 'Helvetica'
+                    pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+                    font_name = 'Arabic'
             else:
                 font_paths = [
-                    'C:\\Windows\\Fonts\\arial.ttf',
                     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
+                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('ClassicLatin', path))
-                        font_name = 'ClassicLatin'
+                        pdfmetrics.registerFont(TTFont('Arial', path))
+                        font_name = 'Arial'
                         font_found = True
                         break
+                
                 if not font_found:
                     font_name = 'Helvetica'
         except Exception as e:
@@ -1744,10 +1750,10 @@ def export_schedule():
             return text
         
         # Set colors
-        header_color = colors.HexColor('#ff0000')
-        table_header_color = colors.HexColor('#0a8231')
-        row_color = colors.HexColor('#ffffff')
-        text_color = colors.HexColor('#000000')
+        header_color = colors.HexColor('#ff0000')  # Blue
+        table_header_color = colors.HexColor('#0a8231')  # Green
+        row_color = colors.HexColor('#ffffff')  # Light Gray
+        text_color = colors.HexColor('#000000')  # Dark Blue
 
         # Shifts (headers)
         shift_headers = {
@@ -1812,12 +1818,13 @@ def export_schedule():
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 12),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
@@ -1864,7 +1871,7 @@ def export_schedule():
         response.headers['Content-Type'] = 'application/pdf'
         name_suffix = 'ar' if name_type == 'arabic' else 'fr'
         response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
-        
+
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
