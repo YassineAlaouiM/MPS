@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -28,7 +28,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'db': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
@@ -1628,8 +1628,8 @@ def export_schedule():
         buffer = BytesIO()
         
         # Create the PDF object, using BytesIO as its "file"
-        page_width, page_height = landscape(A4)
-        p = canvas.Canvas(buffer, pagesize=landscape(A4))
+        page_width, page_height = portrait(A4)
+        p = canvas.Canvas(buffer, pagesize=portrait(A4))
         
         # Register appropriate font based on name type
         try:
@@ -1765,64 +1765,50 @@ def export_schedule():
             'shift_6': '9h à 17h'
         }
         
-        # Determine active shifts
-        #Only keep shifts that have at least one operator assigned
-        active_shifts = []
-        for shift_key, shift_name in shift_headers.items():
-            if any(row[shift_key] for row in schedule_data):
-                active_shifts.append((shift_key, shift_name))
-
-        # Calculate dimensions for the table
-        margin = 40
-        available_width = page_width - (2 * margin)
-        num_columns = len(active_shifts) + 1
-        col_width = available_width / num_columns
-        
-        # Fixed number of rows per page (13 rows + 1 header row = 14 total)
-        rows_per_page = 13
-        row_height = min((page_height - 115) / (rows_per_page + 1), 60)  # Increased max height to accommodate multiple lines
-
-        # Split data into pages
-        pages = []
-        current_page = []
+        # --- BEGIN: Separate tables for model shift 1 and model shift 2 ---
+        # Classify rows into model shift 1 (3 shifts) and model shift 2 (2 shifts)
+        model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
+        model2_shift_keys = ['shift_4', 'shift_5']
+        model3_shift_keys = ['shift_6']
+        model1_rows = []
+        model2_rows = []
+        model3_rows = []
         for row in schedule_data:
-            if len(current_page) >= rows_per_page:
-                pages.append(current_page)
-                current_page = []
-            current_page.append(row)
-        if current_page:
-            pages.append(current_page)
+            if any(row[k] for k in model1_shift_keys):
+                model1_rows.append(row)
+            elif any(row[k] for k in model2_shift_keys):
+                model2_rows.append(row)
+            elif any(row[k] for k in model3_shift_keys):
+                model3_rows.append(row)
 
-        total_pages = len(pages)
-
-        # Generate each page
-        for page_num, page_data in enumerate(pages, 1):
-            if page_num > 1:
-                p.showPage()
-                p.setPageSize(landscape(A4))
-
-            add_page_header(p, page_num, total_pages)
-
-            # Prepare table data for this page
-            table_data = [['Machine'] + [shift_name for _, shift_name in active_shifts]]
-            for row in page_data:
-                # Create machine name with article name if available
+        # Helper to render a table for a given set of rows and shift keys
+        def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
+            if not rows:
+                return 0
+            # Calculate dimensions for the table
+            margin = 40
+            available_width = page_width - (2 * margin)
+            num_columns = len(shift_keys) + 1
+            col_width = available_width / num_columns
+            rows_per_page = 19
+            row_height = min((page_height - 115) / (rows_per_page + 1), 60)
+            # Prepare table data
+            table_data = [['Machine'] + [shift_headers[k] for k in shift_keys]]
+            for row in rows:
                 machine_name = row['machine_name']
                 article_name = row.get('article_name')
                 article_abbr = row.get('article_abbreviation')
                 if article_name and row.get('machine_type'):
-                    # Use abbreviation if article name is longer than 17 chars and abbreviation exists
                     display_article = article_name
                     if len(article_name) > 17 and article_abbr:
                         display_article = article_abbr
                     machine_name = f"{machine_name}\n({display_article})"
                 table_row = [process_text(machine_name, is_machine=True)]
-                for shift_key, _ in active_shifts:
+                for shift_key in shift_keys:
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
                 table_data.append(table_row)
-
-            # Create table with appropriate styling
+            # Create table
             table = Table(
                 table_data,
                 colWidths=[col_width] * num_columns,
@@ -1833,38 +1819,51 @@ def export_schedule():
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),  # Header font size
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 1), (0, -1), 12),  # First column (machine names)
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'), # machines uppercase
-                ('FONTSIZE', (1, 1), (-1, -1), 7 if name_type == 'latin' else 12),  # Operator names font size
+                ('FONTSIZE', (0, 1), (0, -1), 12),
+                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
+                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
-                ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('TOPPADDING', (0, 0), (-1, -1), 2),    # Slightly increased top padding
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),  # Slightly increased bottom padding
             ])
-
-            # Add alternating row colors
             for i in range(len(table_data)):
-                if i % 2 == 1:  # odd rows
+                if i % 2 == 1:
                     table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
-
             table.setStyle(table_style)
-
             # Draw table
-            table.wrapOn(p, page_width, page_height)
-            table_y = page_height - 50 - (len(table_data) * row_height)
-            table.drawOn(p, margin, table_y)
+            table.wrapOn(page_obj, page_width, page_height)
+            table_y = page_height - 50 - (len(table_data) * row_height) - y_offset
+            table.drawOn(page_obj, margin, table_y)
+            return (len(table_data) * row_height) + 30  # 30px gap after table
 
+        # --- END: Separate tables for model shift 1 and model shift 2 ---
+
+        def add_page_footer(canvas, page_num, total_pages):
+            # Add current date and time at the bottom center
+            now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            canvas.setFont(font_name, 10)
+            canvas.setFillColor(colors.HexColor('#666666'))
+            canvas.drawCentredString(page_width / 2, 20, now)
+
+        # Generate the page(s)
+        p.setFont(font_name, 20)
+        add_page_header(p, 1, 1)
+        y_offset = 0
+        if model1_rows:
+            y_offset += render_table(p, model1_rows, model1_shift_keys, shift_headers, y_offset)
+        if model2_rows:
+            y_offset += render_table(p, model2_rows, model2_shift_keys, shift_headers, y_offset)
+        if model3_rows:
+            y_offset += render_table(p, model3_rows, model3_shift_keys, shift_headers, y_offset)
+        add_page_footer(p, 1, 1)
         # Save the PDF
         p.save()
-        
         # FileResponse
         buffer.seek(0)
         response = make_response(buffer.getvalue())
@@ -1961,6 +1960,7 @@ def create_user():
         with connection.cursor() as cursor:
             sql = "SELECT id FROM users WHERE username = %s OR email = %s"
             cursor.execute(sql, (data['username'], data['email']))
+
             if cursor.fetchone():
                 return jsonify({'success': False, 'message': 'Username or email already exists'})
             sql = "INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)"
