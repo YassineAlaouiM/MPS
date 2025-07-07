@@ -1635,36 +1635,30 @@ def export_schedule():
         try:
             if name_type == 'arabic':
                 font_paths = [
-                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
-                    '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                    'C:\\Windows\\Fonts\\arial.ttf'
+                    'C:\\Windows\\Fonts\\arial.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
                 ]
-                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('Arabic', path))
-                        font_name = 'Arabic'
+                        pdfmetrics.registerFont(TTFont('ClassicArabic', path))
+                        font_name = 'ClassicArabic'
                         font_found = True
                         break
-                
                 if not font_found:
-                    pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-                    font_name = 'Arabic'
+                    font_name = 'Helvetica'
             else:
                 font_paths = [
+                    'C:\\Windows\\Fonts\\arial.ttf',
                     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
-                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('Arial', path))
-                        font_name = 'Arial'
+                        pdfmetrics.registerFont(TTFont('ClassicLatin', path))
+                        font_name = 'ClassicLatin'
                         font_found = True
                         break
-                
                 if not font_found:
                     font_name = 'Helvetica'
         except Exception as e:
@@ -1818,13 +1812,12 @@ def export_schedule():
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 12),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
