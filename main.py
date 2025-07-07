@@ -1751,9 +1751,9 @@ def export_schedule():
         
         # Set colors
         header_color = colors.HexColor('#ff0000')  # Blue
-        table_header_color = colors.HexColor('#0a8231')  # Green
-        row_color = colors.HexColor('#ffffff')  # Light Gray
-        text_color = colors.HexColor('#000000')  # Dark Blue
+        table_header_color = colors.HexColor('#ff0000')  # Green
+        row_color = colors.HexColor('#ffffff')
+        text_color = colors.HexColor('#000000')
 
         # Shifts (headers)
         shift_headers = {
