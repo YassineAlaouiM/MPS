@@ -28,7 +28,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': '',
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'db': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
@@ -1751,9 +1751,9 @@ def export_schedule():
         
         # Set colors
         header_color = colors.HexColor('#ff0000')  # Blue
-        table_header_color = colors.HexColor('#ff0000')  # Green
-        row_color = colors.HexColor('#ffffff')
-        text_color = colors.HexColor('#000000')
+        table_header_color = colors.HexColor('#0a8231')  # Green
+        row_color = colors.HexColor('#ffffff')  # Light Gray
+        text_color = colors.HexColor('#000000')  # Dark Blue
 
         # Shifts (headers)
         shift_headers = {
