@@ -1744,7 +1744,7 @@ def export_schedule():
             return text
         
         # Set colors
-        header_color = colors.HexColor('#0000ff')
+        header_color = colors.HexColor('#ff0000')
         table_header_color = colors.HexColor('#0a8231')
         row_color = colors.HexColor('#ffffff')
         text_color = colors.HexColor('#000000')
@@ -1864,6 +1864,11 @@ def export_schedule():
         response.headers['Content-Type'] = 'application/pdf'
         name_suffix = 'ar' if name_type == 'arabic' else 'fr'
         response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
+        
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
         return response
         
     except Exception as e:
