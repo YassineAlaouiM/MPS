@@ -1864,6 +1864,11 @@ def export_schedule():
         response.headers['Content-Type'] = 'application/pdf'
         name_suffix = 'ar' if name_type == 'arabic' else 'fr'
         response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
+        
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
         return response
         
     except Exception as e:
