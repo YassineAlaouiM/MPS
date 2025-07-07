@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1542,7 +1542,7 @@ def random_assignments():
 #PDF
 @app.route('/export_schedule', methods=['GET'])
 @login_required
-def export_sch():
+def export_schedule():
     week = request.args.get('week', type=int)
     year = request.args.get('year', type=int)
     name_type = request.args.get('name_type', 'latin')  # Default to latin names
@@ -1628,43 +1628,37 @@ def export_sch():
         buffer = BytesIO()
         
         # Create the PDF object, using BytesIO as its "file"
-        page_width, page_height = landscape(A4)
-        p = canvas.Canvas(buffer, pagesize=landscape(A4))
+        page_width, page_height = portrait(A4)
+        p = canvas.Canvas(buffer, pagesize=portrait(A4))
         
         # Register appropriate font based on name type
         try:
             if name_type == 'arabic':
                 font_paths = [
-                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
-                    '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                    'C:\\Windows\\Fonts\\arial.ttf'
+                    'C:\\Windows\\Fonts\\arial.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
                 ]
-                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('Arabic', path))
-                        font_name = 'Arabic'
+                        pdfmetrics.registerFont(TTFont('ClassicArabic', path))
+                        font_name = 'ClassicArabic'
                         font_found = True
                         break
-                
                 if not font_found:
-                    pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-                    font_name = 'Arabic'
+                    font_name = 'Helvetica'
             else:
                 font_paths = [
+                    'C:\\Windows\\Fonts\\arial.ttf',
                     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-                    'C:\\Windows\\Fonts\\arial.ttf'
                 ]
-                
                 font_found = False
                 for path in font_paths:
                     if os.path.exists(path):
-                        pdfmetrics.registerFont(TTFont('Arial', path))
-                        font_name = 'Arial'
+                        pdfmetrics.registerFont(TTFont('ClassicLatin', path))
+                        font_name = 'ClassicLatin'
                         font_found = True
                         break
-                
                 if not font_found:
                     font_name = 'Helvetica'
         except Exception as e:
@@ -1750,10 +1744,10 @@ def export_sch():
             return text
         
         # Set colors
-        header_color = colors.HexColor('#ff0000')  # Blue
-        table_header_color = colors.HexColor('#0a8231')  # Green
-        row_color = colors.HexColor('#ffffff')  # Light Gray
-        text_color = colors.HexColor('#000000')  # Dark Blue
+        header_color = colors.HexColor('#0000ff')
+        table_header_color = colors.HexColor('#0a8231')
+        row_color = colors.HexColor('#ffffff')
+        text_color = colors.HexColor('#000000')
 
         # Shifts (headers)
         shift_headers = {
@@ -1818,13 +1812,12 @@ def export_sch():
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (0, -1), 12),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
@@ -1871,11 +1864,6 @@ def export_sch():
         response.headers['Content-Type'] = 'application/pdf'
         name_suffix = 'ar' if name_type == 'arabic' else 'fr'
         response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
-
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-
         return response
         
     except Exception as e:
