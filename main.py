@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1542,7 +1542,7 @@ def random_assignments():
 #PDF
 @app.route('/export_schedule', methods=['GET'])
 @login_required
-def export_schedule():
+def export_sch():
     week = request.args.get('week', type=int)
     year = request.args.get('year', type=int)
     name_type = request.args.get('name_type', 'latin')  # Default to latin names
@@ -1628,8 +1628,8 @@ def export_schedule():
         buffer = BytesIO()
         
         # Create the PDF object, using BytesIO as its "file"
-        page_width, page_height = landscape(A4)
-        p = canvas.Canvas(buffer, pagesize=landscape(A4))
+        page_width, page_height = portrait(A4)
+        p = canvas.Canvas(buffer, pagesize=portrait(A4))
         
         # Register appropriate font based on name type
         try:
