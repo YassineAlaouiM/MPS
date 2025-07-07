@@ -1542,7 +1542,7 @@ def random_assignments():
 #PDF
 @app.route('/export_schedule', methods=['GET'])
 @login_required
-def export_schedule():
+def export_sch():
     week = request.args.get('week', type=int)
     year = request.args.get('year', type=int)
     name_type = request.args.get('name_type', 'latin')  # Default to latin names
