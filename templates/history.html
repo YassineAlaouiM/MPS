@@ -85,10 +85,11 @@
                                                                 <span class="operator-name">{{ assignment.operator }}</span>
                                                             </div>
                                                             <div class="shift-article-info">
-                                                                {% if assignment.article %}
                                                                 <div class="article-info">
                                                                     <i class="fas fa-box"></i>
+                                                                    {% if assignment.article %}
                                                                     <small class="text">{{ assignment.article }}</small>
+                                                                    {% endif %}
                                                                 </div>
                                                                 <div class="shift-info">
                                                                     <i class="fas fa-clock"></i>
@@ -98,7 +99,6 @@
                                                                 </div>
 
                                                             </div>
-                                                            {% endif %}
                                                         </div>
                                                         {% endfor %}
                                                     </div>
