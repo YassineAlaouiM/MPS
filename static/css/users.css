@@ -70,6 +70,7 @@
 .action-buttons .btn {
     border-radius: 7px !important;
     padding: 5px !important;
+    margin-left: 5px;
 }
 
 .action-buttons .btn i {
@@ -155,4 +156,13 @@
 
 .scrollable-section::-webkit-scrollbar-thumb:hover {
     background: #1461d4;
+}
+
+@media (max-width: 768px) {
+    .action-buttons {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: row;
+    }
 }

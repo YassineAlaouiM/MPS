@@ -35,6 +35,9 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('schedule') }}">Programme</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('history') }}">Historique</a>
+                        </li>
                         {% if current_user.role == 'admin' %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('shifts') }}">Shifts</a>

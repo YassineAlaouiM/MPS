@@ -173,7 +173,6 @@ body {
 .card-body {
     padding: 15px;
 }
-
 /* Responsive Styles */
 @media (max-width: 768px) {
     .table-responsive {
@@ -183,6 +182,10 @@ body {
     .btn-sm {
         padding: 0.25rem 0.5rem;
         font-size: 0.75rem;
+    }
+
+    #dateSearchInputs .row .col-md-5 {
+        margin-bottom: 10px;
     }
 }
 

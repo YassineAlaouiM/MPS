@@ -41,7 +41,6 @@
     border-top-right-radius: 10px !important;
 }
 
-
 @media (max-width: 768px) {
     .card-header h3 {
         font-size: 1.25rem;

@@ -18,6 +18,10 @@ from bidi.algorithm import get_display
 from waitress import serve
 import socket
 from functools import wraps
+import json
+from datetime import date
+from pymysql.cursors import DictCursor  # <-- Add this import
+from typing import cast
 
 load_dotenv()
 
@@ -28,16 +32,16 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
-    'db': os.getenv('DB_NAME', 'schedule_management'),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
+    'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
-    'cursorclass': pymysql.cursors.DictCursor
+    'cursorclass': DictCursor  # <-- Use DictCursor directly
 }
 
 # Login manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+# login_manager.login_view = 'login'  # <-- Remove or comment out this line
 
 class User(UserMixin):
     def __init__(self, user_id, username, role):
@@ -53,7 +57,8 @@ def load_user(user_id):
             sql = "SELECT id, username, role FROM users WHERE id = %s"
             cursor.execute(sql, (user_id,))
             user = cursor.fetchone()
-            if user:
+            if isinstance(user, dict):
+                user = cast(dict, user)
                 return User(user['id'], user['username'], user['role'])
     finally:
         connection.close()
@@ -64,6 +69,7 @@ def get_db_connection():
 
 @app.route('/')
 def dashboard():
+    ensure_today_history()
     if current_user.is_authenticated:
         return render_template('dashboard.html')
     return redirect(url_for('login'))
@@ -82,7 +88,9 @@ def login():
                 cursor.execute(sql, (username,))
                 user = cursor.fetchone()
                 
-                if user and check_password_hash(user['password'], password):
+                password_hash = user.get('password') if isinstance(user, dict) else None
+                if isinstance(user, dict) and isinstance(password_hash, str) and check_password_hash(password_hash, password):
+                    user = cast(dict, user)
                     user_obj = User(user['id'], user['username'], user['role'])
                     login_user(user_obj)
                     return redirect(url_for('dashboard'))
@@ -1226,6 +1234,7 @@ def check_shifts():
 @app.route('/schedule')
 @login_required
 def schedule():
+    ensure_today_history()
     if not has_page_access('schedule'):
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -1378,6 +1387,7 @@ def confirm_assignments():
                       assignment['shift_id'], assignment['position'], week_number, year))
 
             connection.commit()
+            save_daily_schedule_history()  # Automatically save after confirmation
             return jsonify({'success': True, 'message': 'Assignments confirmed successfully.'})
     except Exception as e:
         connection.rollback()
@@ -2109,6 +2119,254 @@ def delete_user(user_id):
             return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+# Daily Schedule History Functions
+def save_daily_schedule_history(date_to_save=None):
+    """Save the current schedule state for a specific date"""
+    if date_to_save is None:
+        date_to_save = datetime.now().date()
+    
+    # Calculate week and year for the date
+    week = date_to_save.isocalendar()[1]
+    year = date_to_save.year
+    
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # First, delete any existing records for this date
+            cursor.execute('''
+                DELETE FROM daily_schedule_history 
+                WHERE date_recorded = %s
+            ''', (date_to_save,))
+            
+            # Get all current schedule assignments for this week
+            cursor.execute('''
+                SELECT 
+                    s.machine_id, m.name as machine_name, 
+                    s.production_id, p.article_id,
+                    a.name as article_name, a.abbreviation as article_abbreviation,
+                    s.operator_id, o.name as operator_name, 
+                    s.shift_id, sh.name as shift_name, 
+                    sh.start_time, sh.end_time,
+                    s.position, s.week_number, s.year
+                FROM schedule s
+                JOIN machines m ON s.machine_id = m.id
+                JOIN production p ON s.production_id = p.id
+                LEFT JOIN articles a ON p.article_id = a.id
+                JOIN operators o ON s.operator_id = o.id
+                JOIN shifts sh ON s.shift_id = sh.id
+                WHERE s.week_number = %s AND s.year = %s
+                ORDER BY m.name, sh.start_time, s.position
+            ''', (week, year))
+            
+            assignments = cursor.fetchall()
+            
+            # Insert each assignment into daily history
+            for assignment in assignments:
+                cursor.execute('''
+                    INSERT INTO daily_schedule_history (
+                        date_recorded, week_number, year,
+                        machine_id, production_id, operator_id, shift_id, position,
+                        machine_name, operator_name, shift_name, shift_start_time, shift_end_time,
+                        article_name, article_abbreviation
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    date_to_save, assignment['week_number'], assignment['year'],
+                    assignment['machine_id'], assignment['production_id'], 
+                    assignment['operator_id'], assignment['shift_id'], assignment['position'],
+                    assignment['machine_name'], assignment['operator_name'], 
+                    assignment['shift_name'], assignment['start_time'], assignment['end_time'],
+                    assignment['article_name'], assignment['article_abbreviation']
+                ))
+            
+            connection.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving daily history: {str(e)}")
+        connection.rollback()
+        return False
+    finally:
+        connection.close()
+
+def get_daily_schedule_history(start_date=None, end_date=None):
+    """Get daily schedule history for a date range"""
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            if start_date and end_date:
+                cursor.execute('''
+                    SELECT DISTINCT date_recorded
+                    FROM daily_schedule_history
+                    WHERE date_recorded BETWEEN %s AND %s
+                    ORDER BY date_recorded DESC
+                ''', (start_date, end_date))
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT date_recorded
+                    FROM daily_schedule_history
+                    ORDER BY date_recorded DESC
+                    LIMIT 30
+                ''')
+            
+            dates = cursor.fetchall()
+            history = {}
+            
+            for date_record in dates:
+                date_recorded = date_record['date_recorded']
+                
+                # Get all assignments for this date
+                cursor.execute('''
+                    SELECT 
+                        machine_name, operator_name, shift_name, 
+                        shift_start_time, shift_end_time, article_name, article_abbreviation
+                    FROM daily_schedule_history
+                    WHERE date_recorded = %s
+                    ORDER BY machine_name, shift_start_time, position
+                ''', (date_recorded,))
+                
+                assignments = cursor.fetchall()
+                
+                # Structure: {machine: [{operator, shift, start_time, end_time, article}]}
+                day_data = {}
+                for assignment in assignments:
+                    machine = assignment['machine_name']
+                    if machine not in day_data:
+                        day_data[machine] = []
+                    
+                    article_info = ""
+                    if assignment['article_name']:
+                        article_info = assignment['article_abbreviation'] or assignment['article_name']
+                    
+                    day_data[machine].append({
+                        'operator': assignment['operator_name'],
+                        'shift': assignment['shift_name'],
+                        'start_time': str(assignment['shift_start_time']),
+                        'end_time': str(assignment['shift_end_time']),
+                        'article': article_info
+                    })
+                
+                # Use date as key (YYYY-MM-DD format)
+                key = date_recorded.strftime('%Y-%m-%d')
+                history[key] = day_data
+            
+            return history
+    finally:
+        connection.close()
+
+def get_schedule_history():
+    """Get weekly schedule history (for backward compatibility)"""
+    return get_daily_schedule_history()
+
+@app.route('/history')
+@login_required
+def history():
+    ensure_today_history()
+    # Get date range from query parameters (default to last 30 days)
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)
+    
+    # Allow custom date range
+    if request.args.get('start_date'):
+        try:
+            start_date = datetime.strptime(request.args.get('start_date'), '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    
+    if request.args.get('end_date'):
+        try:
+            end_date = datetime.strptime(request.args.get('end_date'), '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    
+    history_data = get_daily_schedule_history(start_date, end_date)
+    return render_template('history.html', history=history_data, start_date=start_date, end_date=end_date)
+
+@app.route('/api/save_today_history', methods=['POST'])
+@login_required
+@admin_required
+def save_today_history():
+    """Save today's schedule to daily history"""
+    try:
+        success = save_daily_schedule_history()
+        if success:
+            return jsonify({'success': True, 'message': 'Today\'s schedule saved to history.'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save today\'s schedule.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/save_daily_history', methods=['POST'])
+@login_required
+@admin_required
+def save_daily_history():
+    """Save schedule for a specific date to daily history"""
+    data = request.get_json()
+    date_str = data.get('date')
+    
+    if not date_str:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    
+    try:
+        date_to_save = datetime.strptime(date_str, '%Y-%m-%d').date()
+        success = save_daily_schedule_history(date_to_save)
+        if success:
+            return jsonify({'success': True, 'message': f'Schedule for {date_str} saved to history.'})
+        else:
+            return jsonify({'success': False, 'message': f'Failed to save schedule for {date_str}.'})
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/daily_history', methods=['GET'])
+@login_required
+def get_daily_history_api():
+    """Get daily history for a date range"""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    try:
+        start_date_obj = None
+        end_date_obj = None
+        
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        history_data = get_daily_schedule_history(start_date_obj, end_date_obj)
+        return jsonify({'success': True, 'history': history_data})
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+def ensure_today_history():
+    today = datetime.now().date()
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM daily_schedule_history WHERE date_recorded = %s LIMIT 1", (today,))
+            if not cursor.fetchone():
+                # Get the most recent previous day with history
+                cursor.execute("SELECT date_recorded FROM daily_schedule_history WHERE date_recorded < %s ORDER BY date_recorded DESC LIMIT 1", (today,))
+                last = cursor.fetchone()
+                if last:
+                    last_date = last['date_recorded']
+                    # Copy all records from last_date to today
+                    cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s", (last_date,))
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        # Remove the id and change date_recorded to today
+                        row_data = dict(row)
+                        row_data['date_recorded'] = today
+                        row_data.pop('id', None)
+                        columns = ', '.join(row_data.keys())
+                        placeholders = ', '.join(['%s'] * len(row_data))
+                        cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
+                    connection.commit()
     finally:
         connection.close()
 

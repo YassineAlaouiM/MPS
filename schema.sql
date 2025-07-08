@@ -111,3 +111,31 @@ CREATE TABLE IF NOT EXISTS user_accessible_pages (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_page (user_id, page_name)
 );
+
+-- Daily Schedule History Table
+CREATE TABLE IF NOT EXISTS daily_schedule_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    date_recorded DATE NOT NULL,
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    machine_id INT,
+    production_id INT,
+    operator_id INT,
+    shift_id INT,
+    position INT NOT NULL DEFAULT 1,
+    machine_name VARCHAR(100),
+    operator_name VARCHAR(100),
+    shift_name VARCHAR(50),
+    shift_start_time TIME,
+    shift_end_time TIME,
+    article_name VARCHAR(255),
+    article_abbreviation VARCHAR(20),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (machine_id) REFERENCES machines(id),
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (shift_id) REFERENCES shifts(id),
+    FOREIGN KEY (production_id) REFERENCES production(id),
+    INDEX idx_date_recorded (date_recorded),
+    INDEX idx_week_year (week_number, year),
+    UNIQUE KEY unique_daily_assignment (date_recorded, machine_id, production_id, operator_id, shift_id, position)
+);

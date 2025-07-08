@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
+    <script src="{{ url_for('static', filename='js/history.js') }}"></script>
+{% endblock %}
+{% block title %}Historique des Programmes{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card history-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Historique des Programmes
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <!-- Date Range Filter -->
+                    <div class="date-range-section mb-4">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <label for="startDate" class="form-label">Date de début</label>
+                                <input type="date" id="startDate" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') if start_date else '' }}">
+                            </div>
+                            <div class="col-md-5">
+                                <label for="endDate" class="form-label">Date de fin</label>
+                                <input type="date" id="endDate" class="form-control" value="{{ end_date.strftime('%Y-%m-%d') if end_date else '' }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="inline-button btn btn-light" onclick="filterByDateRange()">
+                                    <i class="fas fa-filter me-2"></i>
+                                    Filtrer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filter Section -->
+                    <div class="search-filter-section mb-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="search-box">
+                                    <input type="text" class="form-control" id="historySearch" placeholder="Rechercher dans l'historique...">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="filter-box">
+                                    <select class="form-select" id="dateFilter">
+                                        <option value="all">Toutes les dates</option>
+                                        {% for date in history.keys() %}
+                                        <option value="{{ date }}">{{ date }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- History Content -->
+                    <div class="history-content">
+                        {% if history %}
+                            <div class="timeline">
+                                {% for date, schedule_data in history.items() %}
+                                <div class="history-entry" data-date="{{ date }}">
+                                    <div class="history-date">
+                                        <div class="date-header">
+                                            <i class="fas fa-calendar-day"></i>
+                                            <span class="date-text">{{ date[2:4] }}-{{ date[5:7] }}-{{ date[8:10] }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="history-details">
+                                        {% if schedule_data %}
+                                            <div class="machines-grid">
+                                                {% for machine, assignments in schedule_data.items() %}
+                                                <div class="machine-card" data-machine="{{ machine.lower() }}">
+                                                    <div class="machine-header">
+                                                        <h5>{{ machine }}</h5>
+                                                    </div>
+                                                    <div class="assignments-list">
+                                                        {% for assignment in assignments %}
+                                                        <div class="assignment-item">
+                                                            <div class="operator-info">
+                                                                <span class="operator-name">{{ assignment.operator }}</span>
+                                                            </div>
+                                                            <div class="shift-article-info">
+                                                                {% if assignment.article %}
+                                                                <div class="article-info">
+                                                                    <i class="fas fa-box"></i>
+                                                                    <small class="text">{{ assignment.article }}</small>
+                                                                </div>
+                                                                <div class="shift-info">
+                                                                    <i class="fas fa-clock"></i>
+                                                                    <span class="shift-time">
+                                                                        {{ assignment.start_time.split(':')[0]|int }}h-{{ assignment.end_time.split(':')[0]|int }}h
+                                                                    </span>
+                                                                </div>
+
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <div class="no-data">
+                                                <i class="fas fa-info-circle"></i>
+                                                <p>Aucun programme enregistré pour cette date</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <i class="fas fa-history"></i>
+                                </div>
+                                <h4>Aucun historique disponible</h4>
+                                <p>L'historique des programmes apparaîtra ici une fois que des données auront été sauvegardées.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -76,3 +76,32 @@ button[type="submit"] {
 button[type="submit"]:hover {
     transform: translateY(-3px);
 }
+
+@media (max-width: 1200px) {
+    h3 {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .shifts-table {
+        margin-right: 0;
+    }
+
+    .shifts-split {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .shifts-table {
+        width: 100% !important;
+    }
+
+    .shift-form {
+        width: 100% !important;
+        margin-bottom: 20px;
+        padding: 0;
+    }
+}

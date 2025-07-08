@@ -1,0 +1,409 @@
+/* History Page Styles */
+.history-card {
+    border-radius: 0.8rem;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.history-card .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 15px 15px 0 0 !important;
+    padding: 1.5rem;
+}
+
+.history-card .card-header h3 {
+    color: #000;
+    font-weight: 600;
+    margin: 0;
+}
+
+.history-card .card-body {
+    padding: 2rem;
+}
+
+/* Date Range Section */
+.date-range-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: none;
+}
+
+.date-range-section .form-label {
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 0.5rem;
+}
+
+.date-range-section .form-control {
+    border: 1px solid #e9ecef;
+    outline: none !important;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.date-range-section .form-control:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.date-range-section .btn {
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+/* Search and Filter Section */
+.search-filter-section {
+    outline: none !important;
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.search-box input,
+.filter-box select {
+    outline: none !important;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.search-box input:focus,
+.filter-box select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.inline-button {
+    margin: 0 auto;
+    height: 40px;
+    width: 100px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+/* Timeline Layout */
+.timeline {
+    position: relative;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 23px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #1461d4;
+    border-radius: 2px;
+}
+
+.history-entry {
+    position: relative;
+    margin-bottom: 3rem;
+    padding-left: 80px;
+}
+
+.history-entry:last-child {
+    margin-bottom: 0;
+}
+
+/* Date Header */
+.history-date {
+    position: absolute;
+    left: -10px;
+    top: 0;
+    width: 70px;
+    height: 70px;
+    background: #1461d4;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    z-index: 2;
+}
+
+.date-header {
+    text-align: center;
+    line-height: 1.2;
+}
+
+.date-header i {
+    font-size: 1rem;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.date-text {
+    font-size: 0.8rem;
+    display: block;
+}
+
+/* History Details */
+.history-details {
+    background: white;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    border: 1px solid #e9ecef;
+}
+
+/* Machines Grid */
+.machines-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.machine-card {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 1px solid #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.machine-card:hover {
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    border-color: #1461d4;
+}
+
+.machine-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #d7dde4;
+    transition: all 0.3s ease;
+}
+
+.machine-header i {
+    color: #000;
+    font-size: 1.2rem;
+    margin-right: 0.75rem;
+}
+
+.machine-header h5 {
+    margin: 0;
+    font-weight: 600;
+    color: #000;
+}
+
+.machine-card:hover .machine-header{
+    border-bottom: 1px solid #1461d4;
+}
+
+/* Assignments List */
+.assignments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.assignment-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid white;
+    transition: all 0.3s ease;
+}
+
+.assignment-item:hover {
+    border-color: #1461d4;
+}
+
+/* Operator Information Styles */
+
+.operator-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.operator-info i {
+    color: #1461d4;
+    margin-right: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.operator-name {
+    font-weight: 600;
+    color: #000;
+}
+
+/* Shift and Article Information Styles */
+
+.shift-article-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 3px solid #1461d4;
+}
+
+/* Shift Information Styles */
+
+.shift-info i {
+    color: #1461d4;
+    font-size: 0.9rem;
+}
+
+.shift-time {
+    font-weight: 500;
+    color: #abb1b8;
+    font-size: 0.85rem;
+}
+
+/* Article Information Styles */
+
+
+.assignment-item .article-info i {
+    color: #1461d4;
+    font-size: 0.9rem;
+    margin-right: 0.25rem;
+}
+
+.assignment-item .article-info small {
+    color: #abb1b8;
+    font-weight: 500;
+} 
+
+/* No Data State */
+.no-data {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #abb1b8;
+}
+
+.no-data i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #abb1b8;
+}
+
+.no-data p {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #abb1b8;
+}
+
+.empty-icon {
+    margin-bottom: 2rem;
+}
+
+.empty-icon i {
+    font-size: 4rem;
+    color: #abb1b8;
+}
+
+.empty-state h4 {
+    color: #abb1b8;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.empty-state p {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .timeline::before {
+        left: 20px;
+    }
+    
+    .history-entry {
+        padding-left: 60px;
+    }
+    
+    .history-date {
+        width: 50px;
+        height: 50px;
+        left: -3px;
+    }
+    
+    .date-header i {
+        font-size: 0.6rem;
+    }
+    
+    .date-text {
+        font-size: 0.6rem;
+    }
+    
+    .machines-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .history-card .card-body {
+        padding: 1rem;
+    }
+    
+    .search-filter-section {
+        padding: 1rem;
+    }
+    
+    .search-filter-section .row {
+        flex-direction: column;
+    }
+    
+    .search-filter-section .col-md-6 {
+        margin-bottom: 1rem;
+    }
+
+    .inline-button {
+        position: relative;
+        top: 12px;
+    }
+}
+
+@media (max-width: 576px) {
+    .history-card .card-header {
+        padding: 1rem;
+    }
+    
+    .history-card .card-header h3 {
+        font-size: 1.25rem;
+    }
+    
+    .machine-card {
+        padding: 1rem;
+    }
+    
+    .assignment-item {
+        padding: 0.75rem;
+    }
+    
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+    
+    .empty-icon i {
+        font-size: 3rem;
+    }
+}
