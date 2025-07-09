@@ -82,8 +82,11 @@ function initializeFilter() {
         
         historyEntries.forEach(entry => {
             const entryDate = entry.getAttribute('data-date');
-            
-            if (!selectedDate || entryDate === selectedDate) {
+            // FIX: Show all entries if 'all' is selected
+            if (selectedDate === 'all' || !selectedDate) {
+                entry.style.display = 'block';
+                entry.classList.remove('hidden');
+            } else if (entryDate === selectedDate) {
                 entry.style.display = 'block';
                 entry.classList.remove('hidden');
             } else {
