@@ -20,7 +20,7 @@ import socket
 from functools import wraps
 import json
 from datetime import date
-from pymysql.cursors import DictCursor  # <-- Add this import
+from pymysql.cursors import DictCursor
 from typing import cast
 
 load_dotenv()
@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'Root.123'),
+    'password': os.getenv('DB_PASSWORD', ''),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
