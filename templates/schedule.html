@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {%block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
     <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/production.js') }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
 {% endblock %}
 {% block title %}Programme{% endblock %}
 
 {% block content %}
 <div class="container">
-    
     <!-- Week Navigation -->
     <div class="week-navigation">
         <div class="week-selector-container">
@@ -83,7 +85,7 @@
                         ondrop="handleDrop(event)"
                         ondragend="handleDragEnd(event)">
                         <div class="operators-container">
-                            <button class="add-operator-btn" onclick="addOperator(this)">+</button>
+                            <button class="add-operator-btn" onclick="addOperator(this)"><i class='bx bx-plus'></i></button>
                             <div class="operators-list">
                                 {% set found = false %}
                                 {% for assignment in assignments if assignment.machine_id == machine.id and assignment.production_id == machine.production_id and assignment.shift_id == shift_id %}
@@ -109,7 +111,7 @@
                                             </option>
                                             {% endfor %}
                                         </select>
-                                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                                        <span class="deselect-operator" onclick="deselectOperator(event, this)"><i class='bx bx-x'></i></span>
                                     </div>
                                 </div>
                                 {% set found = true %}
@@ -136,7 +138,7 @@
                                             </option>
                                             {% endfor %}
                                         </select>
-                                        <span class="deselect-operator" onclick="deselectOperator(event, this)">×</span>
+                                        <span class="deselect-operator" onclick="deselectOperator(event, this)"><i class='bx bx-x'></i></span>
                                     </div>
                                 </div>
                                 {% endif %}
@@ -151,7 +153,12 @@
         <div class="actions-container" style="margin-top: 20px;">
             <div class="button-group">
                 {% if can_edit %}
-                <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
+                <div class="button-pair">
+                    <button type="button" class="add-production-btn" data-bs-toggle="modal" data-bs-target="#addProductionModal">
+                        <i class='bx bx-plus'></i>
+                    </button>
+                    <button id="random-assignment-button" onclick="randomAssignment()">Affectations aléatoires</button>
+                </div>
                 <div class="export-buttons">
                     <button id="export-latin-pdf-button" onclick="exportToPDF('latin')" class="export-btn">Exporter en PDF</button>
                     <button id="export-arabic-pdf-button" onclick="exportToPDF('arabic')" class="export-btn"> PDF تحميل بصيغة </button>
@@ -170,6 +177,58 @@
         </div>
     </div>
 </div>
+
+{% if can_edit %}
+<!-- Add Production Modal (copied from production.html) -->
+<div class="modal fade" id="addProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter une production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProductionForm" data-form-action="saveProduction">
+                    <div class="mb-3">
+                        <label for="productionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="productionMachine" required onchange="toggleArticleFields()">
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in all_machines %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="productionArticle">
+                            <option value="">Sélectionner un article</option>
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="productionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="productionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="productionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="productionEndDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-production">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <script>
 function exportToPDF(nameType) {

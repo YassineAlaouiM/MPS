@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -276,7 +276,7 @@ def get_machine(machine_id):
             sql = "SELECT * FROM machines WHERE id = %s"
             cursor.execute(sql, (machine_id,))
             machine = cursor.fetchone()
-            if machine:
+            if machine and isinstance(machine, dict):
                 return jsonify({'success': True, 'machine': machine})
             else:
                 return jsonify({'success': False, 'message': 'Machine not found'})
@@ -503,7 +503,7 @@ def mark_machine_fixed(id):
             sql = "SELECT machine_id FROM non_functioning_machines WHERE id = %s"
             cursor.execute(sql, (id,))
             result = cursor.fetchone()
-            if not result:
+            if not result or not isinstance(result, dict):
                 return jsonify({'success': False, 'message': 'Record not found'})
 
             machine_id = result['machine_id']
@@ -538,7 +538,7 @@ def get_absence(id):
             """
             cursor.execute(sql, (id,))
             absence = cursor.fetchone()
-            if not absence:
+            if not absence or not isinstance(absence, dict):
                 return jsonify({'success': False, 'message': 'Absence not found'}), 404
             return jsonify(absence)
     except pymysql.Error as e:
@@ -607,7 +607,7 @@ def update_absence(id):
             cursor.execute(sql, (id,))
             current_absence = cursor.fetchone()
             
-            if not current_absence:
+            if not current_absence or not isinstance(current_absence, dict):
                 return jsonify({'success': False, 'message': 'Absence not found'}), 404
             
             old_operator_id = current_absence['operator_id']
@@ -690,7 +690,7 @@ def delete_absence(id):
             sql = "SELECT operator_id FROM absences WHERE id = %s"
             cursor.execute(sql, (id,))
             result = cursor.fetchone()
-            if not result:
+            if not result or not isinstance(result, dict):
                 return jsonify({'success': False, 'message': 'Record not found'})
             
             operator_id = result['operator_id']
@@ -819,7 +819,7 @@ def create_production():
             machine_result = cursor.fetchone()
             
             is_service = False
-            if machine_result and machine_result['type']:
+            if machine_result and isinstance(machine_result, dict) and machine_result.get('type'):
                 is_service = True
             
             # For regular machines, article and quantity are required
@@ -927,7 +927,7 @@ def get_production(id):
             cursor.execute(sql, (id,))
             production = cursor.fetchone()
             
-            if production:
+            if production and isinstance(production, dict):
                 return jsonify({
                     'id': production['id'],
                     'machine_id': production['machine_id'],
@@ -1269,6 +1269,12 @@ def schedule():
                       week_dates['week_start'], week_dates['week_end'],
                       week_dates['week_start'], week_dates['week_end']))
                 machines = cursor.fetchall()
+                # --- Add for modal ---
+                cursor.execute("SELECT * FROM articles ORDER BY name")
+                articles = cursor.fetchall()
+                cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
+                all_machines = cursor.fetchall()
+                # --- End add ---
                 operators = get_operators(week, year)
                 shifts = get_shifts()
                 cursor.execute("""
@@ -1295,10 +1301,12 @@ def schedule():
                          week=week,
                          year=year,
                          machines=machines,
+                         all_machines=all_machines,
                          operators=operators,
                          shifts=shifts,
                          assignments=assignments,
-                         can_edit=can_edit)
+                         can_edit=can_edit,
+                         articles=articles)  # Pass articles and all_machines for modal
 
 @app.route('/api/schedule', methods=['GET'])
 @login_required
@@ -1385,7 +1393,13 @@ def confirm_assignments():
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (assignment['machine_id'], assignment['production_id'], assignment['operator_id'], 
                       assignment['shift_id'], assignment['position'], week_number, year))
-
+            # --- Fix: Update last_shift_id for all assigned operators ---
+            for assignment in assignments:
+                if assignment['operator_id'] is not None:
+                    cursor.execute(
+                        "UPDATE operators SET last_shift_id = %s WHERE id = %s",
+                        (assignment['shift_id'], assignment['operator_id'])
+                    )
             connection.commit()
             save_daily_schedule_history()  # Automatically save after confirmation
             return jsonify({'success': True, 'message': 'Assignments confirmed successfully.'})
@@ -2281,7 +2295,20 @@ def history():
             pass
     
     history_data = get_daily_schedule_history(start_date, end_date)
-    return render_template('history.html', history=history_data, start_date=start_date, end_date=end_date)
+    # --- Add for modal ---
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM articles ORDER BY name")
+            articles = cursor.fetchall()
+            cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
+            machines = cursor.fetchall()
+        current_access = get_user_accessible_pages(current_user.id)
+        can_edit = current_access.get('production', True) if current_user.role != 'admin' else True
+    finally:
+        connection.close()
+    # --- End add ---
+    return render_template('history.html', history=history_data, start_date=start_date, end_date=end_date, machines=machines, articles=articles, can_edit=can_edit)
 
 @app.route('/api/save_today_history', methods=['POST'])
 @login_required
