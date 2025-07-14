@@ -31,6 +31,7 @@
                                     <th>ID</th>
                                     <th>Nom</th>
                                     <th>Nom Arabe</th>
+                                    <th>Postes</th>
                                     <th>Statut</th>
                                     <th>Actions</th>
                                 </tr>
@@ -41,6 +42,20 @@
                                     <td>{{ operator.id }}</td>
                                     <td>{{ operator.name }}</td>
                                     <td class="text-end arabic-text">{{ operator.arabic_name }}</td>
+                                    <td>
+                                        {% if operator.postes_list or operator.other_competences %}
+                                                <div class="postes-display">
+                                                {% if operator.postes_list %}
+                                                    {% for poste in operator.postes_list %}
+                                                        <span class="badge bg-page me-1" title="{{ poste.name }}">{{ poste.name[:2].upper() }}</span>
+                                                    {% endfor %}
+                                                {% endif %}
+                                                {% if operator.other_competences %}
+                                                    <span class="badge bg-page me-1" title="{{ operator.other_competences }}">Autres</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <span class="badge bg-{{ 'success' if operator.status == 'active' else 'secondary' if operator.status == 'inactive' else 'danger' }}">
                                             {{ operator.status }}
@@ -145,6 +160,16 @@
                         <input type="text" class="form-control text-end" id="operatorArabicName" dir="rtl" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Postes</label>
+                        <div id="addOperatorPostesCheckboxes" class="row">
+                            <!-- checkboxes here -->
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="otherCompetences" class="form-label">Autres compétences</label>
+                        <textarea class="form-control" id="otherCompetences" rows="3" placeholder="Autres compétences spécifiques..."></textarea>
+                    </div>
+                    <div class="mb-3">
                         <label for="operatorStatus" class="form-label">Statut</label>
                         <select class="form-select" id="operatorStatus" required>
                             <option value="active">Actif</option>
@@ -178,6 +203,16 @@
                     <div class="mb-3">
                         <label for="editOperatorArabicName" class="form-label">Nom Arabe</label>
                         <input type="text" class="form-control text-end" id="editOperatorArabicName" dir="rtl" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Postes</label>
+                        <div id="editOperatorPostesCheckboxes" class="row">
+                            <!-- Postes checkboxes will be populated dynamically by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editOtherCompetences" class="form-label">Autres compétences</label>
+                        <textarea class="form-control" id="editOtherCompetences" rows="3" placeholder="Autres compétences spécifiques..."></textarea>
                     </div>
                     <div class="mb-3">
                         <label for="editOperatorStatus" class="form-label">Statut</label>

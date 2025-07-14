@@ -29,16 +29,36 @@ CREATE TABLE IF NOT EXISTS machines (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Postes Table
+CREATE TABLE IF NOT EXISTS postes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Operators Table
 CREATE TABLE IF NOT EXISTS operators (
     id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     arabic_name VARCHAR(100) NOT NULL,
+    other_competences TEXT,
     status ENUM('active', 'inactive', 'absent') NOT NULL DEFAULT 'active',
     last_shift_id INT DEFAULT NULL,
     FOREIGN KEY (last_shift_id) REFERENCES shifts(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Operator_Postes Table
+CREATE TABLE IF NOT EXISTS operator_postes (
+    op_id INT NOT NULL,
+    poste_id INT NOT NULL,
+    PRIMARY KEY (op_id, poste_id),
+    FOREIGN KEY (op_id) REFERENCES operators(id) ON DELETE CASCADE,
+    FOREIGN KEY (poste_id) REFERENCES postes(id) ON DELETE CASCADE
+);
+
+
 
 -- Absences Table
 CREATE TABLE IF NOT EXISTS absences (

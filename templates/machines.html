@@ -30,6 +30,7 @@
                                     <th>Nom</th>
                                     <th>Statut</th>
                                     <th>Type</th>
+                                    <th>Poste</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -44,6 +45,13 @@
                                     </td>
                                     <td>
                                         {{ 'Service' if machine.type else 'Machine' }}
+                                    </td>
+                                    <td>
+                                        {% if machine.poste_name %}
+                                            <span class="text-dark">{{ machine.poste_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if can_edit %}
@@ -147,8 +155,17 @@
                     <div class="mb-3">
                         <label for="machineType" class="form-label">Type</label>
                         <select class="form-select" id="machineType" required>
-                            <option value="false">Machine</option>
-                            <option value="true">Service</option>
+                            <option value="0">Machine</option>
+                            <option value="1">Service</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="machinePoste" class="form-label">Poste</label>
+                        <select class="form-select" id="machinePoste" required>
+                            <option value="">Sélectionner un poste</option>
+                            {% for poste in postes %}
+                            <option value="{{ poste.id }}">{{ poste.name | capitalize }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </form>
@@ -156,6 +173,47 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                 <button type="button" class="btn btn-primary" data-action="save-machine" id="machineSaveButton">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Machine Modal -->
+<div class="modal fade" id="editMachineModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier la machine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMachineForm" data-form-action="saveMachineEdit">
+                    <input type="hidden" id="editMachineId">
+                    <div class="mb-3">
+                        <label for="editMachineName" class="form-label">Nom de la machine</label>
+                        <input type="text" class="form-control" id="editMachineName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editMachineType" class="form-label">Type</label>
+                        <select class="form-select" id="editMachineType" required>
+                            <option value="0">Machine</option>
+                            <option value="1">Service</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editMachinePoste" class="form-label">Poste</label>
+                        <select class="form-select" id="editMachinePoste" required>
+                            <option value="">Sélectionner un poste</option>
+                            {% for poste in postes %}
+                            <option value="{{ poste.id }}">{{ poste.name | capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" data-action="save-machine-edit">Mettre à jour</button>
             </div>
         </div>
     </div>

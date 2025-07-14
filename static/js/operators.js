@@ -1,4 +1,99 @@
+// Global variable to store available postes
+let availablePostes = [];
+
+// Function to fetch all available postes from the API
+async function fetchPostes() {
+    try {
+        const response = await fetch('/api/postes');
+        const data = await response.json();
+        if (data.success) {
+            availablePostes = data.postes;
+            populatePostesCheckboxes();
+        }
+    } catch (error) {
+        console.error('Error fetching postes:', error);
+    }
+}
+
+// Function to populate postes checkboxes dynamically
+function populatePostesCheckboxes() {
+    const containers = [
+        { prefix: '', container: document.getElementById('addOperatorPostesCheckboxes') },
+        { prefix: 'edit', container: document.getElementById('editOperatorPostesCheckboxes') }
+    ];
+
+    containers.forEach(({ prefix, container }) => {
+        if (!container) return;
+        container.innerHTML = '';
+
+        // Create two columns
+        const leftCol = document.createElement('div');
+        leftCol.className = 'col-6';
+        const rightCol = document.createElement('div');
+        rightCol.className = 'col-6';
+
+        availablePostes.forEach((poste, idx) => {
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'form-check mb-2 ps-4';
+            checkboxDiv.innerHTML = `
+                <input class="form-check-input" type="checkbox" id="${prefix}Poste${poste.id}" value="${poste.id}">
+                <label class="form-check-label" for="${prefix}Poste${poste.id}">${poste.name}</label>
+            `;
+            if (idx < 4) {
+                leftCol.appendChild(checkboxDiv);
+            } else {
+                rightCol.appendChild(checkboxDiv);
+            }
+        });
+
+        container.appendChild(leftCol);
+        container.appendChild(rightCol);
+    });
+}
+
+// Function to get selected postes from checkboxes (returns array of IDs)
+function getSelectedPostes(prefix = '') {
+    const postes = [];
+    const checkboxes = document.querySelectorAll(`#${prefix}OperatorModal .form-check-input:checked`);
+    checkboxes.forEach(checkbox => {
+        postes.push(parseInt(checkbox.value));
+    });
+    return postes;
+}
+
+// Function to set postes checkboxes based on array of poste IDs
+function setPostesCheckboxes(posteIds, prefix = '') {
+    if (!posteIds || !Array.isArray(posteIds)) return;
+    
+    // Clear all checkboxes first
+    const checkboxes = document.querySelectorAll(`#${prefix}OperatorModal .form-check-input`);
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Check the ones that match the poste IDs
+    posteIds.forEach(posteId => {
+        const checkbox = document.getElementById(`${prefix}Poste${posteId}`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+}
+
+// Function to clear postes checkboxes
+function clearPostesCheckboxes() {
+    const checkboxes = document.querySelectorAll('#addOperatorModal .form-check-input');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+
+// Function to clear edit postes checkboxes
+function clearEditPostesCheckboxes() {
+    const checkboxes = document.querySelectorAll('#editOperatorModal .form-check-input');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    fetchPostes(); // <--- Add this line at the top
             // Handle all data-action buttons
             document.addEventListener('click', function(e) {
                 const button = e.target.closest('[data-action]');
@@ -75,6 +170,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const form = this.querySelector('form');
                         if (form) {
                             form.reset();
+                        }
+                        // Clear checkboxes and textarea
+                        if (key === 'addOperator') {
+                            clearPostesCheckboxes();
+                            document.getElementById('otherCompetences').value = '';
+                        } else if (key === 'editOperator') {
+                            clearEditPostesCheckboxes();
+                            document.getElementById('editOtherCompetences').value = '';
                         }
                     });
                 }
