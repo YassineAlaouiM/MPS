@@ -126,14 +126,16 @@ function saveOperator() {
     const name = document.getElementById('operatorName').value.trim();
     const arabicName = document.getElementById('operatorArabicName').value.trim();
     const status = document.getElementById('operatorStatus').value;
+    const otherCompetences = document.getElementById('otherCompetences').value.trim();
+    
+    const posteIds = getSelectedPostes('');
+    setPostesCheckboxes(posteIds, 'add');
 
     if (!name || !arabicName) {
         alert('Le nom et le nom arabe sont requis');
         return;
     }
 
-    const posteIds = getSelectedPostes('');
-    
     fetch('/api/operators', {
         method: 'POST',
         headers: {
@@ -143,7 +145,9 @@ function saveOperator() {
             name: name,
             arabic_name: arabicName,
             poste_ids: posteIds,
-            status: status
+            status: status,
+            other_competences: otherCompetences,
+            poste_ids: posteIds
         })
     })
     .then(response => response.json())

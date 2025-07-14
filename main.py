@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -41,7 +41,7 @@ db_config = {
 # Login manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-# login_manager.login_view = 'login'
+# login_manager.login_view = 'login'  # <-- Remove or comment out this line
 
 class User(UserMixin):
     def __init__(self, user_id, username, role):
@@ -220,9 +220,10 @@ def create_operator():
             sql = "INSERT INTO operators (name, arabic_name, other_competences, status) VALUES (%s, %s, %s, %s)"
             cursor.execute(sql, (name, arabic_name, other_competences, status))
             operator_id = cursor.lastrowid
-            # New: insert into operator_postes if poste_ids provided
+            # Insert into operator_postes if poste_ids provided
             if poste_ids:
-                set_operator_postes(operator_id, poste_ids, connection)
+                for poste_id in poste_ids:
+                    cursor.execute("INSERT INTO operator_postes (op_id, poste_id) VALUES (%s, %s)", (operator_id, poste_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Operator created successfully'})
     except pymysql.Error as e:
@@ -2517,6 +2518,34 @@ def get_machines():
             cursor.execute(sql)
             machines = cursor.fetchall()
         return jsonify({'success': True, 'machines': machines})
+    finally:
+        connection.close()
+
+@app.route('/api/operators/<int:operator_id>', methods=['DELETE'])
+@login_required
+def delete_operator(operator_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if operator has active absences
+            sql = "SELECT id FROM absences WHERE operator_id = %s"
+            cursor.execute(sql, (operator_id,))
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Cannot delete operator with active absences'})
+            
+            # Check if operator is used in schedule
+            sql = "SELECT id FROM schedule WHERE operator_id = %s"
+            cursor.execute(sql, (operator_id,))
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Cannot delete operator that is used in schedule'})
+            
+            # Delete operator
+            sql = "DELETE FROM operators WHERE id = %s"
+            cursor.execute(sql, (operator_id,))
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Operator deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
 

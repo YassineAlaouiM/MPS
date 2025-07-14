@@ -182,4 +182,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
             });
+
+            // Ensure checkboxes are rendered before showing the add operator modal
+            const addOperatorModal = document.getElementById('addOperatorModal');
+            if (addOperatorModal) {
+                addOperatorModal.addEventListener('show.bs.modal', function() {
+                    populatePostesCheckboxes();
+                });
+            }
         });
