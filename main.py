@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'Root.123'),
+    'password': os.getenv('DB_PASSWORD', ''),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -41,7 +41,7 @@ db_config = {
 # Login manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-# login_manager.login_view = 'login'  # <-- Remove or comment out this line
+# login_manager.login_view = 'login'
 
 class User(UserMixin):
     def __init__(self, user_id, username, role):
