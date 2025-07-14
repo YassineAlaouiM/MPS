@@ -210,3 +210,38 @@ navbar .nav-link {
     border-radius: 0;
     margin-bottom: 20px;
 }
+
+/* Postes Display Styles */
+.postes-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 5px;
+}
+
+.postes-display .badge {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    margin: 0;
+}
+
+.badge.bg-page {
+    background-color: #d7dde4 !important;
+    color: #000 !important;
+    border: 2px solid #d7dde4 !important;
+}
+
+/* Checkbox Grid Styles */
+.form-check {
+    margin-bottom: 8px;
+}
+
+.form-check-input:checked {
+    background-color: #1461d4 !important;
+    border-color: #1461d4 !important;
+}
+
+.form-check-label {
+    font-size: 0.9em;
+    margin-left: 5px;
+}

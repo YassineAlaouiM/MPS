@@ -21,7 +21,7 @@ from functools import wraps
 import json
 from datetime import date
 from pymysql.cursors import DictCursor
-from typing import cast
+from typing import cast, List
 
 load_dotenv()
 
@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -133,6 +133,18 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+def get_machine_poste(machine_id: int, connection) -> dict:
+    """Get the poste information for a machine"""
+    with connection.cursor() as cursor:
+        sql = '''
+            SELECT p.id, p.name, p.type
+            FROM machines m
+            JOIN postes p ON m.poste_id = p.id
+            WHERE m.id = %s
+        '''
+        cursor.execute(sql, (machine_id,))
+        return cursor.fetchone()
+
 @app.route('/machines')
 @login_required
 def machines():
@@ -142,7 +154,12 @@ def machines():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT * FROM machines ORDER BY status"
+            sql = """
+                SELECT m.*, p.name as poste_name, p.type as poste_type
+                FROM machines m
+                LEFT JOIN postes p ON m.poste_id = p.id
+                ORDER BY m.status
+            """
             cursor.execute(sql)
             machines = cursor.fetchall()
             sql = '''
@@ -153,11 +170,118 @@ def machines():
             '''
             cursor.execute(sql)
             non_functioning_machines = cursor.fetchall()
+            # Fetch all postes for the dropdown
+            cursor.execute("SELECT id, name FROM postes ORDER BY name")
+            postes = cursor.fetchall()
         current_access = get_user_accessible_pages(current_user.id)
         can_edit = current_access.get('machines', True) if current_user.role != 'admin' else True
     finally:
         connection.close()
-    return render_template('machines.html', machines=machines, non_functioning_machines=non_functioning_machines, can_edit=can_edit)
+    return render_template('machines.html', machines=machines, non_functioning_machines=non_functioning_machines, can_edit=can_edit, postes=postes)
+
+def get_operator_postes(operator_id: int, connection) -> List[dict]:
+    with connection.cursor() as cursor:
+        sql = '''
+            SELECT p.id, p.name, p.type
+            FROM operator_postes op
+            JOIN postes p ON op.poste_id = p.id
+            WHERE op.op_id = %s
+        '''
+        cursor.execute(sql, (operator_id,))
+        return cursor.fetchall()
+
+def set_operator_postes(operator_id: int, poste_ids: List[int], connection):
+    with connection.cursor() as cursor:
+        # Remove existing
+        cursor.execute("DELETE FROM operator_postes WHERE op_id = %s", (operator_id,))
+        # Insert new
+        for poste_id in poste_ids:
+            cursor.execute("INSERT INTO operator_postes (op_id, poste_id) VALUES (%s, %s)", (operator_id, poste_id))
+
+@app.route('/api/operators', methods=['POST'])
+@login_required
+def create_operator():
+    data = request.get_json()
+    name = data.get('name')
+    arabic_name = data.get('arabic_name')
+    postes = data.get('postes', '')  # old string for migration
+    other_competences = data.get('other_competences', '')
+    status = data.get('status', 'active')
+    # New: poste_ids for new structure
+    poste_ids = data.get('poste_ids', [])
+
+    if not name or not arabic_name:
+        return jsonify({'success': False, 'message': 'Name and Arabic name are required'})
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Insert new operator without postes column for now
+            sql = "INSERT INTO operators (name, arabic_name, other_competences, status) VALUES (%s, %s, %s, %s)"
+            cursor.execute(sql, (name, arabic_name, other_competences, status))
+            operator_id = cursor.lastrowid
+            # New: insert into operator_postes if poste_ids provided
+            if poste_ids:
+                set_operator_postes(operator_id, poste_ids, connection)
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Operator created successfully'})
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+@app.route('/api/operators/<int:operator_id>', methods=['GET'])
+@login_required
+def get_operator(operator_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators WHERE id = %s"
+            cursor.execute(sql, (operator_id,))
+            operator = cursor.fetchone()
+            if operator:
+                # New: fetch postes from operator_postes
+                operator['postes_list'] = get_operator_postes(operator_id, connection)
+                return jsonify({'success': True, 'operator': operator})
+            else:
+                return jsonify({'success': False, 'message': 'Operator not found'})
+    finally:
+        connection.close()
+
+@app.route('/api/operators/<int:operator_id>', methods=['PUT'])
+@login_required
+def update_operator(operator_id):
+    data = request.get_json()
+    name = data.get('name')
+    arabic_name = data.get('arabic_name')
+    postes = data.get('postes', '')  # old string for migration
+    other_competences = data.get('other_competences', '')
+    status = data.get('status')
+    poste_ids = data.get('poste_ids', [])
+
+    if not name or not arabic_name:
+        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Check if operator exists
+            sql = "SELECT id FROM operators WHERE id = %s"
+            cursor.execute(sql, (operator_id,))
+            if not cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Operator not found'})
+            # Update operator details without postes column for now
+            sql = "UPDATE operators SET name = %s, arabic_name = %s, other_competences = %s, status = %s WHERE id = %s"
+            cursor.execute(sql, (name, arabic_name, other_competences, status, operator_id))
+            # New: update operator_postes if poste_ids provided
+            if poste_ids is not None:
+                set_operator_postes(operator_id, poste_ids, connection)
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Operator updated successfully'})
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
 
 @app.route('/operators')
 @login_required
@@ -168,9 +292,13 @@ def operators():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT * FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
+            # Temporarily remove postes column until migration is complete
+            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
             cursor.execute(sql)
             operators = cursor.fetchall()
+            # New: fetch postes for each operator
+            for op in operators:
+                op['postes_list'] = get_operator_postes(op['id'], connection)
             sql = '''
                 SELECT a.*, o.name as operator_name
                 FROM absences a
@@ -250,7 +378,8 @@ def create_machine():
     data = request.get_json()
     name = data.get('name')
     status = data.get('status', 'operational')
-    machine_type = data.get('type', False)  #Default is False (Machine), True (Service)
+    type = int(data.get('type', 0))  # Ensure it's an int (0 or 1)
+    poste_id = data.get('poste_id')  # New: poste_id for machine type
     
     if not name:
         return jsonify({'success': False, 'message': 'Machine name is required'})
@@ -258,8 +387,9 @@ def create_machine():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "INSERT INTO machines (name, status, type) VALUES (%s, %s, %s)"
-            cursor.execute(sql, (name, status, machine_type))
+            print("Received poste_id:", poste_id)
+            sql = "INSERT INTO machines (name, status, type, poste_id) VALUES (%s, %s, %s, %s)"
+            cursor.execute(sql, (name, status, type, poste_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Machine created successfully'})
     except pymysql.Error as e:
@@ -273,7 +403,12 @@ def get_machine(machine_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "SELECT * FROM machines WHERE id = %s"
+            sql = """
+                SELECT m.*, p.name as poste_name, p.type as poste_type
+                FROM machines m
+                LEFT JOIN postes p ON m.poste_id = p.id
+                WHERE m.id = %s
+            """
             cursor.execute(sql, (machine_id,))
             machine = cursor.fetchone()
             if machine and isinstance(machine, dict):
@@ -289,7 +424,8 @@ def update_machine(machine_id):
     data = request.get_json()
     name = data.get('name')
     status = data.get('status')
-    machine_type = data.get('type')
+    type = data.get('type')
+    poste_id = data.get('poste_id')
 
     if not name or not status:
         return jsonify({'success': False, 'message': 'Name and status are required'}), 400
@@ -297,11 +433,12 @@ def update_machine(machine_id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            sql = "UPDATE machines SET name = %s, status = %s, type = %s WHERE id = %s"
-            cursor.execute(sql, (name, status, machine_type, machine_id))
+            sql = "UPDATE machines SET name = %s, status = %s, type = %s, poste_id = %s WHERE id = %s"
+            cursor.execute(sql, (name, status, type, poste_id, machine_id))
             connection.commit()
             return jsonify({'success': True, 'message': 'Machine updated successfully'})
     except Exception as e:
+        print("Error updating machine:", e)  # Add this for debugging
         connection.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
@@ -323,6 +460,19 @@ def toggle_machine_type(machine_id):
     except Exception as e:
         connection.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        connection.close()
+
+@app.route('/api/machines/<int:machine_id>/poste', methods=['GET'])
+@login_required
+def get_machine_poste(machine_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT poste_id FROM machines WHERE id = %s"
+            cursor.execute(sql, (machine_id,))
+            poste_id = cursor.fetchone()
+            return jsonify({'success': True, 'poste_id': poste_id})
     finally:
         connection.close()
 
@@ -350,105 +500,6 @@ def delete_machine(machine_id):
             connection.commit()
             return jsonify({'success': True, 'message': 'Machine deleted successfully'})
     except pymysql.Error as e:
-        return jsonify({'success': False, 'message': str(e)})
-    finally:
-        connection.close()
-
-#Operator Management
-@app.route('/api/operators', methods=['POST'])
-@login_required
-def create_operator():
-    data = request.get_json()
-    name = data.get('name')
-    arabic_name = data.get('arabic_name')
-    status = data.get('status', 'active')
-
-    if not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Name and Arabic name are required'})
-
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            # Insert new operator without requiring operator_id
-            sql = "INSERT INTO operators (name, arabic_name, status) VALUES (%s, %s, %s)"
-            cursor.execute(sql, (name, arabic_name, status))
-            connection.commit()
-            return jsonify({'success': True, 'message': 'Operator created successfully'})
-    except pymysql.Error as e:
-        return jsonify({'success': False, 'message': str(e)})
-    finally:
-        connection.close()
-
-@app.route('/api/operators/<int:operator_id>', methods=['GET'])
-@login_required
-def get_operator(operator_id):
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            sql = "SELECT id, name, arabic_name, status FROM operators WHERE id = %s"
-            cursor.execute(sql, (operator_id,))
-            operator = cursor.fetchone()
-            if operator:
-                return jsonify({'success': True, 'operator': operator})
-            else:
-                return jsonify({'success': False, 'message': 'Operator not found'})
-    finally:
-        connection.close()
-
-@app.route('/api/operators/<int:operator_id>', methods=['PUT'])
-@login_required
-def update_operator(operator_id):
-    data = request.get_json()
-    name = data.get('name')
-    arabic_name = data.get('arabic_name')
-    status = data.get('status')
-
-    if not name or not arabic_name:
-        return jsonify({'success': False, 'message': 'Name, and Arabic name are required'})
-
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            # Check if operator exists
-            sql = "SELECT id FROM operators WHERE id = %s"
-            cursor.execute(sql, (operator_id,))
-            if not cursor.fetchone():
-                return jsonify({'success': False, 'message': 'Operator not found'})
-
-            # Update operator details with required Arabic name
-            sql = "UPDATE operators SET name = %s, arabic_name = %s, status = %s WHERE id = %s"
-            cursor.execute(sql, (name, arabic_name, status, operator_id))
-            connection.commit()
-            return jsonify({'success': True, 'message': 'Operator updated successfully'})
-    except pymysql.Error as e:
-        return jsonify({'success': False, 'message': str(e)})
-    finally:
-        connection.close()
-
-@app.route('/api/operators/<int:operator_id>', methods=['DELETE'])
-@login_required
-def delete_operator(operator_id):
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            # Check if operator has active absences
-            sql = "SELECT id FROM absences WHERE operator_id = %s"
-            cursor.execute(sql, (operator_id,))
-            if cursor.fetchone():
-                return jsonify({'success': False, 'message': 'Cannot delete operator with active absences'})
-            
-            # Check if operator is used in schedule
-            sql = "SELECT id FROM schedule WHERE operator_id = %s"
-            cursor.execute(sql, (operator_id,))
-            if cursor.fetchone():
-                return jsonify({'success': False, 'message': 'Cannot delete operator that is used in schedule'})
-            
-            # Delete operator
-            sql = "DELETE FROM operators WHERE id = %s"
-            cursor.execute(sql, (operator_id,))
-            connection.commit()
-            return jsonify({'success': True, 'message': 'Operator deleted successfully'})
-    except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
@@ -1451,7 +1502,7 @@ def random_assignments():
                 # Get selected machines and their production records
                 if machine_ids:
                     cursor.execute("""
-                        SELECT m.id, m.name, p.id as production_id, p.article_id, a.name as article_name
+                        SELECT m.id, m.name, m.poste_id, p.id as production_id, p.article_id, a.name as article_name
                         FROM machines m
                         JOIN production p ON m.id = p.machine_id
                         LEFT JOIN articles a ON p.article_id = a.id
@@ -1467,7 +1518,7 @@ def random_assignments():
                           week_dates['week_start'], week_dates['week_end']))
                 else:
                     cursor.execute("""
-                        SELECT m.id, m.name, p.id as production_id, p.article_id, a.name as article_name
+                        SELECT m.id, m.name, m.poste_id, p.id as production_id, p.article_id, a.name as article_name
                         FROM machines m
                         JOIN production p ON m.id = p.machine_id
                         LEFT JOIN articles a ON p.article_id = a.id
@@ -1499,9 +1550,36 @@ def random_assignments():
                 assignments = []
                 available_operators = operators.copy()
 
+                # Fetch all operator-poste relationships
+                cursor.execute("SELECT op_id, poste_id FROM operator_postes")
+                operator_postes = cursor.fetchall()
+                # Build a mapping: operator_id -> set of poste_ids
+                operator_poste_map = {}
+                for op in operator_postes:
+                    operator_poste_map.setdefault(op['op_id'], set()).add(op['poste_id'])
+
+                # For each machine, filter eligible operators
                 for machine in machines:
+                    eligible_operators = [
+                        op for op in available_operators
+                        if machine['poste_id'] in operator_poste_map.get(op['id'], set())
+                    ]
+                    if not eligible_operators:
+                        # No eligible operator for this machine/shift
+                        for shift in shifts:
+                            assignments.append({
+                                'machine_id': machine['id'],
+                                'production_id': machine['production_id'],
+                                'operator_id': None,
+                                'shift_id': shift['id'],
+                                'machine_name': machine['name'],
+                                'operator_name': None,
+                                'shift_name': shift['name']
+                            })
+                        continue
+
                     for shift in shifts:
-                        if not available_operators:
+                        if not eligible_operators:
                             assignments.append({
                                 'machine_id': machine['id'],
                                 'production_id': machine['production_id'],
@@ -1513,8 +1591,9 @@ def random_assignments():
                             })
                             continue
 
+                        # Rotation logic, but only among eligible_operators
                         selected_operator = None
-                        for operator in available_operators:
+                        for operator in eligible_operators:
                             last_shift_id = operator['last_shift_id']
                             if last_shift_id is None:
                                 if shift['id'] == 1:
@@ -1528,14 +1607,15 @@ def random_assignments():
                                 else:
                                     next_shift = 1
 
-                                if shift['id'] == next_shift:
-                                    selected_operator = operator
-                                    break
+                            if shift['id'] == next_shift:
+                                selected_operator = operator
+                                break
 
                         if not selected_operator:
-                            selected_operator = available_operators[0]
+                            selected_operator = eligible_operators[0]
 
                         available_operators.remove(selected_operator)
+                        eligible_operators.remove(selected_operator)
 
                         assignments.append({
                             'machine_id': machine['id'],
@@ -1546,7 +1626,7 @@ def random_assignments():
                             'operator_name': selected_operator['name'],
                             'shift_name': shift['name']
                         })
-                        
+
                         # Update operator's last shift in database (Rotation)
                         cursor.execute("""
                             UPDATE operators 
@@ -2394,6 +2474,49 @@ def ensure_today_history():
                         placeholders = ', '.join(['%s'] * len(row_data))
                         cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
                     connection.commit()
+    finally:
+        connection.close()
+
+@app.route('/api/postes', methods=['GET'])
+@login_required
+def get_postes():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT id, name, type FROM postes ORDER BY name"
+            cursor.execute(sql)
+            postes = cursor.fetchall()
+            return jsonify({'success': True, 'postes': postes})
+    except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        connection.close()
+
+@app.route('/api/machines/<int:machine_id>/poste')
+@login_required
+def get_machine_poste_api(machine_id):
+    connection = get_db_connection()
+    try:
+        poste = get_machine_poste(machine_id, connection)
+        return jsonify({'success': True, 'poste': poste})
+    finally:
+        connection.close()
+
+@app.route('/api/machines', methods=['GET'])
+@login_required
+def get_machines():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = """
+                SELECT m.*, p.name as poste_name, p.type as poste_type
+                FROM machines m
+                LEFT JOIN postes p ON m.poste_id = p.id
+                ORDER BY m.status
+            """
+            cursor.execute(sql)
+            machines = cursor.fetchall()
+        return jsonify({'success': True, 'machines': machines})
     finally:
         connection.close()
 

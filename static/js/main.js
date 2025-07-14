@@ -1,10 +1,15 @@
 // Machine Management
 function saveMachine() {
     const name = document.getElementById('machineName').value.trim();
-    const type = document.getElementById('machineType').value === 'true';
+    const status = document.getElementById('machineStatus').value;
+    const type = document.getElementById('machineType').value;
+    const poste_id = document.getElementById('machinePoste').value;
 
-    if (!name) {
-        alert('Le nom de la machine est requis');
+    // Place console.log AFTER defining poste_id
+    console.log('name:', name, 'poste_id:', poste_id);
+
+    if (!name || !poste_id) {
+        alert('Veuillez remplir tous les champs obligatoires');
         return;
     }
 
@@ -16,7 +21,8 @@ function saveMachine() {
         body: JSON.stringify({
             name: name,
             status: 'operational',
-            type: type
+            type: type,
+            poste_id: poste_id
         })
     })
     .then(response => response.json())
@@ -41,7 +47,8 @@ function editMachine(id) {
         if (data.success) {
             const machine = data.machine;
             document.getElementById('machineName').value = machine.name;
-            document.getElementById('machineType').value = machine.type ? 'true' : 'false';
+            document.getElementById('machineType').value = machine.type;
+            document.getElementById('machinePoste').value = machine.poste_id;
 
             // Update modal for edit mode
             document.querySelector('#addMachineModal .modal-title').textContent = 'Modifier la machine';
@@ -64,8 +71,8 @@ function editMachine(id) {
 function updateMachine(id) {
     const name = document.getElementById('machineName').value;
     const status = document.getElementById('machineStatus').value;
-    const type = document.getElementById('machineType').value === 'true';  // Convert string to boolean
-
+    const type = document.getElementById('machineType').value;
+    const poste_id = document.getElementById('machinePoste').value;
     if (!name) {
         alert('Veuillez entrer un nom de machine');
         return;
@@ -76,7 +83,7 @@ function updateMachine(id) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, status, type })
+        body: JSON.stringify({ name, status, type, poste_id })
     })
     .then(response => response.json())
     .then(data => {
@@ -125,6 +132,8 @@ function saveOperator() {
         return;
     }
 
+    const posteIds = getSelectedPostes('');
+    
     fetch('/api/operators', {
         method: 'POST',
         headers: {
@@ -133,6 +142,7 @@ function saveOperator() {
         body: JSON.stringify({
             name: name,
             arabic_name: arabicName,
+            poste_ids: posteIds,
             status: status
         })
     })
@@ -160,7 +170,39 @@ function editOperator(id) {
             document.getElementById('editOperatorId').value = operator.id;
             document.getElementById('editOperatorName').value = operator.name;
             document.getElementById('editOperatorArabicName').value = operator.arabic_name;
-            document.getElementById('editOperatorStatus').value = operator.status;
+            
+            // Dynamically populate status dropdown based on current status
+            const statusSelect = document.getElementById('editOperatorStatus');
+            statusSelect.innerHTML = ''; // Clear existing options
+            
+            // Always include active and inactive
+            const activeOption = document.createElement('option');
+            activeOption.value = 'active';
+            activeOption.textContent = 'Actif';
+            statusSelect.appendChild(activeOption);
+            
+            const inactiveOption = document.createElement('option');
+            inactiveOption.value = 'inactive';
+            inactiveOption.textContent = 'Inactif';
+            statusSelect.appendChild(inactiveOption);
+            
+            // Add absent option only if the operator is currently absent
+            if (operator.status === 'absent') {
+                const absentOption = document.createElement('option');
+                absentOption.value = 'absent';
+                absentOption.textContent = 'Absent';
+                statusSelect.appendChild(absentOption);
+            }
+            
+            // Set the current status
+            statusSelect.value = operator.status;
+            
+            // Set postes checkboxes
+            const posteIds = operator.postes_list ? operator.postes_list.map(p => p.id) : [];
+            setPostesCheckboxes(posteIds, 'edit');
+            
+            // Set other competences
+            document.getElementById('editOtherCompetences').value = operator.other_competences || '';
             
             showModal('editOperatorModal');
         } else {
@@ -213,9 +255,14 @@ function saveOperatorEdit() {
     }
     
     const id = document.getElementById('editOperatorId').value;
+    const posteIds = getSelectedPostes('edit');
+    const otherCompetences = document.getElementById('editOtherCompetences').value.trim();
+    
     const data = {
         name: document.getElementById('editOperatorName').value,
         arabic_name: arabicName,
+        poste_ids: posteIds,
+        other_competences: otherCompetences,
         status: document.getElementById('editOperatorStatus').value
     };
 
@@ -259,6 +306,7 @@ function deleteOperator(id) {
         });
     }
 }
+
 
 // Non-Functioning Machines Management
 function saveNonFunctioningMachine() {
@@ -1113,7 +1161,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.querySelector('#addMachineModal .btn-primary').textContent !== 'Mettre à jour') {
             document.getElementById('machineName').value = '';
             document.getElementById('machineStatus').value = 'operational';
-            document.getElementById('machineType').value = 'false';
+            document.getElementById('machineType').value = '0';
+            document.getElementById('machinePoste').value = '';
             document.querySelector('#addMachineModal .modal-title').textContent = 'Ajouter une machine';
             document.querySelector('#addMachineModal .btn-primary').textContent = 'Enregistrer';
             document.querySelector('#addMachineModal .btn-primary').onclick = saveMachine;
@@ -1183,7 +1232,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Reset machine type to regular machine
             const typeSelect = form.querySelector('#machineType');
             if (typeSelect) {
-                typeSelect.value = 'false';
+                typeSelect.value = '0';
+            }
+            // Reset machine poste to regular machine
+            const posteSelect = form.querySelector('#machinePoste');
+            if (posteSelect) {
+                posteSelect.value = '';
             }
         }
         // Reset modal title and button
