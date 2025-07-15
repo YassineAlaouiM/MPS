@@ -53,8 +53,9 @@ function populatePostesCheckboxes() {
 
 // Function to get selected postes from checkboxes (returns array of IDs)
 function getSelectedPostes(prefix = '') {
+    let modalId = prefix ? `#${prefix}OperatorModal` : '#addOperatorModal';
     const postes = [];
-    const checkboxes = document.querySelectorAll(`#${prefix}OperatorModal .form-check-input:checked`);
+    const checkboxes = document.querySelectorAll(`${modalId} .form-check-input:checked`);
     checkboxes.forEach(checkbox => {
         postes.push(parseInt(checkbox.value));
     });
