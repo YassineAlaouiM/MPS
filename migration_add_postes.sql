@@ -4,10 +4,10 @@
 USE schedule_management;
 
 -- Add postes column if it doesn't exist
-ALTER TABLE operators ADD COLUMN IF NOT EXISTS postes TEXT;
+ALTER TABLE operators ADD COLUMN postes TEXT;
 
 -- Add other_competences column if it doesn't exist
-ALTER TABLE operators ADD COLUMN IF NOT EXISTS other_competences TEXT;
+ALTER TABLE operators ADD COLUMN other_competences TEXT;
 
 -- Update existing records to have empty strings for the new columns
 UPDATE operators SET postes = '' WHERE postes IS NULL;
