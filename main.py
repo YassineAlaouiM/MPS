@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -2548,6 +2548,336 @@ def delete_operator(operator_id):
         return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
+
+@app.route('/export_history', methods=['GET'])
+@login_required
+def export_history():
+    date_str = request.args.get('date')
+    name_type = request.args.get('name_type', 'latin')  # Default to latin names
+
+    if not date_str:
+        return jsonify({"error": "Date parameter is required"}), 400
+
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get all shifts
+        cursor.execute('SELECT id, name, start_time, end_time FROM shifts ORDER BY id')
+        shifts = cursor.fetchall()
+        shift_id_to_key = {s['id']: f'shift_{s["id"]}' for s in shifts}
+        def format_shift_time(start, end):
+            # Handles time strings like '07:00:00' or '7:00:00'
+            def extract_hour(t):
+                t_str = str(t)
+                if ':' in t_str:
+                    hour_part = t_str.split(':')[0]
+                    try:
+                        return f"{int(hour_part)}h"
+                    except Exception:
+                        return t_str  # fallback to raw string if conversion fails
+                try:
+                    return f"{int(t_str)}h"
+                except Exception:
+                    return t_str
+            start_h = extract_hour(start)
+            end_h = extract_hour(end)
+            return f"{start_h} à {end_h}"
+        shift_headers = {f'shift_{s["id"]}': format_shift_time(s['start_time'], s['end_time']) for s in shifts}
+        shift_keys = [f'shift_{s["id"]}' for s in shifts]
+
+        # Get all assignments for the day
+        if name_type == 'arabic':
+            cursor.execute('''
+                SELECT 
+                    d.machine_id,
+                    d.machine_name,
+                    m.type as machine_type,
+                    d.article_name,
+                    d.article_abbreviation,
+                    d.shift_id,
+                    o.arabic_name as operator_name
+                FROM daily_schedule_history d
+                LEFT JOIN machines m ON d.machine_id = m.id
+                LEFT JOIN operators o ON d.operator_name = o.name
+                WHERE d.date_recorded = %s
+                ORDER BY d.machine_name, d.shift_id
+            ''', (date_obj,))
+        else:
+            cursor.execute('''
+                SELECT 
+                    d.machine_id,
+                    d.machine_name,
+                    m.type as machine_type,
+                    d.article_name,
+                    d.article_abbreviation,
+                    d.shift_id,
+                    d.operator_name
+                FROM daily_schedule_history d
+                LEFT JOIN machines m ON d.machine_id = m.id
+                WHERE d.date_recorded = %s
+                ORDER BY d.machine_name, d.shift_id
+            ''', (date_obj,))
+        assignments = cursor.fetchall()
+        conn.close()
+
+        # Build data structure: {machine: {shift_key: operator_name, ...}, ...}
+        machine_data = {}
+        machine_articles = {}
+        machine_types = {}
+        for row in assignments:
+            m = row['machine_name']
+            s = shift_id_to_key[row['shift_id']]
+            op = row['operator_name']
+            article = row['article_name']
+            abbr = row['article_abbreviation']
+            mtype = row.get('machine_type', 0)
+            if m not in machine_data:
+                machine_data[m] = {}
+                machine_articles[m] = (article, abbr)
+                machine_types[m] = mtype
+            machine_data[m][s] = op
+
+        # Prepare rows for the PDF (like export_sch)
+        model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
+        model2_shift_keys = ['shift_4', 'shift_5']
+        model3_shift_keys = ['shift_6']
+        model1_rows = []
+        model2_rows = []
+        model3_rows = []
+        for m in sorted(machine_data.keys()):
+            row_dict = {
+                'machine_name': m,
+                'machine_type': machine_types[m],
+                'article_name': machine_articles[m][0],
+                'article_abbreviation': machine_articles[m][1],
+            }
+            for k in shift_keys:
+                row_dict[k] = machine_data[m].get(k, '')
+            # Assign to model
+            if any(row_dict[k] for k in model1_shift_keys):
+                model1_rows.append(row_dict)
+            elif any(row_dict[k] for k in model2_shift_keys):
+                model2_rows.append(row_dict)
+            elif any(row_dict[k] for k in model3_shift_keys):
+                model3_rows.append(row_dict)
+
+        # PDF generation (same as export_sch)
+        buffer = BytesIO()
+        page_width, page_height = portrait(A4)
+        p = canvas.Canvas(buffer, pagesize=portrait(A4))
+
+        try:
+            if name_type == 'arabic':
+                font_paths = [
+                    '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
+                    '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
+                    'C:\\Windows\\Fonts\\arial.ttf'
+                ]
+                bold_font_paths = [
+                    'C:\\Windows\\Fonts\\arialbd.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                ]
+                font_found = False
+                for path in font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arabic', path))
+                        font_name = 'Arabic'
+                        font_found = True
+                        break
+                if not font_found:
+                    pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+                    font_name = 'Arabic'
+                bold_font_found = False
+                for path in bold_font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arabic-Bold', path))
+                        bold_font_name = 'Arabic-Bold'
+                        bold_font_found = True
+                        break
+                if not bold_font_found:
+                    bold_font_name = font_name
+            else:
+                font_paths = [
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    'C:\\Windows\\Fonts\\arial.ttf'
+                ]
+                bold_font_paths = [
+                    'C:\\Windows\\Fonts\\arialbd.ttf',
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                ]
+                font_found = False
+                for path in font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arial', path))
+                        font_name = 'Arial'
+                        font_found = True
+                        break
+                if not font_found:
+                    font_name = 'Helvetica'
+                bold_font_found = False
+                for path in bold_font_paths:
+                    if os.path.exists(path):
+                        pdfmetrics.registerFont(TTFont('Arial-Bold', path))
+                        bold_font_name = 'Arial-Bold'
+                        bold_font_found = True
+                        break
+                if not bold_font_found:
+                    bold_font_name = font_name
+        except Exception as e:
+            print(f"Font registration error: {str(e)}")
+            font_name = 'Helvetica'
+            bold_font_name = 'Helvetica-Bold'
+
+        def add_page_header(canvas, page_num, total_pages):
+            canvas.setFont(font_name, 20)
+            canvas.setFillColor(colors.HexColor('#ff0000'))
+            title_text = "Programme"
+            header_text = f"{title_text} {date_obj.strftime('%d/%m/%Y')}"
+            y = page_height - 40
+            canvas.drawCentredString(page_width / 2, y, header_text)
+
+        def process_text(text, is_header=False, is_machine=False):
+            if not text:
+                return ""
+            text = str(text)
+            if is_header:
+                return text
+            if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
+                if not is_machine:
+                    operators = text.split(',')
+                    if len(operators) > 1:
+                        processed_operators = []
+                        for operator in operators:
+                            operator = operator.strip()
+                            processed_operators.append(operator)
+                        text = '\n+ '.join(processed_operators)
+                    else:
+                        words = text.split()
+                        processed_words = []
+                        for i in range(0, len(words), 2):
+                            if i + 1 < len(words):
+                                processed_words.append(words[i] + ' ' + words[i + 1])
+                            else:
+                                processed_words.append(words[i])
+                        text = '\n'.join(processed_words)
+                reshaped_text = arabic_reshaper.reshape(text)
+                return get_display(reshaped_text)
+            elif is_machine:
+                return text.upper()
+            elif not is_header:
+                operators = text.split(',')
+                if len(operators) > 1:
+                    processed_operators = []
+                    for operator in operators:
+                        operator = operator.strip()
+                        processed_operators.append(operator.capitalize())
+                    return '\n+ '.join(processed_operators)
+                else:
+                    words = text.split()
+                    words = [word.strip().capitalize() for word in words]
+                    if len(words) > 2:
+                        processed_words = []
+                        for i in range(0, len(words), 2):
+                            if i + 1 < len(words):
+                                processed_words.append(words[i] + ' ' + words[i + 1])
+                            else:
+                                processed_words.append(words[i])
+                        return '\n'.join(processed_words)
+                    return ' '.join(words)
+            return text
+
+        def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
+            if not rows:
+                return 0
+            margin = 40
+            available_width = page_width - (2 * margin)
+            num_columns = len(shift_keys) + 1
+            col_width = available_width / num_columns
+            rows_per_page = 19
+            row_height = min((page_height - 115) / (rows_per_page + 1), 60)
+            table_data = [['Machine'] + [shift_headers[k] for k in shift_keys]]
+            for row in rows:
+                machine_name = row['machine_name']
+                article_name = row.get('article_name')
+                article_abbr = row.get('article_abbreviation')
+                if article_name and row.get('machine_type'):
+                    display_article = article_name
+                    if len(article_name) > 17 and article_abbr:
+                        display_article = article_abbr
+                    machine_name = f"{machine_name}\n({display_article})"
+                table_row = [process_text(machine_name, is_machine=True)]
+                for shift_key in shift_keys:
+                    cell_text = row[shift_key] if row[shift_key] else ""
+                    table_row.append(process_text(cell_text))
+                table_data.append(table_row)
+            from reportlab.platypus import Table, TableStyle
+            table = Table(
+                table_data,
+                colWidths=[col_width] * num_columns,
+                rowHeights=[row_height] * len(table_data)
+            )
+            table_style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0a8231')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), bold_font_name),
+                ('FONTNAME', (0, 1), (0, -1), bold_font_name),
+                ('FONTNAME', (1, 1), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 1), (-1, -1), 0),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#000000')),
+                ('FONTSIZE', (0, 1), (0, -1), 12),
+                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('WORDWRAP', (0, 0), (-1, -1), True),
+            ])
+            for i in range(len(table_data)):
+                if i % 2 == 1:
+                    table_style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#ffffff'))
+            table.setStyle(table_style)
+            table.wrapOn(page_obj, page_width, page_height)
+            table_y = page_height - 50 - (len(table_data) * row_height) - y_offset
+            table.drawOn(page_obj, margin, table_y)
+            return (len(table_data) * row_height) + 30
+
+        def add_page_footer(canvas, page_num, total_pages):
+            now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            canvas.setFont(font_name, 10)
+            canvas.setFillColor(colors.HexColor('#666666'))
+            canvas.drawCentredString(page_width / 2, 20, now)
+
+        p.setFont(font_name, 20)
+        add_page_header(p, 1, 1)
+        y_offset = 0
+        if model1_rows:
+            y_offset += render_table(p, model1_rows, model1_shift_keys, shift_headers, y_offset)
+        if model2_rows:
+            y_offset += render_table(p, model2_rows, model2_shift_keys, shift_headers, y_offset)
+        if model3_rows:
+            y_offset += render_table(p, model3_rows, model3_shift_keys, shift_headers, y_offset)
+        add_page_footer(p, 1, 1)
+        p.save()
+        buffer.seek(0)
+        response = make_response(buffer.getvalue())
+        buffer.close()
+        response.headers['Content-Type'] = 'application/pdf'
+        name_suffix = 'ar' if name_type == 'arabic' else 'fr'
+        response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_jour_{date_str}.pdf'
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
 if __name__ == "__main__":
     local_ip = get_local_ip()

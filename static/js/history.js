@@ -320,19 +320,10 @@ function addSmoothScrolling() {
     // Smooth scroll to top when clicking on date headers
     const dateHeaders = document.querySelectorAll('.history-date');
     dateHeaders.forEach(header => {
-        header.addEventListener('click', function() {
-            const entry = this.closest('.history-entry');
-            if (entry) {
-                entry.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'start' 
-                });
-            }
-        });
         
         // Add cursor pointer to indicate clickable
         header.style.cursor = 'pointer';
-        header.title = 'Cliquer pour faire défiler vers cette date';
+        header.title = 'Exporter le PDF en arabe';
     });
 }
 
@@ -340,5 +331,10 @@ function addSmoothScrolling() {
 window.HistoryPage = {
     saveTodayHistory,
     showNotification,
-    updateEmptyStateMessage
+    updateEmptyStateMessage,
+    exportHistoryPDF
 }; 
+
+function exportHistoryPDF(date, nameType = 'latin') {
+    window.open(`/export_history?date=${date}&name_type=${nameType}`, '_blank');
+} 

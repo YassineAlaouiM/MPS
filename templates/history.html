@@ -64,7 +64,7 @@
                             <div class="timeline">
                                 {% for date, schedule_data in history.items() %}
                                 <div class="history-entry" data-date="{{ date }}">
-                                    <div class="history-date">
+                                    <div class="history-date" onclick="exportHistoryPDF('{{ date }}', 'arabic')">
                                         <div class="date-header">
                                             <i class="fas fa-calendar-day"></i>
                                             <span class="date-text">{{ date[2:4] }}-{{ date[5:7] }}-{{ date[8:10] }}</span>
