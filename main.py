@@ -294,7 +294,7 @@ def operators():
     try:
         with connection.cursor() as cursor:
             # Temporarily remove postes column until migration is complete
-            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
+            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC, name ASC"
             cursor.execute(sql)
             operators = cursor.fetchall()
             # New: fetch postes for each operator
