@@ -38,6 +38,9 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('history') }}">Historique</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('rest_days') }}">Repos</a>
+                        </li>
                         {% if current_user.role == 'admin' %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('shifts') }}">Shifts</a>

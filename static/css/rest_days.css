@@ -1,0 +1,61 @@
+.th {
+    background-color: #f8f9fa;
+}
+
+.rest-day-radio {
+    cursor: pointer;
+}
+
+tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Card border radius */
+.card.history-card {
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.card.history-card .card-header {
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom: 2px solid #e3e6ed;
+    background: #f8f9fa;
+}
+
+.table-responsive {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.table-bordered {
+    border-radius: 12px !important;
+    border: 1px solid #d7dde4 !important;
+    overflow: hidden;
+}
+
+.table-bordered > thead > tr > th:first-child {
+    border-top-left-radius: 12px;
+}
+.table-bordered > thead > tr > th:last-child {
+    border-top-right-radius: 12px;
+}
+.table-bordered > tbody > tr:last-child > td:first-child {
+    border-bottom-left-radius: 12px;
+}
+.table-bordered > tbody > tr:last-child > td:last-child {
+    border-bottom-right-radius: 12px;
+}
+
+.btn-primary {
+    background-color: #1461d4;
+    border: 2px solid #1461d4;
+    color: white;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    cursor: pointer;
+    font-size: 16px;
+}

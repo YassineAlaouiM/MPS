@@ -139,3 +139,10 @@ CREATE TABLE IF NOT EXISTS daily_schedule_history (
     INDEX idx_week_year (week_number, year),
     UNIQUE KEY unique_daily_assignment (date_recorded, machine_id, production_id, operator_id, shift_id, position)
 );
+
+CREATE TABLE IF NOT EXISTS operator_rest_days (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    operator_id INT NOT NULL,
+    date DATE NOT NULL,
+    FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE CASCADE
+);

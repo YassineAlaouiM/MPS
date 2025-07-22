@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/rest_days.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
+{% block title %}Jours de Repos{% endblock %}
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card history-card">
+                <div class="card-header d-flex flex-column justify-content-between align-items-center">
+                    <div class="week-navigation mt-3 mt-md-0">
+                        <div class="week-selector-container">
+                            <div class="calendar-preview">
+                                <div class="navigation-row">
+                                    <span class="week-label">Semaine</span>
+                                    <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <div class="week-info">
+                                        <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                                    </div>
+                                    <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                    
+                                    <div class="separator"></div>
+
+                                    <span class="year-label">Année</span>
+                                    <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <div class="year-display">
+                                        <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
+                                    </div>
+                                    <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Search bar -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par opérateur ou jour de repos...">
+                        </div>
+                    </div>
+                    <form id="restDaysForm">
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle text-center" id="restDaysTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Opérateur</th>
+                                        {% for d in week_dates %}
+                                            <th>
+                                                {% set jours_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
+                                                {{ jours_fr[d.weekday()] }}<br>{{ d.strftime('%d/%m') }}
+                                            </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for operator in operators %}
+                                    <tr>
+                                        <td class="text-start">{{ operator.name }}</td>
+                                        {% for d in week_dates %}
+                                        <td>
+                                            <input type="radio" class="rest-day-radio" name="rest_{{ operator.id }}" value="{{ d }}" {% if rest_map.get((operator.id, d)) %}checked{% endif %}>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button type="button" class="btn btn-primary" onclick="saveRestDays()">Enregistrer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+function getUrlParams() {
+    const params = {};
+    window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(str,key,value) {
+        params[key] = value;
+    });
+    return params;
+}
+
+function changeWeek(delta) {
+    const params = getUrlParams();
+    let week = parseInt(params.week || document.querySelector('.week-navigation span').textContent.match(/\d+/)[0]);
+    let year = parseInt(params.year || new Date().getFullYear());
+    week += delta;
+    if (week < 1) {
+        week = 52;
+        year -= 1;
+    } else if (week > 53) {
+        week = 1;
+        year += 1;
+    }
+    window.location.href = `/rest_days?week=${week}&year=${year}`;
+}
+
+function saveRestDays() {
+    const form = document.getElementById('restDaysForm');
+    const radios = form.querySelectorAll('input[type=radio]:checked');
+    const rest_days = [];
+    radios.forEach(radio => {
+        const operator_id = radio.name.replace('rest_', '');
+        const date = radio.value;
+        rest_days.push({operator_id, date});
+    });
+    const params = getUrlParams();
+    const week = params.week || document.getElementById('weekInput').value;
+    const year = params.year || document.getElementById('yearInput').value;
+
+    fetch('/api/rest_days', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({week, year, rest_days})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('Jours de repos enregistrés !');
+            window.location.reload();
+        } else {
+            alert('Erreur lors de la sauvegarde');
+        }
+    })
+    .catch(() => alert('Erreur lors de la sauvegarde'));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('restSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            filterRestDaysTable(this.value);
+        });
+    }
+});
+
+function filterRestDaysTable(query) {
+    query = query.trim().toLowerCase();
+    const table = document.getElementById('restDaysTable');
+    if (!table) return;
+    const rows = table.querySelectorAll('tbody tr');
+    const jours_fr = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+    rows.forEach(row => {
+        const nameCell = row.querySelector('td.text-start');
+        const operatorName = nameCell ? nameCell.textContent.trim().toLowerCase() : '';
+        let found = false;
+        // Check operator name
+        if (operatorName.includes(query)) found = true;
+        // Check selected rest day
+        if (!found && query.length > 0) {
+            const radios = row.querySelectorAll('input[type=radio]');
+            radios.forEach((radio, idx) => {
+                if (radio.checked) {
+                    const jour = jours_fr[idx];
+                    if (jour.includes(query)) found = true;
+                }
+            });
+        }
+        row.style.display = (query === '' || found) ? '' : 'none';
+    });
+} 
+    
+function updateWeekDatesDisplay() {
+    const year = parseInt(document.getElementById('yearInput').value);
+    const week = parseInt(document.getElementById('weekInput').value);
+    
+    const jan4 = new Date(year, 0, 4);
+    const mondayWeek1 = new Date(jan4);
+    mondayWeek1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
+    
+    const targetMonday = new Date(mondayWeek1);
+    targetMonday.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+    
+    const targetSunday = new Date(targetMonday);
+    targetSunday.setDate(targetMonday.getDate() + 6);
+    
+    const formatDate = (date) => {
+        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    };
+    
+    const dateDisplay = `${formatDate(targetMonday)} - ${formatDate(targetSunday)}`;
+    const weekDatesElement = document.getElementById('weekDatesDisplay');
+    if (weekDatesElement) {
+        weekDatesElement.textContent = dateDisplay;
+    }
+}
+
+function updateYearFromInput(value) {
+    const year = parseInt(value);
+    const weekElement = document.getElementById('weekInput');
+    const week = parseInt(weekElement.value);
+    
+    if (isNaN(year) || year < 1900 || year > 2100) {
+        alert('Veuillez entrer une année valide entre 1900 et 2100');
+        document.getElementById('yearInput').value = {{ year }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        weekElement.value = lastWeek;
+    }
+    
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function updateWeekFromInput(value) {
+    const week = parseInt(value);
+    const yearElement = document.getElementById('yearInput');
+    const year = parseInt(yearElement.value);
+    
+    if (isNaN(week) || week < 1 || week > 53) {
+        alert('Veuillez entrer un numéro de semaine valide entre 1 et 53');
+        document.getElementById('weekInput').value = {{ week }};
+        return;
+    }
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        alert(`La semaine ${week} n'est pas valide pour l'année ${year}. La dernière semaine de ${year} est ${lastWeek}`);
+        document.getElementById('weekInput').value = lastWeek;
+        return;
+    }
+    
+    updateNavigation(year, week);
+}
+
+function changeYear(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    year += delta;
+    
+    const lastWeek = getLastWeekOfYear(year);
+    if (week > lastWeek) {
+        week = lastWeek;
+        weekElement.value = week;
+    }
+    
+    yearElement.value = year;
+    updateNavigation(year, parseInt(weekElement.value));
+}
+
+function changeWeek(delta) {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week += delta;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    } else if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function updateNavigation(year, week) {
+    if (!isValidWeek(week, year)) {
+        console.error('Invalid week calculation', { week, year });
+        return;
+    }
+    
+    updateWeekDatesDisplay();
+    
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('year', year);
+    currentUrl.searchParams.set('week', week);
+    window.location.href = currentUrl.toString();
+}
+
+// Add keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if (event.altKey) {
+        switch(event.key) {
+            case 'ArrowLeft':
+                changeWeek(-1);
+                break;
+            case 'ArrowRight':
+                changeWeek(1);
+                break;
+            case 'ArrowUp':
+                changeYear(1);
+                break;
+            case 'ArrowDown':
+                changeYear(-1);
+                break;
+        }
+    }
+});
+
+function goToCurrentWeek() {
+    const current = getCurrentWeekYear();
+    document.getElementById('yearInput').value = current.year;
+    document.getElementById('weekInput').value = current.week;
+    updateNavigation(current.year, current.week);
+}
+
+function goToNextWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week++;
+    const lastWeek = getLastWeekOfYear(year);
+    
+    if (week > lastWeek) {
+        year++;
+        week = 1;
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+
+function goToPreviousWeek() {
+    const yearElement = document.getElementById('yearInput');
+    const weekElement = document.getElementById('weekInput');
+    let year = parseInt(yearElement.value);
+    let week = parseInt(weekElement.value);
+    
+    week--;
+    if (week < 1) {
+        year--;
+        week = getLastWeekOfYear(year);
+    }
+    
+    yearElement.value = year;
+    weekElement.value = week;
+    updateNavigation(year, week);
+}
+</script>
+{% endblock %} 

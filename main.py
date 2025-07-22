@@ -22,6 +22,7 @@ import json
 from datetime import date
 from pymysql.cursors import DictCursor
 from typing import cast, List
+from calendar import day_name
 
 load_dotenv()
 
@@ -294,7 +295,7 @@ def operators():
     try:
         with connection.cursor() as cursor:
             # Temporarily remove postes column until migration is complete
-            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC, name ASC"
+            sql = "SELECT id, name, arabic_name, other_competences, status FROM operators ORDER BY (status='active') DESC, (status='absent') DESC, (status='inactive') DESC"
             cursor.execute(sql)
             operators = cursor.fetchall()
             # New: fetch postes for each operator
@@ -2948,6 +2949,97 @@ def split_production():
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
+
+@app.route('/rest_days')
+@login_required
+def rest_days():
+    week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
+    year = request.args.get('year', default=datetime.now().year, type=int)
+    # Get week start and end
+    week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
+    week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM operators WHERE status = 'active' ORDER BY name")
+            operators = cursor.fetchall()
+            # Get rest days for this week
+            cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
+            rest_days = cursor.fetchall()
+    finally:
+        connection.close()
+    # Map: (operator_id, date) -> True
+    rest_map = {(r['operator_id'], r['date']): True for r in rest_days}
+    return render_template('rest_days.html', week=week, year=year, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name)
+
+@app.route('/api/rest_days', methods=['GET', 'POST'])
+@login_required
+def api_rest_days():
+    if request.method == 'GET':
+        week = int(request.args.get('week'))
+        year = int(request.args.get('year'))
+        week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
+        week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+        connection = get_db_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
+                rest_days = cursor.fetchall()
+        finally:
+            connection.close()
+        return jsonify(rest_days)
+    else:
+        data = request.get_json()
+        week = int(data['week'])
+        year = int(data['year'])
+        rest_days = data['rest_days']  # List of {operator_id, date}
+        week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
+        week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+        connection = get_db_connection()
+        try:
+            with connection.cursor() as cursor:
+                # Remove existing for this week
+                cursor.execute("DELETE FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
+                # Insert new
+                for entry in rest_days:
+                    operator_id = entry['operator_id']
+                    rest_date = datetime.strptime(entry['date'], "%Y-%m-%d").date()
+
+                    # Determine the start and end of the week for that rest_date
+                    weekday = rest_date.weekday()  # Monday = 0
+                    week_start = rest_date - timedelta(days=weekday)
+                    week_end = week_start + timedelta(days=6)
+
+                    # Remove any existing 'Repos' absences in that week for this operator
+                    cursor.execute(
+                        """
+                        DELETE FROM absences
+                        WHERE operator_id = %s
+                        AND reason = 'Repos'
+                        AND start_date >= %s AND start_date <= %s
+                        """,
+                        (operator_id, week_start, week_end)
+                    )
+
+                    # Insert the new corrected absence
+                    cursor.execute(
+                        """
+                        INSERT INTO absences (operator_id, start_date, end_date, reason, created_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                        """,
+                        (operator_id, rest_date, rest_date, 'Repos')
+                    )
+
+                    # Insert into rest_days as before
+                    cursor.execute(
+                        "INSERT INTO operator_rest_days (operator_id, date) VALUES (%s, %s)",
+                        (operator_id, rest_date)
+                    )
+
+            connection.commit()
+        finally:
+            connection.close()
+        return jsonify({'success': True})
 
 if __name__ == "__main__":
     local_ip = get_local_ip()
