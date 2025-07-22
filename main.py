@@ -32,7 +32,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -2878,6 +2878,76 @@ def export_history():
         return response
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
+
+@app.route('/api/schedule/split_production', methods=['POST'])
+@login_required
+def split_production():
+    data = request.get_json()
+    production_id = data.get('production_id')
+    machine_id = data.get('machine_id')
+    article_id = data.get('article_id')
+    quantity = data.get('quantity')
+    start_date = data.get('start_date')  # new start date (should be today)
+    end_date = data.get('end_date')      # new end date (optional)
+    status = data.get('status', 'active')
+
+    if not production_id or not machine_id or not start_date:
+        return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+
+    if not end_date:
+        end_date = None
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # 1. Get the current production record
+            cursor.execute("SELECT * FROM production WHERE id = %s", (production_id,))
+            prod = cursor.fetchone()
+            if not prod:
+                return jsonify({'success': False, 'message': 'Production not found'}), 404
+
+            old_machine_id = prod['machine_id']
+
+            # 2. Set the end_date of the current production to yesterday and mark as completed
+            today = datetime.strptime(start_date, '%Y-%m-%d').date()
+            yesterday = today - timedelta(days=1)
+            cursor.execute(
+                "UPDATE production SET end_date = %s, status = 'completed' WHERE id = %s",
+                (yesterday.strftime('%Y-%m-%d'), production_id)
+            )
+
+            # 3. Insert the new production starting today
+            insert_sql = """
+                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(
+                insert_sql,
+                (machine_id, article_id, quantity, start_date, end_date, status)
+            )
+            new_production_id = cursor.lastrowid
+
+            # 4. Update schedule assignments for the current week to point to the new production
+            week_number = today.isocalendar()[1]
+            year = today.year
+            
+            update_schedule_sql = """
+                UPDATE schedule
+                SET machine_id = %s, production_id = %s
+                WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
+            """
+            cursor.execute(
+                update_schedule_sql,
+                (machine_id, new_production_id, old_machine_id, production_id, week_number, year)
+            )
+
+            connection.commit()
+            return jsonify({'success': True, 'message': 'Production split and new production created successfully'})
+    except Exception as e:
+        connection.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        connection.close()
 
 if __name__ == "__main__":
     local_ip = get_local_ip()

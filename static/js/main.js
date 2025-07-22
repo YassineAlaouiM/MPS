@@ -680,6 +680,7 @@ function saveProductionEdit() {
 }
 
 function editProduction(id) {
+    console.log('editProduction called with id:', id);
     fetch(`/api/production/${id}`)
         .then(response => {
             if (!response.ok) {
@@ -690,62 +691,28 @@ function editProduction(id) {
         .then(production => {
             document.getElementById('editProductionId').value = production.id;
             
-            // Ensure the machine is properly selected in the dropdown
             const machineSelect = document.getElementById('editProductionMachine');
-            
-            // Check if the machine exists in the dropdown
-            let machineExists = false;
-            for (let i = 0; i < machineSelect.options.length; i++) {
-                if (machineSelect.options[i].value == production.machine_id) {
-                    machineExists = true;
-                    break;
-                }
-            }
-            
-            // If machine doesn't exist in dropdown, add it
-            if (!machineExists && production.machine_name) {
-                const option = document.createElement('option');
-                option.value = production.machine_id;
-                option.textContent = production.machine_name;
-                machineSelect.appendChild(option);
-            }
-            
-            // Now set the value
             machineSelect.value = production.machine_id;
             
             document.getElementById('editProductionArticle').value = production.article_id;
             document.getElementById('editProductionQuantity').value = production.quantity;
             
-            // Format start date to YYYY-MM-DD if it exists
-            if (production.start_date) {
-                // If the date is already in YYYY-MM-DD format, use it directly
-                // Otherwise, convert it to that format
-                if (/^\d{4}-\d{2}-\d{2}$/.test(production.start_date)) {
-                    document.getElementById('editProductionStartDate').value = production.start_date;
-                } else {
-                    // Parse the date and format it as YYYY-MM-DD
-                    const startDate = new Date(production.start_date);
-                    const formattedStartDate = startDate.toISOString().split('T')[0];
-                    document.getElementById('editProductionStartDate').value = formattedStartDate;
-                }
+            const startDateInput = document.getElementById('editProductionStartDate');
+            const originalStartDate = new Date(production.start_date);
+            const today = new Date();
+
+            // Set to today if production has already started
+            if (originalStartDate < today) {
+                startDateInput.value = today.toISOString().split('T')[0];
             } else {
-                document.getElementById('editProductionStartDate').value = '';
+                startDateInput.value = production.start_date.split('T')[0];
             }
             
-            // Format end date to YYYY-MM-DD if it exists
+            const endDateInput = document.getElementById('editProductionEndDate');
             if (production.end_date) {
-                // If the date is already in YYYY-MM-DD format, use it directly
-                // Otherwise, convert it to that format
-                if (/^\d{4}-\d{2}-\d{2}$/.test(production.end_date)) {
-                    document.getElementById('editProductionEndDate').value = production.end_date;
-                } else {
-                    // Parse the date and format it as YYYY-MM-DD
-                    const endDate = new Date(production.end_date);
-                    const formattedEndDate = endDate.toISOString().split('T')[0];
-                    document.getElementById('editProductionEndDate').value = formattedEndDate;
-                }
+                endDateInput.value = production.end_date.split('T')[0];
             } else {
-                document.getElementById('editProductionEndDate').value = '';
+                endDateInput.value = '';
             }
             
             document.getElementById('editProductionStatus').value = production.status;
@@ -756,6 +723,55 @@ function editProduction(id) {
             console.error('Erreur lors de la récupération des détails de la production :', error);
             alert('Erreur lors de la récupération des détails de la production');
         });
+}
+
+function saveSplitProduction() {
+    const productionId = document.getElementById('editProductionId').value;
+    const machineId = document.getElementById('editProductionMachine').value;
+    const articleId = document.getElementById('editProductionArticle').value;
+    const quantity = document.getElementById('editProductionQuantity').value;
+    const startDate = document.getElementById('editProductionStartDate').value;
+    let endDate = document.getElementById('editProductionEndDate').value;
+    const status = document.getElementById('editProductionStatus').value;
+
+    if (!productionId || !machineId || !startDate) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+
+    // Convert empty endDate to null
+    if (!endDate) {
+        endDate = null;
+    }
+
+    fetch('/api/schedule/split_production', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            production_id: productionId,
+            machine_id: machineId,
+            article_id: articleId,
+            quantity: quantity,
+            start_date: startDate,
+            end_date: endDate,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Production modifiée avec succès');
+            location.reload();
+        } else {
+            alert(data.message || 'Erreur lors de la modification de la production');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la modification de la production');
+    });
 }
 
 // Shifts Management

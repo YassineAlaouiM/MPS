@@ -68,7 +68,7 @@
                 {% for machine in machines %}
                 <tr>
                     <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
-                    <td>
+                    <td {% if machine.production_id %}onclick="editProduction('{{ machine.production_id }}')" style="cursor:pointer;" onmouseover="this.style.color='#1461d4'" onmouseout="this.style.color='black'" {% endif %}>
                         {{ machine.name }}
                         {% if machine.article_name %}
                         <br><small class="text-muted">{{ machine.article_name }}</small>
@@ -179,7 +179,7 @@
 </div>
 
 {% if can_edit %}
-<!-- Add Production Modal (copied from production.html) -->
+<!-- Add Production Modal -->
 <div class="modal fade" id="addProductionModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -224,6 +224,65 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                 <button type="button" class="btn btn-primary" data-action="save-production">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Production Modal -->
+<div class="modal fade" id="editProductionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier la production</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductionForm" data-form-action="splitProduction">
+                    <input type="hidden" id="editProductionId">
+                    <div class="mb-3">
+                        <label for="editProductionMachine" class="form-label">Machine</label>
+                        <select class="form-select" id="editProductionMachine" required>
+                            <option value="">Sélectionner une machine</option>
+                            {% for machine in all_machines %}
+                            <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="editProductionArticle" class="form-label">Article</label>
+                        <select class="form-select" id="editProductionArticle">
+                            <option value="">Sélectionner un article</option>
+                            {% for article in articles %}
+                            <option value="{{ article.id }}">{{ article.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 article-field">
+                        <label for="editProductionQuantity" class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="editProductionQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="editProductionStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="editProductionEndDate">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionStatus" class="form-label">Statut</label>
+                        <select class="form-select" id="editProductionStatus" required>
+                            <option value="active">Actif</option>
+                            <option value="completed">Terminé</option>
+                            <option value="cancelled">Annulé</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="saveSplitProduction()">Enregistrer</button>
             </div>
         </div>
     </div>
