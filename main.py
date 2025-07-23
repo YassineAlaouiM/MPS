@@ -3096,6 +3096,33 @@ def export_rest_days():
     else:
         arabic_font = 'Helvetica'
         arabic_bold_font = 'Helvetica-Bold'
+        # French/Latin font registration for bold
+        font_paths = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            'C:\\Windows\\Fonts\\arial.ttf'
+        ]
+        bold_font_paths = [
+            'C:\\Windows\\Fonts\\arialbd.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        ]
+        font_found = False
+        for path in font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arial', path))
+                font_name = 'Arial'
+                font_found = True
+                break
+        if not font_found:
+            font_name = 'Helvetica'
+        bold_font_found = False
+        for path in bold_font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arial-Bold', path))
+                bold_font_name = 'Arial-Bold'
+                bold_font_found = True
+                break
+        if not bold_font_found:
+            bold_font_name = 'Helvetica-Bold'
         jours = ['Samedi', 'Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
         weekday_to_label = dict(zip([5, 6, 0, 1, 2, 3, 4], jours))
         header_text = f"Repos De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
@@ -3188,16 +3215,18 @@ def export_rest_days():
         ('FONTNAME', (0,1), (-1,-1), arabic_font),
         ('ROWHEIGHT', (0,0), (-1,-1), 18),
     ]
-    if lang == 'ar':
-        # Set per-cell font size for Arabic names
+    if lang == 'ar' or lang == 'fr':
+        # Set per-cell font size for all names
         for row_idx, row in enumerate(rows, start=1):
             for col_idx, cell in enumerate(row):
                 if cell and isinstance(cell, str):
                     word_count = len(cell.split())
-                    font_size = 8 if word_count >= 4 else 9 if word_count == 3 else 10
+                    if lang == 'fr':
+                        font_size = 8 if word_count >= 3 else 10
+                    else:
+                        font_size = 8 if word_count >= 4 else 9 if word_count == 3 else 10
                     table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), font_size))
-    else:
-        table_style.append(('FONTSIZE', (0,1), (-1,-1), 8))
+    # Remove the else branch for static FONTSIZE
     t.setStyle(TableStyle(table_style))
     elements.append(t)
     doc.build(elements)
