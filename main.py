@@ -2960,20 +2960,20 @@ def rest_days():
     week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
     year = request.args.get('year', default=datetime.now().year, type=int)
     # Get week start and end
-    week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
-    week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+    week_start, week_end = get_week_start_end_saturday(year, week)
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT * FROM operators WHERE status = 'active' ORDER BY name")
             operators = cursor.fetchall()
             # Get rest days for this week
-            cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
+            cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_start, week_end))
             rest_days = cursor.fetchall()
     finally:
         connection.close()
     # Map: (operator_id, date) -> True
-    rest_map = {(r['operator_id'], r['date']): True for r in rest_days}
+    rest_map = {(r['operator_id'], str(r['date'])[:10]): True for r in rest_days}
+    week_dates = [(week_start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
     return render_template('rest_days.html', week=week, year=year, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name)
 
 @app.route('/api/rest_days', methods=['GET', 'POST'])
@@ -3060,8 +3060,7 @@ def export_rest_days():
     week = int(request.args.get('week'))
     year = int(request.args.get('year'))
     lang = request.args.get('lang', 'fr')
-    week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
-    week_end = week_start + timedelta(days=6)
+    week_start, week_end = get_week_start_end_saturday(year, week)
     if lang == 'ar':
         font_paths = [
             '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
@@ -3247,6 +3246,16 @@ def export_rest_days():
     doc.build(elements)
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=f"rest_days_{week_start.strftime('%d-%m-%Y')}_to_{week_end.strftime('%d-%m-%Y')}_{lang}.pdf", mimetype='application/pdf')
+
+def get_week_start_end_saturday(year, week):
+    # Find the first Saturday of the year
+    jan1 = datetime(year, 1, 1)
+    days_to_saturday = (5 - jan1.weekday()) % 7  # 5 = Saturday
+    first_saturday = jan1 + timedelta(days=days_to_saturday)
+    # Calculate the start of the requested week
+    week_start = first_saturday + timedelta(weeks=week-1)
+    week_end = week_start + timedelta(days=6)
+    return week_start, week_end
 
 if __name__ == "__main__":
     local_ip = get_local_ip()
