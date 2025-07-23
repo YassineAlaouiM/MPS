@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/rest_days.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
 {% endblock %}
 {% block title %}Jours de Repos{% endblock %}
 {% block content %}
@@ -52,14 +50,6 @@
                             <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par opérateur ou jour de repos...">
                         </div>
                     </div>
-                    <div class="text-end mb-3">
-                        <button id="export-rest-days-pdf-button" class="btn btn-outline-secondary" onclick="exportRestDaysPDF('fr')">
-                            <i class="fas fa-file-pdf"></i> Exporter en PDF
-                        </button>
-                        <button id="export-rest-days-pdf-ar-button" class="btn btn-outline-secondary ms-2" onclick="exportRestDaysPDF('ar')">
-                            <i class="fas fa-file-pdf"></i> تصدير PDF بالعربية
-                        </button>
-                    </div>
                     <form id="restDaysForm">
                         <div class="table-responsive">
                             <table class="table table-bordered align-middle text-center" id="restDaysTable">
@@ -88,8 +78,16 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="text-end mt-3">
+                        <div class="text-end d-flex justify-content-between mt-3">
                             <button type="button" class="btn btn-primary" onclick="saveRestDays()">Enregistrer</button>
+                            <div class="text-end mb-3">
+                                <button id="export-rest-days-pdf-button" class="btn btn-light" onclick="exportRestDaysPDF('fr')">
+                                    Exporter en Français
+                                </button>
+                                <button id="export-rest-days-pdf-ar-button" class="btn btn-light ms-2" onclick="exportRestDaysPDF('ar')">
+                                    Exporter en Arabe
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
