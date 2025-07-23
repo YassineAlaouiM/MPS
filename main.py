@@ -3146,19 +3146,23 @@ def export_rest_days():
             rest_days = cursor.fetchall()
     finally:
         connection.close()
-    rest_map = {r['operator_id']: r['date'] for r in rest_days}
+    # Step 1: Update the rest_map to collect all rest dates per operator
+    from collections import defaultdict
+    rest_map = defaultdict(list)
+    for r in rest_days:
+        rest_map[r['operator_id']].append(r['date'])
+    # Step 2: Update the day_to_ops population to loop through each rest date per operator
     day_to_ops = {label: [] for label in jours}
     for op in operators:
-        rest_date = rest_map.get(op['id'])
-        if rest_date:
+        rest_dates = rest_map.get(op['id'], [])
+        for rest_date in rest_dates:
             rest_date_obj = rest_date if isinstance(rest_date, date) else datetime.strptime(str(rest_date), '%Y-%m-%d').date()
             day_label = weekday_to_label.get(rest_date_obj.weekday())
             if day_label:
                 if lang == 'ar' and op.get('arabic_name'):
-                    name = op['arabic_name']
                     from arabic_reshaper import reshape
                     from bidi.algorithm import get_display
-                    name = get_display(reshape(name))
+                    name = get_display(reshape(op['arabic_name']))
                 else:
                     name = op['name'].capitalize()
                 day_to_ops[day_label].append(name)
