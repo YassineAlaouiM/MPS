@@ -3222,7 +3222,7 @@ def export_rest_days():
                 if cell and isinstance(cell, str):
                     word_count = len(cell.split())
                     if lang == 'fr':
-                        font_size = 8 if len(cell) > 20 else 10
+                        font_size = 8 if len(cell) >= 19 else 10
                     else:
                         font_size = 8 if word_count >= 4 else 9 if word_count == 3 else 10
                     table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), font_size))
