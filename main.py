@@ -3180,7 +3180,7 @@ def export_rest_days():
         ('FONTSIZE', (0,0), (-1,0), 13),
         ('BOTTOMPADDING', (0,0), (-1,0), 8),
         ('GRID', (0,0), (-1,-1), 1, 'black'),
-        ('FONTSIZE', (0,1), (-1,-1), 8 if lang == 'fr' else 10),
+        ('FONTSIZE', (0,1), (-1,-1), 8 if lang == 'fr' else 9),
         ('FONTNAME', (0,1), (-1,-1), arabic_font),
         ('ROWHEIGHT', (0,0), (-1,-1), 18),
     ]))
