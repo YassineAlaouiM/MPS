@@ -3124,19 +3124,21 @@ def export_rest_days():
                 else:
                     name = op['name'].capitalize()
                 day_to_ops[day_label].append(name)
+    # For each day, determine how many columns are needed (26 per column)
     day_col_counts = {}
     for day in jours:
         count = len(day_to_ops[day])
-        day_col_counts[day] = (count // 25) + (1 if count % 25 else 0)
+        day_col_counts[day] = (count // 26) + (1 if count % 26 else 0)
+    # Build the table header dynamically
     table_header = []
-    day_col_map = []
+    day_col_map = []  # List of (day_label, col_index_within_day)
     for day in jours:
         for i in range(day_col_counts[day]):
             table_header.append(day)
             day_col_map.append((day, i))
     col_count = len(table_header)
-    max_rows = max([len(ops) for ops in day_to_ops.values()] + [0])
-    max_rows = max(max_rows, 1)
+    # Build rows: always 26 rows (since each column for a day can have up to 26 ops)
+    max_rows = 26
     rows = []
     for row_idx in range(max_rows):
         row = [''] * col_count
@@ -3144,7 +3146,7 @@ def export_rest_days():
         for day in jours:
             ops = day_to_ops[day]
             for col_in_day in range(day_col_counts[day]):
-                op_idx = row_idx + col_in_day * 25
+                op_idx = row_idx + col_in_day * 26
                 if op_idx < len(ops):
                     row[col_ptr] = ops[op_idx]
                 col_ptr += 1
