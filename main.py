@@ -3172,18 +3172,33 @@ def export_rest_days():
     elements.append(Spacer(1, 12))
     data = [table_header] + rows
     t = Table(data, colWidths=[max(100, 700//col_count)]*col_count)
-    t.setStyle(TableStyle([
+    # Set the correct bold font variable for the header row
+    if lang == 'ar':
+        header_bold_font = arabic_bold_font
+    else:
+        header_bold_font = bold_font_name
+    table_style = [
         ('BACKGROUND', (0,0), (-1,0), '#e3e6ed'),
         ('TEXTCOLOR', (0,0), (-1,0), '#222'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTNAME', (0,0), (-1,0), arabic_font),
-        ('FONTSIZE', (0,0), (-1,0), 13),
+        ('FONTNAME', (0,0), (-1,0), header_bold_font),
+        ('FONTSIZE', (0,0), (-1,0), header_font_size if 'header_font_size' in locals() else 13),
         ('BOTTOMPADDING', (0,0), (-1,0), 8),
         ('GRID', (0,0), (-1,-1), 1, 'black'),
-        ('FONTSIZE', (0,1), (-1,-1), 8 if lang == 'fr' else 9),
         ('FONTNAME', (0,1), (-1,-1), arabic_font),
         ('ROWHEIGHT', (0,0), (-1,-1), 18),
-    ]))
+    ]
+    if lang == 'ar':
+        # Set per-cell font size for Arabic names
+        for row_idx, row in enumerate(rows, start=1):
+            for col_idx, cell in enumerate(row):
+                if cell and isinstance(cell, str):
+                    word_count = len(cell.split())
+                    font_size = 9 if word_count >= 4 else 10
+                    table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), font_size))
+    else:
+        table_style.append(('FONTSIZE', (0,1), (-1,-1), 8))
+    t.setStyle(TableStyle(table_style))
     elements.append(t)
     doc.build(elements)
     buffer.seek(0)
