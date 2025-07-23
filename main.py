@@ -3092,7 +3092,8 @@ def export_rest_days():
         header_text = process_arabic(f"أيام الراحة من {week_start.strftime('%Y/%m/%d')} إلى {week_end.strftime('%Y/%m/%d')}")
         jours_raw = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
         jours = [process_arabic(day) for day in jours_raw]
-        weekday_to_label = dict(zip([5, 6, 0, 1, 2, 3, 4], jours))
+        jours = list(reversed(jours))  # Reverse for RTL
+        weekday_to_label = dict(zip([5, 6, 0, 1, 2, 3, 4], list(reversed(jours))))
     else:
         arabic_font = 'Helvetica'
         arabic_bold_font = 'Helvetica-Bold'
