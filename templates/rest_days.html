@@ -52,6 +52,14 @@
                             <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par opérateur ou jour de repos...">
                         </div>
                     </div>
+                    <div class="text-end mb-3">
+                        <button id="export-rest-days-pdf-button" class="btn btn-outline-secondary" onclick="exportRestDaysPDF('fr')">
+                            <i class="fas fa-file-pdf"></i> Exporter en PDF
+                        </button>
+                        <button id="export-rest-days-pdf-ar-button" class="btn btn-outline-secondary ms-2" onclick="exportRestDaysPDF('ar')">
+                            <i class="fas fa-file-pdf"></i> تصدير PDF بالعربية
+                        </button>
+                    </div>
                     <form id="restDaysForm">
                         <div class="table-responsive">
                             <table class="table table-bordered align-middle text-center" id="restDaysTable">
@@ -360,6 +368,13 @@ function goToPreviousWeek() {
     yearElement.value = year;
     weekElement.value = week;
     updateNavigation(year, week);
+}
+
+function exportRestDaysPDF(lang) {
+    const params = getUrlParams();
+    const week = params.week || document.getElementById('weekInput').value;
+    const year = params.year || document.getElementById('yearInput').value;
+    window.open(`/export_rest_days?week=${week}&year=${year}&lang=${lang || 'fr'}`,'_blank');
 }
 </script>
 {% endblock %} 

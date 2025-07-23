@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,11 +7,14 @@ import os
 from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, portrait
+from reportlab.lib.pagesizes import A4, portrait, landscape
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.enums import TA_CENTER
 from io import BytesIO
 import arabic_reshaper
 from bidi.algorithm import get_display
@@ -3040,6 +3043,149 @@ def api_rest_days():
         finally:
             connection.close()
         return jsonify({'success': True})
+
+@app.route('/export_rest_days', methods=['GET'])
+@login_required
+def export_rest_days():
+    week = int(request.args.get('week'))
+    year = int(request.args.get('year'))
+    lang = request.args.get('lang', 'fr')
+    week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
+    week_end = week_start + timedelta(days=6)
+    if lang == 'ar':
+        font_paths = [
+            '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
+            '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
+            'C:\\Windows\\Fonts\\arial.ttf',
+        ]
+        bold_font_paths = [
+            'C:\\Windows\\Fonts\\arialbd.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        ]
+        font_found = False
+        for path in font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arabic', path))
+                arabic_font = 'Arabic'
+                font_found = True
+                break
+        if not font_found:
+            pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+            arabic_font = 'Arabic'
+        bold_font_found = False
+        for path in bold_font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arabic-Bold', path))
+                arabic_bold_font = 'Arabic-Bold'
+                bold_font_found = True
+                break
+        if not bold_font_found:
+            arabic_bold_font = arabic_font
+        from arabic_reshaper import reshape
+        from bidi.algorithm import get_display
+        def process_arabic(text):
+            if not text:
+                return ""
+            text = str(text)
+            reshaped_text = reshape(text)
+            return get_display(reshaped_text)
+        header_text = process_arabic(f"أيام الراحة من {week_start.strftime('%Y/%m/%d')} إلى {week_end.strftime('%Y/%m/%d')}")
+        jours_raw = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+        jours = [process_arabic(day) for day in jours_raw]
+        weekday_to_label = dict(zip([5, 6, 0, 1, 2, 3, 4], jours))
+    else:
+        arabic_font = 'Helvetica'
+        arabic_bold_font = 'Helvetica-Bold'
+        jours = ['Samedi', 'Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+        weekday_to_label = dict(zip([5, 6, 0, 1, 2, 3, 4], jours))
+        header_text = f"Repos De {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM operators WHERE status = 'active' ORDER BY name")
+            operators = cursor.fetchall()
+            cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_start, week_end))
+            rest_days = cursor.fetchall()
+    finally:
+        connection.close()
+    rest_map = {r['operator_id']: r['date'] for r in rest_days}
+    day_to_ops = {label: [] for label in jours}
+    for op in operators:
+        rest_date = rest_map.get(op['id'])
+        if rest_date:
+            rest_date_obj = rest_date if isinstance(rest_date, date) else datetime.strptime(str(rest_date), '%Y-%m-%d').date()
+            day_label = weekday_to_label.get(rest_date_obj.weekday())
+            if day_label:
+                if lang == 'ar' and op.get('arabic_name'):
+                    name = op['arabic_name']
+                    from arabic_reshaper import reshape
+                    from bidi.algorithm import get_display
+                    name = get_display(reshape(name))
+                else:
+                    name = op['name'].capitalize()
+                day_to_ops[day_label].append(name)
+    day_col_counts = {}
+    for day in jours:
+        count = len(day_to_ops[day])
+        day_col_counts[day] = (count // 25) + (1 if count % 25 else 0)
+    table_header = []
+    day_col_map = []
+    for day in jours:
+        for i in range(day_col_counts[day]):
+            table_header.append(day)
+            day_col_map.append((day, i))
+    col_count = len(table_header)
+    max_rows = max([len(ops) for ops in day_to_ops.values()] + [0])
+    max_rows = max(max_rows, 1)
+    rows = []
+    for row_idx in range(max_rows):
+        row = [''] * col_count
+        col_ptr = 0
+        for day in jours:
+            ops = day_to_ops[day]
+            for col_in_day in range(day_col_counts[day]):
+                op_idx = row_idx + col_in_day * 25
+                if op_idx < len(ops):
+                    row[col_ptr] = ops[op_idx]
+                col_ptr += 1
+        rows.append(row)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+    elements = []
+    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    styles = getSampleStyleSheet()
+    # Add header as Paragraph with red color and correct font
+    from reportlab.lib.styles import ParagraphStyle
+    header_style = ParagraphStyle(
+        name='Header',
+        parent=styles['Title'],
+        textColor='red',
+        fontName=arabic_font,
+        fontSize=18,
+        alignment=1
+    )
+    header = Paragraph(header_text, header_style)
+    elements.append(header)
+    elements.append(Spacer(1, 12))
+    data = [table_header] + rows
+    t = Table(data, colWidths=[max(100, 700//col_count)]*col_count)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), '#e3e6ed'),
+        ('TEXTCOLOR', (0,0), (-1,0), '#222'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), arabic_font),
+        ('FONTSIZE', (0,0), (-1,0), 13),
+        ('BOTTOMPADDING', (0,0), (-1,0), 8),
+        ('GRID', (0,0), (-1,-1), 1, 'black'),
+        ('FONTSIZE', (0,1), (-1,-1), 8 if lang == 'fr' else 10),
+        ('FONTNAME', (0,1), (-1,-1), arabic_font),
+        ('ROWHEIGHT', (0,0), (-1,-1), 18),
+    ]))
+    elements.append(t)
+    doc.build(elements)
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name=f"rest_days_{week_start.strftime('%d-%m-%Y')}_to_{week_end.strftime('%d-%m-%Y')}_{lang}.pdf", mimetype='application/pdf')
 
 if __name__ == "__main__":
     local_ip = get_local_ip()

@@ -104,9 +104,9 @@
                                                     {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                                     data-last-shift="{{ operator.last_shift_id }}"
                                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
-                                                {{ operator.name }} 
+                                                {{ operator.name }}
                                                 {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
-                                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                                                    ({{ operator.start_date }}{% if operator.end_date and operator.end_date != operator.start_date %} -> {{ operator.end_date }}{% endif %})
                                                 {% endif %}
                                             </option>
                                             {% endfor %}
@@ -131,9 +131,9 @@
                                                     {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
                                                     data-last-shift="{{ operator.last_shift_id }}"
                                                     data-next-shift="{% if operator.last_shift_id == 1 %}3{% elif operator.last_shift_id == 3 %}2{% elif operator.last_shift_id == 2 %}1{% else %}1{% endif %}">
-                                                {{ operator.name }} 
+                                                {{ operator.name }}
                                                 {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
-                                                    (Absent: {{ operator.start_date }} -> {{ operator.end_date }})
+                                                    ({{ operator.start_date }}{% if operator.end_date and operator.end_date != operator.start_date %} -> {{ operator.end_date }}{% endif %})
                                                 {% endif %}
                                             </option>
                                             {% endfor %}
