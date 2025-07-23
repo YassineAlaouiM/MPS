@@ -70,7 +70,7 @@
                                         <td class="text-start">{{ operator.name }}</td>
                                         {% for d in week_dates %}
                                         <td>
-                                            <input type="radio" class="rest-day-radio" name="rest_{{ operator.id }}" value="{{ d }}" {% if rest_map.get((operator.id, d)) %}checked{% endif %}>
+                                            <input type="checkbox" class="rest-day-checkbox" name="rest_{{ operator.id }}" value="{{ d }}" {% if rest_map.get((operator.id, d)) %}checked{% endif %}>
                                         </td>
                                         {% endfor %}
                                     </tr>
@@ -123,11 +123,11 @@ function changeWeek(delta) {
 
 function saveRestDays() {
     const form = document.getElementById('restDaysForm');
-    const radios = form.querySelectorAll('input[type=radio]:checked');
+    const checkboxes = form.querySelectorAll('input[type=checkbox]:checked');
     const rest_days = [];
-    radios.forEach(radio => {
-        const operator_id = radio.name.replace('rest_', '');
-        const date = radio.value;
+    checkboxes.forEach(checkbox => {
+        const operator_id = checkbox.name.replace('rest_', '');
+        const date = checkbox.value;
         rest_days.push({operator_id, date});
     });
     const params = getUrlParams();
@@ -174,9 +174,9 @@ function filterRestDaysTable(query) {
         if (operatorName.includes(query)) found = true;
         // Check selected rest day
         if (!found && query.length > 0) {
-            const radios = row.querySelectorAll('input[type=radio]');
-            radios.forEach((radio, idx) => {
-                if (radio.checked) {
+            const checkboxes = row.querySelectorAll('input[type=checkbox]');
+            checkboxes.forEach((checkbox, idx) => {
+                if (checkbox.checked) {
                     const jour = jours_fr[idx];
                     if (jour.includes(query)) found = true;
                 }

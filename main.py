@@ -26,6 +26,7 @@ from datetime import date
 from pymysql.cursors import DictCursor
 from typing import cast, List
 from calendar import day_name
+from collections import defaultdict
 
 load_dotenv()
 
@@ -2997,48 +2998,57 @@ def api_rest_days():
         year = int(data['year'])
         rest_days = data['rest_days']  # List of {operator_id, date}
         week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
-        week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+        week_end = week_start + timedelta(days=6)
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
                 # Remove existing for this week
-                cursor.execute("DELETE FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
-                # Insert new
+                cursor.execute("DELETE FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_start, week_end))
+                # Group rest days by operator
+                from collections import defaultdict
+                op_days = defaultdict(list)
                 for entry in rest_days:
                     operator_id = entry['operator_id']
                     rest_date = datetime.strptime(entry['date'], "%Y-%m-%d").date()
-
-                    # Determine the start and end of the week for that rest_date
-                    weekday = rest_date.weekday()  # Monday = 0
-                    week_start = rest_date - timedelta(days=weekday)
-                    week_end = week_start + timedelta(days=6)
-
-                    # Remove any existing 'Repos' absences in that week for this operator
+                    op_days[operator_id].append(rest_date)
+                # For each operator, delete all 'Repos' absences for this week, then insert new grouped absences
+                for operator_id, days in op_days.items():
+                    # Remove all 'Repos' absences for this operator in this week
                     cursor.execute(
                         """
                         DELETE FROM absences
                         WHERE operator_id = %s
                         AND reason = 'Repos'
-                        AND start_date >= %s AND start_date <= %s
+                        AND start_date >= %s AND end_date <= %s
                         """,
                         (operator_id, week_start, week_end)
                     )
-
-                    # Insert the new corrected absence
-                    cursor.execute(
-                        """
-                        INSERT INTO absences (operator_id, start_date, end_date, reason, created_at)
-                        VALUES (%s, %s, %s, %s, NOW())
-                        """,
-                        (operator_id, rest_date, rest_date, 'Repos')
-                    )
-
-                    # Insert into rest_days as before
-                    cursor.execute(
-                        "INSERT INTO operator_rest_days (operator_id, date) VALUES (%s, %s)",
-                        (operator_id, rest_date)
-                    )
-
+                    days = sorted(days)
+                    ranges = []
+                    if days:
+                        start = end = days[0]
+                        for d in days[1:]:
+                            if (d - end).days == 1:
+                                end = d
+                            else:
+                                ranges.append((start, end))
+                                start = end = d
+                        ranges.append((start, end))
+                    for start, end in ranges:
+                        # Insert the new absence for the range
+                        cursor.execute(
+                            """
+                            INSERT INTO absences (operator_id, start_date, end_date, reason, created_at)
+                            VALUES (%s, %s, %s, %s, NOW())
+                            """,
+                            (operator_id, start, end, 'Repos')
+                        )
+                    # Insert all rest_days as before
+                    for d in days:
+                        cursor.execute(
+                            "INSERT INTO operator_rest_days (operator_id, date) VALUES (%s, %s)",
+                            (operator_id, d)
+                        )
             connection.commit()
         finally:
             connection.close()
