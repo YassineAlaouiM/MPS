@@ -1948,7 +1948,7 @@ def export_sch():
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), bold_font_name),  # Table header row bold
                 ('FONTNAME', (0, 1), (0, -1), bold_font_name),  # First column (machines) bold
-                ('FONTNAME', (1, 1), (-1, -1), font_name),      # Other cells normal
+                ('FONTNAME', (1, 1), (-1, -1), bold_font_name),      # Other cells normal
                 ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
