@@ -2674,6 +2674,9 @@ def export_history():
                 model2_rows.append(row_dict)
             elif any(row_dict[k] for k in model3_shift_keys):
                 model3_rows.append(row_dict)
+        model1_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
+        model2_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
+        model3_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
 
         # PDF generation (same as export_sch)
         buffer = BytesIO()
