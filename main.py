@@ -3274,27 +3274,46 @@ FONTS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
 NASKH_REGULAR_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-Regular.ttf')
 NASKH_BOLD_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-Bold.ttf')
 NASKH_VARIABLE_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-VariableFont_wght.ttf')
+AMIRI_REGULAR_PATH = os.path.join(FONTS_DIR, 'Amiri-Regular.ttf')
+AMIRI_BOLD_PATH = os.path.join(FONTS_DIR, 'Amiri-Bold.ttf')
 
-try:
-    if os.path.exists(NASKH_REGULAR_PATH):
-        pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_REGULAR_PATH))
-    else:
-        pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_VARIABLE_PATH))
-except Exception as e:
-    print(f"Font load failed for NotoNaskhArabic: {e}")
-    arabic_font = 'Arial'  # fallback to Arial
-
-try:
-    if os.path.exists(NASKH_BOLD_PATH):
-        pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_BOLD_PATH))
-    else:
-        pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_VARIABLE_PATH))
-except Exception as e:
-    print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
-    arabic_bold_font = 'Arial-Bold'  # fallback to Arial-Bold
-
+# Default to NotoNaskhArabic
 arabic_font = 'NotoNaskhArabic'
 arabic_bold_font = 'NotoNaskhArabic-Bold'
+
+# Try Amiri first
+try:
+    pdfmetrics.registerFont(TTFont('Amiri', AMIRI_REGULAR_PATH))
+    arabic_font = 'Amiri'
+except Exception as e:
+    print(f"Font load failed for Amiri: {e}")
+
+try:
+    pdfmetrics.registerFont(TTFont('Amiri-Bold', AMIRI_BOLD_PATH))
+    arabic_bold_font = 'Amiri-Bold'
+except Exception as e:
+    print(f"Font load failed for Amiri-Bold: {e}")
+
+# If Amiri is not available, try NotoNaskhArabic
+if arabic_font != 'Amiri':
+    try:
+        if os.path.exists(NASKH_REGULAR_PATH):
+            pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_REGULAR_PATH))
+        else:
+            pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_VARIABLE_PATH))
+    except Exception as e:
+        print(f"Font load failed for NotoNaskhArabic: {e}")
+        arabic_font = 'Arial'  # fallback to Arial
+
+if arabic_bold_font != 'Amiri-Bold':
+    try:
+        if os.path.exists(NASKH_BOLD_PATH):
+            pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_BOLD_PATH))
+        else:
+            pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_VARIABLE_PATH))
+    except Exception as e:
+        print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
+        arabic_bold_font = 'Arial-Bold'  # fallback to Arial-Bold
 
 if __name__ == "__main__":
     local_ip = get_local_ip()
