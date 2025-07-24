@@ -2836,8 +2836,6 @@ def export_history():
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 # Table header row (row 0): Helvetica-Bold
                 ('FONTNAME', (0, 0), (-1, 0), helvetica_bold_font),
-                # First data row (row 1): Helvetica-Bold
-                ('FONTNAME', (0, 1), (-1, 1), helvetica_bold_font),
                 # Machine names (first column, all data rows): Helvetica-Bold
                 ('FONTNAME', (0, 1), (0, -1), helvetica_bold_font),
                 # Other cells: fallback to font_name (Amiri/Arabic/Helvetica)
