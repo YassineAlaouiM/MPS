@@ -3269,10 +3269,28 @@ def get_week_start_end_saturday(year, week):
     week_end = week_start + timedelta(days=6)
     return week_start, week_end
 
-# Register Noto Naskh Arabic fonts
-pdfmetrics.registerFont(TTFont('NotoNaskhArabic', 'static/fonts/NotoNaskhArabic-Regular.ttf'))
-pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', 'static/fonts/NotoNaskhArabic-Bold.ttf'))
-pdfmetrics.registerFont(TTFont('NotoNaskhArabic', 'static/fonts/NotoNaskhArabic-VariableFont_wght.ttf'))
+# Register Noto Naskh Arabic fonts using robust path resolution
+FONTS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
+NASKH_REGULAR_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-Regular.ttf')
+NASKH_BOLD_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-Bold.ttf')
+NASKH_VARIABLE_PATH = os.path.join(FONTS_DIR, 'NotoNaskhArabic-VariableFont_wght.ttf')
+
+try:
+    if os.path.exists(NASKH_REGULAR_PATH):
+        pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_REGULAR_PATH))
+    else:
+        pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_VARIABLE_PATH))
+except Exception as e:
+    print(f"Font load failed for NotoNaskhArabic: {e}")
+
+try:
+    if os.path.exists(NASKH_BOLD_PATH):
+        pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_BOLD_PATH))
+    else:
+        pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_VARIABLE_PATH))
+except Exception as e:
+    print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
+
 arabic_font = 'NotoNaskhArabic'
 arabic_bold_font = 'NotoNaskhArabic-Bold'
 
