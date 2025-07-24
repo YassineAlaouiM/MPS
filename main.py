@@ -1961,7 +1961,7 @@ def export_sch():
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
                 ('FONTSIZE', (0, 1), (0, -1), 14),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
-                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 16),
+                ('FONTSIZE', (1, 1), (-1, -1), 12 if name_type == 'latin' else 16),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
