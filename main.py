@@ -1752,10 +1752,10 @@ def export_sch():
             font_paths = [
                 '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
                 '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
+                'static/fonts/Amiri-Regular.ttf'
             ]
             bold_font_paths = [
-                '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
+                'static/fonts/Amiri-Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             ]
             font_found = False
@@ -2665,10 +2665,10 @@ def export_history():
             font_paths = [
                 '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
                 '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
+                'static/fonts/Amiri-Regular.ttf'
             ]
             bold_font_paths = [
-                '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
+                'static/fonts/Amiri-Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             ]
             font_found = False
@@ -3033,10 +3033,10 @@ def export_rest_days():
         font_paths = [
             '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
             '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-            '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf',
+            'static/fonts/Amiri-Regular.ttf',
         ]
         bold_font_paths = [
-            '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
+            'static/fonts/Amiri-Bold.ttf',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         ]
         font_found = False
@@ -3077,10 +3077,10 @@ def export_rest_days():
         # French/Latin font registration for bold
         font_paths = [
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
+            'static/fonts/Amiri-Regular.ttf'
         ]
         bold_font_paths = [
-            '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
+            'static/fonts/Amiri-Bold.ttf',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         ]
         font_found = False
@@ -3272,7 +3272,7 @@ if arabic_bold_font != 'Amiri-Bold':
         arabic_bold_font = 'Amiri-Bold'  # fallback to Amiri-Bold
 
 # Register Amiri font with absolute path
-pdfmetrics.registerFont(TTFont('Amiri', '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'))
+pdfmetrics.registerFont(TTFont('Amiri', 'static/fonts/Amiri-Regular.ttf'))
 
 # Register Amiri font for all PDF output
 FONT_PATH = os.path.join(os.path.dirname(__file__), 'static', 'fonts', 'Amiri-Regular.ttf')
