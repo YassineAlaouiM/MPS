@@ -3271,6 +3271,9 @@ if arabic_bold_font != 'Amiri-Bold':
         print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
         arabic_bold_font = 'Arial-Bold'  # fallback to Arial-Bold
 
+# Register Amiri font with absolute path
+pdfmetrics.registerFont(TTFont('Amiri', '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'))
+
 if __name__ == "__main__":
     local_ip = get_local_ip()
     print(f"Server is starting on http://{local_ip}:8000 ...")
