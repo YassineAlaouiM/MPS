@@ -1949,12 +1949,12 @@ def export_sch():
                 ('FONTNAME', (0, 0), (-1, 0), bold_font_name),  # Table header row bold
                 ('FONTNAME', (0, 1), (0, -1), bold_font_name),  # First column (machines) bold
                 ('FONTNAME', (1, 1), (-1, -1), bold_font_name),      # Other cells normal
-                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('FONTSIZE', (0, 0), (-1, 0), 16),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTSIZE', (0, 1), (0, -1), 12),
+                ('FONTSIZE', (0, 1), (0, -1), 15),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 16),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
