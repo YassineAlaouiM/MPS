@@ -3238,7 +3238,7 @@ def export_rest_days():
         ('FONTSIZE', (0,0), (-1,0), header_font_size if 'header_font_size' in locals() else 13),
         ('BOTTOMPADDING', (0,0), (-1,0), 8),
         ('GRID', (0,0), (-1,-1), 1, 'black'),
-        ('FONTNAME', (0,1), (-1,-1), arabic_font),
+        ('FONTNAME', (0,1), (-1,-1), arabic_bold_font),
         ('ROWHEIGHT', (0,0), (-1,-1), 18),
     ]
     if lang == 'ar' or lang == 'fr':
