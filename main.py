@@ -3274,6 +3274,16 @@ if arabic_bold_font != 'Amiri-Bold':
 # Register Amiri font with absolute path
 pdfmetrics.registerFont(TTFont('Amiri', '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'))
 
+# Register Amiri font for all PDF output
+FONT_PATH = os.path.join(os.path.dirname(__file__), 'static', 'fonts', 'Amiri-Regular.ttf')
+pdfmetrics.registerFont(TTFont('Amiri', FONT_PATH))
+
+# In all PDF export functions, set:
+font_name = 'Amiri'
+bold_font_name = 'Amiri'
+# Use font_name and bold_font_name in all TableStyle, ParagraphStyle, and canvas.setFont calls for all output.
+# Remove any logic that sets Arial or other fonts as the default for non-Arabic output.
+
 if __name__ == "__main__":
     local_ip = get_local_ip()
     print(f"Server is starting on http://{local_ip}:8000 ...")
