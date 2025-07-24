@@ -1744,8 +1744,8 @@ def export_sch():
         # Register fonts for normal and bold
         try:
             if name_type == 'arabic' or (lang if 'lang' in locals() else None) == 'ar':
-                font_name = arabic_font
-                bold_font_name = arabic_bold_font
+                font_name = 'Amiri'
+                bold_font_name = 'Amiri'
             else:
                 font_name = 'Arial'
                 bold_font_name = 'Arial-Bold'
@@ -2657,8 +2657,8 @@ def export_history():
 
         try:
             if name_type == 'arabic' or (lang if 'lang' in locals() else None) == 'ar':
-                font_name = arabic_font
-                bold_font_name = arabic_bold_font
+                font_name = 'Amiri'
+                bold_font_name = 'Amiri'
             else:
                 font_name = 'Arial'
                 bold_font_name = 'Arial-Bold'
