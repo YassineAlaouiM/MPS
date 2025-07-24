@@ -2720,8 +2720,13 @@ def export_history():
             font_name = 'Helvetica'
             bold_font_name = 'Helvetica-Bold'
 
+        # --- Helvetica font override for header, table header, machine names, and first row ---
+        helvetica_font = 'Helvetica'
+        helvetica_bold_font = 'Helvetica-Bold'
+
         def add_page_header(canvas, page_num, total_pages):
-            canvas.setFont(font_name, 20)
+            # Use Helvetica for page header
+            canvas.setFont(helvetica_bold_font, 20)
             canvas.setFillColor(colors.HexColor('#ff0000'))
             title_text = "Programme"
             header_text = f"{title_text} {date_obj.strftime('%d/%m/%Y')}"
@@ -2824,20 +2829,26 @@ def export_history():
                 colWidths=[col_width] * num_columns,
                 rowHeights=[row_height] * len(table_data)
             )
+            # TableStyle: Helvetica for table header, machine names, and first row
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0a8231')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), bold_font_name),
-                ('FONTNAME', (0, 1), (0, -1), bold_font_name),
-                ('FONTNAME', (1, 1), (-1, -1), font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                # Table header row (row 0): Helvetica-Bold
+                ('FONTNAME', (0, 0), (-1, 0), helvetica_bold_font),
+                # First data row (row 1): Helvetica-Bold
+                ('FONTNAME', (0, 1), (-1, 1), helvetica_bold_font),
+                # Machine names (first column, all data rows): Helvetica-Bold
+                ('FONTNAME', (0, 1), (0, -1), helvetica_bold_font),
+                # Other cells: fallback to font_name (Amiri/Arabic/Helvetica)
+                ('FONTNAME', (1, 2), (-1, -1), bold_font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 16),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#000000')),
-                ('FONTSIZE', (0, 1), (0, -1), 12),
-                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
+                ('FONTSIZE', (0, 1), (0, -1), 14),
+                ('FONTSIZE', (1, 1), (-1, -1), 12 if name_type == 'latin' else 16),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
@@ -2853,11 +2864,12 @@ def export_history():
 
         def add_page_footer(canvas, page_num, total_pages):
             now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-            canvas.setFont(font_name, 10)
+            # Use Helvetica for footer for consistency (optional)
+            canvas.setFont(helvetica_font, 10)
             canvas.setFillColor(colors.HexColor('#666666'))
             canvas.drawCentredString(page_width / 2, 20, now)
 
-        p.setFont(font_name, 20)
+        p.setFont(helvetica_bold_font, 20)
         add_page_header(p, 1, 1)
         y_offset = 0
         if model1_rows:
