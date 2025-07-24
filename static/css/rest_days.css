@@ -95,3 +95,156 @@ tr:hover {
 .btn-primary:hover {
     transform: translateY(-3px);
 }
+
+/* Navigation row styles copied from schedule.css for consistency */
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    width: auto;
+    justify-content: center;
+    margin: 8px 0;
+    padding: 8px;
+    background: transparent;
+    border-radius: 6px;
+}
+
+.week-selector-container {
+    width: 100%;
+}
+
+.calendar-preview {
+    background: transparent;
+    padding: 8px;
+}
+
+.navigation-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.year-display, .week-info {
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 10px;
+    padding: 4px 10px;
+}
+
+.separator {
+    width: 2px;
+    height: 24px;
+    background: #e9ecef;
+}
+
+.current-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: #000;
+    text-align: center;
+    padding: 3px 6px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    width: 100px;
+    height: 35px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.current-value:focus {
+    border-color: #1461d4;
+    outline: none;
+}
+
+.year-label, .week-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #b7babd;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.nav-btn {
+    background: white;
+    width: 75px;
+    height: 35px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin: 8px 10px;
+    padding: 4px 15px;
+    cursor: pointer;
+    color: #1461d4;
+    box-shadow: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-btn:hover {
+    border-color: #1461d4;
+}
+
+/* Remove decoration from navigation arrow icons */
+.nav-btn, .nav-btn:visited, .nav-btn:active {
+    text-decoration: none !important;
+    background: white;
+    box-shadow: none;
+    outline: none;
+    border: 1px solid #e9ecef;
+}
+
+.nav-btn i {
+    text-decoration: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    color: #1461d4;
+    font-size: 1.2em;
+    vertical-align: middle;
+}
+
+.nav-btn:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.navigation-row input[type="date"] {
+    height: 35px;
+    min-width: 180px;
+    max-width: 200px;
+    font-size: 1em;
+    box-sizing: border-box;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    color: #000;
+    margin-left: 8px;
+}
+
+.navigation-row input[type="date"]:focus {
+    border-color: #1461d4;
+    outline: none;
+}
+
+table input[type="checkbox"] {
+    width: 25px;
+    height: 25px;
+    margin: 0;
+    vertical-align: middle;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 2px solid #ddd;
+    transition: all 0.2s ease;
+    font-size: 1.2em;
+}
+
+table input[type="checkbox"]:checked {
+    background-color: #1461d4;
+    border-color: #1461d4;
+}

@@ -2957,10 +2957,15 @@ def split_production():
 @app.route('/rest_days')
 @login_required
 def rest_days():
-    week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
-    year = request.args.get('year', default=datetime.now().year, type=int)
-    # Get week start and end
-    week_start, week_end = get_week_start_end_saturday(year, week)
+    # Get start_date from query or use today
+    start_date_str = request.args.get('start_date')
+    if start_date_str:
+        week_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    else:
+        # Find the Saturday of the current week for today
+        today = datetime.now().date()
+        week_start = today - timedelta(days=(today.weekday() - 5) % 7)  # 5 = Saturday
+    week_end = week_start + timedelta(days=6)
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
@@ -2974,7 +2979,7 @@ def rest_days():
     # Map: (operator_id, date) -> True
     rest_map = {(r['operator_id'], str(r['date'])[:10]): True for r in rest_days}
     week_dates = [(week_start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-    return render_template('rest_days.html', week=week, year=year, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name)
+    return render_template('rest_days.html', week_start=week_start, week_end=week_end, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name, timedelta=timedelta)
 
 @app.route('/api/rest_days', methods=['GET', 'POST'])
 @login_required
@@ -2982,35 +2987,38 @@ def api_rest_days():
     if request.method == 'GET':
         week = int(request.args.get('week'))
         year = int(request.args.get('year'))
-        week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
-        week_dates = [(week_start + timedelta(days=i)) for i in range(7)]
+        # Use the correct week calculation (Saturday to Friday)
+        week_start, week_end = get_week_start_end_saturday(year, week)
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_dates[0], week_dates[-1]))
+                cursor.execute("SELECT * FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_start, week_end))
                 rest_days = cursor.fetchall()
         finally:
             connection.close()
         return jsonify(rest_days)
     else:
         data = request.get_json()
-        week = int(data['week'])
-        year = int(data['year'])
+        start_date_str = data.get('start_date')
         rest_days = data['rest_days']  # List of {operator_id, date}
-        week_start = datetime.strptime(f'{year}-W{week - 1}-1', "%Y-W%W-%w").date()
+        if start_date_str:
+            week_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        else:
+            today = datetime.now().date()
+            week_start = today - timedelta(days=(today.weekday() - 5) % 7)  # 5 = Saturday
         week_end = week_start + timedelta(days=6)
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
                 # Remove existing for this week
                 cursor.execute("DELETE FROM operator_rest_days WHERE date BETWEEN %s AND %s", (week_start, week_end))
-                # Group rest days by operator
+                # Group rest days by operator, deduplicate dates
                 from collections import defaultdict
-                op_days = defaultdict(list)
+                op_days = defaultdict(set)
                 for entry in rest_days:
                     operator_id = entry['operator_id']
                     rest_date = datetime.strptime(entry['date'], "%Y-%m-%d").date()
-                    op_days[operator_id].append(rest_date)
+                    op_days[operator_id].add(rest_date)
                 # For each operator, delete all 'Repos' absences for this week, then insert new grouped absences
                 for operator_id, days in op_days.items():
                     # Remove all 'Repos' absences for this operator in this week
@@ -3043,7 +3051,7 @@ def api_rest_days():
                             """,
                             (operator_id, start, end, 'Repos')
                         )
-                    # Insert all rest_days as before
+                    # Insert all rest_days as before, deduplicated
                     for d in days:
                         cursor.execute(
                             "INSERT INTO operator_rest_days (operator_id, date) VALUES (%s, %s)",
@@ -3057,10 +3065,14 @@ def api_rest_days():
 @app.route('/export_rest_days', methods=['GET'])
 @login_required
 def export_rest_days():
-    week = int(request.args.get('week'))
-    year = int(request.args.get('year'))
+    start_date_str = request.args.get('start_date')
     lang = request.args.get('lang', 'fr')
-    week_start, week_end = get_week_start_end_saturday(year, week)
+    if start_date_str:
+        week_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    else:
+        today = datetime.now().date()
+        week_start = today - timedelta(days=(today.weekday() - 5) % 7)  # 5 = Saturday
+    week_end = week_start + timedelta(days=6)
     if lang == 'ar':
         font_paths = [
             '/usr/share/fonts/truetype/kacst/KacstOne.ttf',

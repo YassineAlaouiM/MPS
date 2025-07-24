@@ -220,10 +220,6 @@ button {
     transform: translateY(-3px);
 }
 
-#export-arabic-pdf-button {
-    font-family: 'Noto Naskh Arabic', Arial, sans-serif;
-}
-
 .alert-success {
     background-color: #d4edda;
     color: #155724;

@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block head %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/rest_days.css') }}">
 {% endblock %}
 {% block title %}Jours de Repos{% endblock %}
 {% block content %}
+
+<!-- Remove custom navigation-row style, use schedule.css classes only -->
 
 <div class="container-fluid py-4">
     <div class="row">
@@ -16,28 +17,18 @@
                             <div class="calendar-preview">
                                 <div class="navigation-row">
                                     <span class="week-label">Semaine</span>
-                                    <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                                    <a href="?start_date={{ (week_start - timedelta(days=7)).strftime('%Y-%m-%d') }}" class="nav-btn" title="Semaine précédente">
                                         <i class="fas fa-chevron-left"></i>
-                                    </button>
+                                    </a>
                                     <div class="week-info">
-                                        <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                                        <span class="current-value" style="font-weight:bold; font-size:1.1em;">
+                                            {{ week_start.strftime('%d/%m/%Y') }} - {{ week_end.strftime('%d/%m/%Y') }}
+                                        </span>
                                     </div>
-                                    <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
+                                    <a href="?start_date={{ (week_start + timedelta(days=7)).strftime('%Y-%m-%d') }}" class="nav-btn" title="Semaine suivante">
                                         <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                    
-                                    <div class="separator"></div>
-
-                                    <span class="year-label">Année</span>
-                                    <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </button>
-                                    <div class="year-display">
-                                        <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
-                                    </div>
-                                    <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </button>
+                                    </a>
+                                    <input type="date" id="weekDatePicker" class="form-control d-inline-block" style="width: 180px; margin-left: 16px;" value="{{ week_start.strftime('%Y-%m-%d') }}" onchange="goToSelectedWeek(this.value)">
                                 </div>
                             </div>
                         </div>
@@ -97,28 +88,12 @@
 </div>
 
 <script>
-
 function getUrlParams() {
     const params = {};
     window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(str,key,value) {
         params[key] = value;
     });
     return params;
-}
-
-function changeWeek(delta) {
-    const params = getUrlParams();
-    let week = parseInt(params.week || document.querySelector('.week-navigation span').textContent.match(/\d+/)[0]);
-    let year = parseInt(params.year || new Date().getFullYear());
-    week += delta;
-    if (week < 1) {
-        week = 52;
-        year -= 1;
-    } else if (week > 53) {
-        week = 1;
-        year += 1;
-    }
-    window.location.href = `/rest_days?week=${week}&year=${year}`;
 }
 
 function saveRestDays() {
@@ -130,14 +105,12 @@ function saveRestDays() {
         const date = checkbox.value;
         rest_days.push({operator_id, date});
     });
-    const params = getUrlParams();
-    const week = params.week || document.getElementById('weekInput').value;
-    const year = params.year || document.getElementById('yearInput').value;
-
+    // Use start_date from current week_start
+    const start_date = "{{ week_start.strftime('%Y-%m-%d') }}";
     fetch('/api/rest_days', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week, year, rest_days})
+        body: JSON.stringify({start_date, rest_days})
     })
     .then(res => res.json())
     .then(data => {
@@ -185,192 +158,26 @@ function filterRestDaysTable(query) {
         row.style.display = (query === '' || found) ? '' : 'none';
     });
 } 
-    
-function updateWeekDatesDisplay() {
-    const year = parseInt(document.getElementById('yearInput').value);
-    const week = parseInt(document.getElementById('weekInput').value);
-    // Find the first Saturday of the year
-    const jan1 = new Date(year, 0, 1);
-    const daysToSaturday = (6 - jan1.getDay()) % 7; // 6 = Saturday
-    const firstSaturday = new Date(jan1);
-    firstSaturday.setDate(jan1.getDate() + daysToSaturday);
-    // Start from the Saturday of the previous week
-    const weekStart = new Date(firstSaturday);
-    weekStart.setDate(firstSaturday.getDate() + (week - 2) * 7);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    const formatDate = (date) => {
-        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-    };
-    const dateDisplay = `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
-    const weekDatesElement = document.getElementById('weekDatesDisplay');
-    if (weekDatesElement) {
-        weekDatesElement.textContent = dateDisplay;
-    }
-}
-
-function updateYearFromInput(value) {
-    const year = parseInt(value);
-    const weekElement = document.getElementById('weekInput');
-    const week = parseInt(weekElement.value);
-    
-    if (isNaN(year) || year < 1900 || year > 2100) {
-        alert('Veuillez entrer une année valide entre 1900 et 2100');
-        document.getElementById('yearInput').value = {{ year }};
-        return;
-    }
-    
-    const lastWeek = getLastWeekOfYear(year);
-    if (week > lastWeek) {
-        weekElement.value = lastWeek;
-    }
-    
-    updateNavigation(year, parseInt(weekElement.value));
-}
-
-function updateWeekFromInput(value) {
-    const week = parseInt(value);
-    const yearElement = document.getElementById('yearInput');
-    const year = parseInt(yearElement.value);
-    
-    if (isNaN(week) || week < 1 || week > 53) {
-        alert('Veuillez entrer un numéro de semaine valide entre 1 et 53');
-        document.getElementById('weekInput').value = {{ week }};
-        return;
-    }
-    
-    const lastWeek = getLastWeekOfYear(year);
-    if (week > lastWeek) {
-        alert(`La semaine ${week} n'est pas valide pour l'année ${year}. La dernière semaine de ${year} est ${lastWeek}`);
-        document.getElementById('weekInput').value = lastWeek;
-        return;
-    }
-    
-    updateNavigation(year, week);
-}
-
-function changeYear(delta) {
-    const yearElement = document.getElementById('yearInput');
-    const weekElement = document.getElementById('weekInput');
-    let year = parseInt(yearElement.value);
-    let week = parseInt(weekElement.value);
-    
-    year += delta;
-    
-    const lastWeek = getLastWeekOfYear(year);
-    if (week > lastWeek) {
-        week = lastWeek;
-        weekElement.value = week;
-    }
-    
-    yearElement.value = year;
-    updateNavigation(year, parseInt(weekElement.value));
-}
-
-function changeWeek(delta) {
-    const yearElement = document.getElementById('yearInput');
-    const weekElement = document.getElementById('weekInput');
-    let year = parseInt(yearElement.value);
-    let week = parseInt(weekElement.value);
-    
-    week += delta;
-    const lastWeek = getLastWeekOfYear(year);
-    
-    if (week > lastWeek) {
-        year++;
-        week = 1;
-    } else if (week < 1) {
-        year--;
-        week = getLastWeekOfYear(year);
-    }
-    
-    yearElement.value = year;
-    weekElement.value = week;
-    updateNavigation(year, week);
-}
-
-function updateNavigation(year, week) {
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
-        return;
-    }
-    
-    updateWeekDatesDisplay();
-    
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('year', year);
-    currentUrl.searchParams.set('week', week);
-    window.location.href = currentUrl.toString();
-}
-
-// Add keyboard navigation
-document.addEventListener('keydown', function(event) {
-    if (event.altKey) {
-        switch(event.key) {
-            case 'ArrowLeft':
-                changeWeek(-1);
-                break;
-            case 'ArrowRight':
-                changeWeek(1);
-                break;
-            case 'ArrowUp':
-                changeYear(1);
-                break;
-            case 'ArrowDown':
-                changeYear(-1);
-                break;
-        }
-    }
-});
-
-function goToCurrentWeek() {
-    const current = getCurrentWeekYear();
-    document.getElementById('yearInput').value = current.year;
-    document.getElementById('weekInput').value = current.week;
-    updateNavigation(current.year, current.week);
-}
-
-function goToNextWeek() {
-    const yearElement = document.getElementById('yearInput');
-    const weekElement = document.getElementById('weekInput');
-    let year = parseInt(yearElement.value);
-    let week = parseInt(weekElement.value);
-    
-    week++;
-    const lastWeek = getLastWeekOfYear(year);
-    
-    if (week > lastWeek) {
-        year++;
-        week = 1;
-    }
-    
-    yearElement.value = year;
-    weekElement.value = week;
-    updateNavigation(year, week);
-}
-
-function goToPreviousWeek() {
-    const yearElement = document.getElementById('yearInput');
-    const weekElement = document.getElementById('weekInput');
-    let year = parseInt(yearElement.value);
-    let week = parseInt(weekElement.value);
-    
-    week--;
-    if (week < 1) {
-        year--;
-        week = getLastWeekOfYear(year);
-    }
-    
-    yearElement.value = year;
-    weekElement.value = week;
-    updateNavigation(year, week);
-}
 
 function exportRestDaysPDF(lang) {
-    const params = getUrlParams();
-    const week = params.week || document.getElementById('weekInput').value;
-    const year = params.year || document.getElementById('yearInput').value;
-    window.open(`/export_rest_days?week=${week}&year=${year}&lang=${lang || 'fr'}`,'_blank');
+    // Use start_date from current week_start
+    const start_date = "{{ week_start.strftime('%Y-%m-%d') }}";
+    window.open(`/export_rest_days?start_date=${start_date}&lang=${lang || 'fr'}`,'_blank');
+}
+
+function goToSelectedWeek(dateStr) {
+    if (!dateStr) return;
+    const selected = new Date(dateStr);
+    const day = selected.getDay();
+    // In JS, 6 = Saturday, 0 = Sunday, 1 = Monday, ..., 5 = Friday
+    const daysToSaturday = (day === 6) ? 0 : (day + 1);
+    const saturday = new Date(selected);
+    saturday.setDate(selected.getDate() - daysToSaturday);
+    const yyyy = saturday.getFullYear();
+    const mm = String(saturday.getMonth() + 1).padStart(2, '0');
+    const dd = String(saturday.getDate()).padStart(2, '0');
+    const saturdayStr = `${yyyy}-${mm}-${dd}`;
+    window.location.href = `?start_date=${saturdayStr}`;
 }
 </script>
 {% endblock %} 
