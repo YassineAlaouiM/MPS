@@ -3269,6 +3269,13 @@ def get_week_start_end_saturday(year, week):
     week_end = week_start + timedelta(days=6)
     return week_start, week_end
 
+# Register Noto Naskh Arabic fonts
+pdfmetrics.registerFont(TTFont('NotoNaskhArabic', 'static/fonts/NotoNaskhArabic-Regular.ttf'))
+pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', 'static/fonts/NotoNaskhArabic-Bold.ttf'))
+pdfmetrics.registerFont(TTFont('NotoNaskhArabic', 'static/fonts/NotoNaskhArabic-VariableFont_wght.ttf'))
+arabic_font = 'NotoNaskhArabic'
+arabic_bold_font = 'NotoNaskhArabic-Bold'
+
 if __name__ == "__main__":
     local_ip = get_local_ip()
     print(f"Server is starting on http://{local_ip}:8000 ...")
