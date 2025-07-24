@@ -37,7 +37,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -1974,19 +1974,19 @@ def export_sch():
             table.wrapOn(page_obj, page_width, page_height)
             table_y = page_height - 50 - (len(table_data) * row_height) - y_offset
             table.drawOn(page_obj, margin, table_y)
-            return (len(table_data) * row_height) + 30  # 30px gap after table
+            return (len(table_data) * row_height) + 30
 
         # --- END: Separate tables for model shift 1 and model shift 2 ---
 
         def add_page_footer(canvas, page_num, total_pages):
             # Add current date and time at the bottom center
             now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-            canvas.setFont(font_name, 10)
+            canvas.setFont('Helvetica', 10)
             canvas.setFillColor(colors.HexColor('#666666'))
             canvas.drawCentredString(page_width / 2, 20, now)
 
         # Generate the page(s)
-        p.setFont(font_name, 20)
+        p.setFont('Helvetica-Bold', 20)
         add_page_header(p, 1, 1)
         y_offset = 0
         if model1_rows:
