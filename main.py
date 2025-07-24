@@ -3282,6 +3282,7 @@ try:
         pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_VARIABLE_PATH))
 except Exception as e:
     print(f"Font load failed for NotoNaskhArabic: {e}")
+    arabic_font = 'Arial'  # fallback to Arial
 
 try:
     if os.path.exists(NASKH_BOLD_PATH):
@@ -3290,6 +3291,7 @@ try:
         pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_VARIABLE_PATH))
 except Exception as e:
     print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
+    arabic_bold_font = 'Arial-Bold'  # fallback to Arial-Bold
 
 arabic_font = 'NotoNaskhArabic'
 arabic_bold_font = 'NotoNaskhArabic-Bold'
