@@ -1814,51 +1814,34 @@ def export_sch():
             
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 if not is_machine:
+                    # For Arabic names, do not split or add newlines, just keep as is
+                    reshaped_text = arabic_reshaper.reshape(text)
+                    return get_display(reshaped_text)
+                elif is_machine:
+                    return text.upper()
+                elif not is_header:
                     operators = text.split(',')
                     if len(operators) > 1:
                         # Multiple operators case
                         processed_operators = []
                         for operator in operators:
                             operator = operator.strip()
-                            processed_operators.append(operator)
-                        text = '\n+ '.join(processed_operators)
+                            processed_operators.append(operator.capitalize())
+                        return '\n+ '.join(processed_operators)
                     else:
                         # Single operator case - original behavior
                         words = text.split()
-                        processed_words = []
-                        for i in range(0, len(words), 2):
-                            if i + 1 < len(words):
-                                processed_words.append(words[i] + ' ' + words[i + 1])
-                            else:
-                                processed_words.append(words[i])
-                        text = '\n'.join(processed_words)
-                reshaped_text = arabic_reshaper.reshape(text)
-                return get_display(reshaped_text)
-            elif is_machine:
-                return text.upper()
-            elif not is_header:
-                operators = text.split(',')
-                if len(operators) > 1:
-                    # Multiple operators case
-                    processed_operators = []
-                    for operator in operators:
-                        operator = operator.strip()
-                        processed_operators.append(operator.capitalize())
-                    return '\n+ '.join(processed_operators)
-                else:
-                    # Single operator case - original behavior
-                    words = text.split()
-                    words = [word.strip().capitalize() for word in words]
-                    if len(words) > 2:
-                        processed_words = []
-                        for i in range(0, len(words), 2):
-                            if i + 1 < len(words):
-                                processed_words.append(words[i] + ' ' + words[i + 1])
-                            else:
-                                processed_words.append(words[i])
-                        return '\n'.join(processed_words)
-                    return ' '.join(words)
-            return text
+                        words = [word.strip().capitalize() for word in words]
+                        if len(words) > 2:
+                            processed_words = []
+                            for i in range(0, len(words), 2):
+                                if i + 1 < len(words):
+                                    processed_words.append(words[i] + ' ' + words[i + 1])
+                                else:
+                                    processed_words.append(words[i])
+                            return '\n'.join(processed_words)
+                        return ' '.join(words)
+                return text
         
         # Set colors
         header_color = colors.HexColor('#ff0000')  # Blue
