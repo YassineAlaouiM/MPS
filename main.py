@@ -1907,7 +1907,10 @@ def export_sch():
                 model2_rows.append(row)
             elif any(row[k] for k in model3_shift_keys):
                 model3_rows.append(row)
-
+        model1_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
+        model2_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
+        model3_rows.sort(key=lambda row: (row.get('machine_type') == 1, row.get('machine_name', '')))
+        
         # Helper to render a table for a given set of rows and shift keys
         def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
             if not rows:
