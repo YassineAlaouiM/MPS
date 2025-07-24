@@ -2572,7 +2572,6 @@ def export_history():
         shifts = cursor.fetchall()
         shift_id_to_key = {s['id']: f'shift_{s["id"]}' for s in shifts}
         def format_shift_time(start, end):
-            # Handles time strings like '07:00:00' or '7:00:00'
             def extract_hour(t):
                 t_str = str(t)
                 if ':' in t_str:
@@ -2580,7 +2579,7 @@ def export_history():
                     try:
                         return f"{int(hour_part)}h"
                     except Exception:
-                        return t_str  # fallback to raw string if conversion fails
+                        return t_str
                 try:
                     return f"{int(t_str)}h"
                 except Exception:
@@ -2606,7 +2605,7 @@ def export_history():
                 LEFT JOIN machines m ON d.machine_id = m.id
                 LEFT JOIN operators o ON d.operator_name = o.name
                 WHERE d.date_recorded = %s
-                ORDER BY d.machine_name, d.shift_id
+                ORDER BY d.machine_name, d.article_name, d.shift_id
             ''', (date_obj,))
         else:
             cursor.execute('''
@@ -2621,27 +2620,30 @@ def export_history():
                 FROM daily_schedule_history d
                 LEFT JOIN machines m ON d.machine_id = m.id
                 WHERE d.date_recorded = %s
-                ORDER BY d.machine_name, d.shift_id
+                ORDER BY d.machine_name, d.article_name, d.shift_id
             ''', (date_obj,))
         assignments = cursor.fetchall()
         conn.close()
 
-        # Build data structure: {machine: {shift_key: operator_name, ...}, ...}
-        machine_data = {}
-        machine_articles = {}
-        machine_types = {}
+        # Build data structure: list of rows, each row is a unique (machine, article) for the day
+        # Each row will have shift assignments for that machine+article
+        # This allows multiple articles per machine per day
+
+        # Step 1: collect all unique (machine_name, article_name, article_abbreviation, machine_type)
+        machine_article_keys = []
+        machine_article_map = {}  # (machine_name, article_name, article_abbreviation, machine_type) -> {shift_key: operator_name}
         for row in assignments:
             m = row['machine_name']
-            s = shift_id_to_key[row['shift_id']]
-            op = row['operator_name']
             article = row['article_name']
             abbr = row['article_abbreviation']
             mtype = row.get('machine_type', 0)
-            if m not in machine_data:
-                machine_data[m] = {}
-                machine_articles[m] = (article, abbr)
-                machine_types[m] = mtype
-            machine_data[m][s] = op
+            key = (m, article, abbr, mtype)
+            s = shift_id_to_key[row['shift_id']]
+            op = row['operator_name']
+            if key not in machine_article_map:
+                machine_article_map[key] = {}
+                machine_article_keys.append(key)
+            machine_article_map[key][s] = op
 
         # Prepare rows for the PDF (like export_sch)
         model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
@@ -2650,15 +2652,16 @@ def export_history():
         model1_rows = []
         model2_rows = []
         model3_rows = []
-        for m in sorted(machine_data.keys()):
+        for key in sorted(machine_article_keys):
+            m, article, abbr, mtype = key
             row_dict = {
                 'machine_name': m,
-                'machine_type': machine_types[m],
-                'article_name': machine_articles[m][0],
-                'article_abbreviation': machine_articles[m][1],
+                'machine_type': mtype,
+                'article_name': article,
+                'article_abbreviation': abbr,
             }
             for k in shift_keys:
-                row_dict[k] = machine_data[m].get(k, '')
+                row_dict[k] = machine_article_map[key].get(k, '')
             # Assign to model
             if any(row_dict[k] for k in model1_shift_keys):
                 model1_rows.append(row_dict)
@@ -2724,8 +2727,10 @@ def export_history():
             if not text:
                 return ""
             text = str(text)
+            
             if is_header:
                 return text
+            
             if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
                 if not is_machine:
                     operators = text.split(',')
@@ -2733,17 +2738,25 @@ def export_history():
                         processed_operators = []
                         for operator in operators:
                             operator = operator.strip()
-                            processed_operators.append(operator)
+                            if len(operator) > 20:
+                                words = operator.split()
+                                if len(words) > 1:
+                                    processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1])
+                                else:
+                                    processed_operators.append(operator)
+                            else:
+                                processed_operators.append(operator)
                         text = '\n+ '.join(processed_operators)
                     else:
-                        words = text.split()
-                        processed_words = []
-                        for i in range(0, len(words), 2):
-                            if i + 1 < len(words):
-                                processed_words.append(words[i] + ' ' + words[i + 1])
+                        operator = text.strip()
+                        if len(operator) > 20:
+                            words = operator.split()
+                            if len(words) > 1:
+                                text = ' '.join(words[:-1]) + '\n' + words[-1]
                             else:
-                                processed_words.append(words[i])
-                        text = '\n'.join(processed_words)
+                                text = operator
+                        else:
+                            text = operator
                 reshaped_text = arabic_reshaper.reshape(text)
                 return get_display(reshaped_text)
             elif is_machine:
@@ -2754,20 +2767,26 @@ def export_history():
                     processed_operators = []
                     for operator in operators:
                         operator = operator.strip()
-                        processed_operators.append(operator.capitalize())
+                        operator_cap = operator.capitalize()
+                        if len(operator_cap) > 20:
+                            words = operator_cap.split()
+                            if len(words) > 1:
+                                processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1].capitalize())
+                            else:
+                                processed_operators.append(operator_cap)
+                        else:
+                            processed_operators.append(operator_cap)
                     return '\n+ '.join(processed_operators)
                 else:
-                    words = text.split()
-                    words = [word.strip().capitalize() for word in words]
-                    if len(words) > 2:
-                        processed_words = []
-                        for i in range(0, len(words), 2):
-                            if i + 1 < len(words):
-                                processed_words.append(words[i] + ' ' + words[i + 1])
-                            else:
-                                processed_words.append(words[i])
-                        return '\n'.join(processed_words)
-                    return ' '.join(words)
+                    operator = text.strip().capitalize()
+                    if len(operator) > 20:
+                        words = operator.split()
+                        if len(words) > 1:
+                            return ' '.join(words[:-1]) + '\n' + words[-1].capitalize()
+                        else:
+                            return operator
+                    else:
+                        return operator
             return text
 
         def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
@@ -3208,7 +3227,7 @@ def export_rest_days():
         ('TEXTCOLOR', (0,0), (-1,0), '#222'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,0), (-1,0), header_bold_font),
-        ('FONTSIZE', (0,0), (-1,0), header_font_size if 'header_font_size' in locals() else 13),
+        ('FONTSIZE', (0,0), (-1,0), header_font_size if 'header_font_size' in locals() else 14),
         ('BOTTOMPADDING', (0,0), (-1,0), 8),
         ('GRID', (0,0), (-1,-1), 1, 'black'),
         ('FONTNAME', (0,1), (-1,-1), arabic_bold_font),
@@ -3223,8 +3242,11 @@ def export_rest_days():
                     if lang == 'fr':
                         font_size = 8 if len(cell) > 20 else 9 if (len(cell) == 20 or len(cell) == 19) else 10
                     else:
-                        font_size = 8 if word_count >= 4 else 9 if word_count == 3 else 10
+                        font_size = 10 if word_count >= 4 else 11 if word_count == 3 else 12
                     table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), font_size))
+                    table_style.append(('VALIGN', (col_idx, row_idx), (col_idx, row_idx), 'TOP'))
+                    table_style.append(('TOPPADDING', (col_idx, row_idx), (col_idx, row_idx), 1))
+                    table_style.append(('BOTTOMPADDING', (col_idx, row_idx), (col_idx, row_idx), 5))
     # Remove the else branch for static FONTSIZE
     t.setStyle(TableStyle(table_style))
     elements.append(t)
