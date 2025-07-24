@@ -1784,7 +1784,7 @@ def export_sch():
 
         def add_page_header(canvas, page_num, total_pages):
             # Add title and week dates as a single string, centered
-            canvas.setFont(font_name, 20)
+            canvas.setFont('Helvetica-Bold', 20)  # Use Helvetica for page header
             canvas.setFillColor(header_color)
             title_text = "Programme"
             
@@ -1876,7 +1876,6 @@ def export_sch():
                     else:
                         return operator
             return text
-        
         # Set colors
         header_color = colors.HexColor('#ff0000')  # Blue
         table_header_color = colors.HexColor('#0a8231')  # Green
@@ -1936,7 +1935,13 @@ def export_sch():
                     cell_text = row[shift_key] if row[shift_key] else ""
                     table_row.append(process_text(cell_text))
                 table_data.append(table_row)
-            # Create table
+            # Choose fonts: Use Arial or Helvetica for header, table header, and first column
+            # Fallback to Helvetica if Arial is not available in your ReportLab setup
+            header_font = 'Helvetica-Bold'
+            first_col_font = 'Helvetica-Bold'
+            table_header_font = 'Helvetica-Bold'
+            other_cells_font = bold_font_name  # Use your default for other cells, or set to 'Helvetica' if desired
+
             table = Table(
                 table_data,
                 colWidths=[col_width] * num_columns,
@@ -1946,15 +1951,15 @@ def export_sch():
                 ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), bold_font_name),  # Table header row bold
-                ('FONTNAME', (0, 1), (0, -1), bold_font_name),  # First column (machines) bold
-                ('FONTNAME', (1, 1), (-1, -1), bold_font_name),      # Other cells normal
+                ('FONTNAME', (0, 0), (-1, 0), table_header_font),  # Table header row: Helvetica-Bold
+                ('FONTNAME', (0, 1), (0, -1), first_col_font),     # First column (machines): Helvetica-Bold
+                ('FONTNAME', (1, 1), (-1, -1), other_cells_font),  # Other cells: your default or Helvetica
                 ('FONTSIZE', (0, 0), (-1, 0), 16),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTSIZE', (0, 1), (0, -1), 15),
+                ('FONTSIZE', (0, 1), (0, -1), 14),
                 ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
                 ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 16),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
