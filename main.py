@@ -1747,15 +1747,15 @@ def export_sch():
                 font_name = 'Amiri'
                 bold_font_name = 'Amiri'
             else:
-                font_name = 'Arial'
-                bold_font_name = 'Arial-Bold'
+                font_name = 'Amiri'
+                bold_font_name = 'Amiri'
             font_paths = [
                 '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
                 '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                'C:\\Windows\\Fonts\\arial.ttf'
+                '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
             ]
             bold_font_paths = [
-                'C:\\Windows\\Fonts\\arialbd.ttf',
+                '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             ]
             font_found = False
@@ -2660,15 +2660,15 @@ def export_history():
                 font_name = 'Amiri'
                 bold_font_name = 'Amiri'
             else:
-                font_name = 'Arial'
-                bold_font_name = 'Arial-Bold'
+                font_name = 'Amiri'
+                bold_font_name = 'Amiri'
             font_paths = [
                 '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
                 '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                'C:\\Windows\\Fonts\\arial.ttf'
+                '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
             ]
             bold_font_paths = [
-                'C:\\Windows\\Fonts\\arialbd.ttf',
+                '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             ]
             font_found = False
@@ -3033,10 +3033,10 @@ def export_rest_days():
         font_paths = [
             '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
             '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-            'C:\\Windows\\Fonts\\arial.ttf',
+            '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf',
         ]
         bold_font_paths = [
-            'C:\\Windows\\Fonts\\arialbd.ttf',
+            '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         ]
         font_found = False
@@ -3077,17 +3077,17 @@ def export_rest_days():
         # French/Latin font registration for bold
         font_paths = [
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            'C:\\Windows\\Fonts\\arial.ttf'
+            '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'
         ]
         bold_font_paths = [
-            'C:\\Windows\\Fonts\\arialbd.ttf',
+            '/home/ubuntu/MPS/static/fonts/Amiri-Bold.ttf',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         ]
         font_found = False
         for path in font_paths:
             if os.path.exists(path):
-                pdfmetrics.registerFont(TTFont('Arial', path))
-                font_name = 'Arial'
+                pdfmetrics.registerFont(TTFont('Amiri', path))
+                font_name = 'Amiri'
                 font_found = True
                 break
         if not font_found:
@@ -3095,8 +3095,8 @@ def export_rest_days():
         bold_font_found = False
         for path in bold_font_paths:
             if os.path.exists(path):
-                pdfmetrics.registerFont(TTFont('Arial-Bold', path))
-                bold_font_name = 'Arial-Bold'
+                pdfmetrics.registerFont(TTFont('Amiri-Bold', path))
+                bold_font_name = 'Amiri-Bold'
                 bold_font_found = True
                 break
         if not bold_font_found:
@@ -3259,7 +3259,7 @@ if arabic_font != 'Amiri':
             pdfmetrics.registerFont(TTFont('NotoNaskhArabic', NASKH_VARIABLE_PATH))
     except Exception as e:
         print(f"Font load failed for NotoNaskhArabic: {e}")
-        arabic_font = 'Arial'  # fallback to Arial
+        arabic_font = 'Amiri'  # fallback to Amiri
 
 if arabic_bold_font != 'Amiri-Bold':
     try:
@@ -3269,7 +3269,7 @@ if arabic_bold_font != 'Amiri-Bold':
             pdfmetrics.registerFont(TTFont('NotoNaskhArabic-Bold', NASKH_VARIABLE_PATH))
     except Exception as e:
         print(f"Font load failed for NotoNaskhArabic-Bold: {e}")
-        arabic_bold_font = 'Arial-Bold'  # fallback to Arial-Bold
+        arabic_bold_font = 'Amiri-Bold'  # fallback to Amiri-Bold
 
 # Register Amiri font with absolute path
 pdfmetrics.registerFont(TTFont('Amiri', '/home/ubuntu/MPS/static/fonts/Amiri-Regular.ttf'))
