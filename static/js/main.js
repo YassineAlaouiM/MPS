@@ -634,7 +634,18 @@ function saveProductionEdit() {
     const machineId = machineSelect.value;
     const startDate = document.getElementById('editProductionStartDate').value;
     const endDate = document.getElementById('editProductionEndDate').value;
-    
+    const status = document.getElementById('editProductionStatus').value;
+
+    // Validation: start date should not be after end date
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (start > end) {
+            alert("La date de début de production doit être antérieure ou égale à la date de fin.");
+            return;
+        }
+    }
+
     if (!machineId || !startDate) {
         alert('Veuillez remplir tous les champs obligatoires');
             return;
@@ -643,7 +654,8 @@ function saveProductionEdit() {
     const data = {
         machine_id: machineId,
         start_date: startDate,
-        end_date: endDate || null
+        end_date: endDate || null,
+        status: status
     };
 
     // Add article data only if it's not a service machine
@@ -690,34 +702,57 @@ function editProduction(id) {
         })
         .then(production => {
             document.getElementById('editProductionId').value = production.id;
-            
             const machineSelect = document.getElementById('editProductionMachine');
             machineSelect.value = production.machine_id;
-            
             document.getElementById('editProductionArticle').value = production.article_id;
             document.getElementById('editProductionQuantity').value = production.quantity;
-            
+
             const startDateInput = document.getElementById('editProductionStartDate');
             const originalStartDate = new Date(production.start_date);
             const today = new Date();
-
-            // Set to today if production has already started
             if (originalStartDate < today) {
                 startDateInput.value = today.toISOString().split('T')[0];
             } else {
                 startDateInput.value = production.start_date.split('T')[0];
             }
-            
-            const endDateInput = document.getElementById('editProductionEndDate');
-            if (production.end_date) {
-                endDateInput.value = production.end_date.split('T')[0];
-            } else {
-                endDateInput.value = '';
-            }
-            
-            document.getElementById('editProductionStatus').value = production.status;
-            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
 
+            const endDateInput = document.getElementById('editProductionEndDate');
+            const statusInput = document.getElementById('editProductionStatus');
+
+            // Helper to handle status change and end date logic
+            function handleStatusChange() {
+                const status = statusInput.value;
+                if (status === 'active') {
+                    endDateInput.value = '';
+                    endDateInput.disabled = true;
+                } else if (status === 'completed' || status === 'cancelled') {
+                    // Set to today if not already set
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    endDateInput.value = todayStr;
+                    endDateInput.disabled = false;
+                } else {
+                    endDateInput.disabled = false;
+                }
+            }
+
+            // Set initial status and end date
+            statusInput.value = production.status;
+            if (production.status === 'active') {
+                endDateInput.value = '';
+                endDateInput.disabled = true;
+            } else if (production.status === 'completed' || production.status === 'cancelled') {
+                const todayStr = new Date().toISOString().split('T')[0];
+                endDateInput.value = todayStr;
+                endDateInput.disabled = false;
+            } else {
+                endDateInput.disabled = false;
+            }
+
+            // Attach event listener for status change
+            statusInput.removeEventListener('change', handleStatusChange); // Remove previous if any
+            statusInput.addEventListener('change', handleStatusChange);
+
+            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des détails de la production :', error);

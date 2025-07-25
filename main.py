@@ -37,7 +37,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -1907,7 +1907,7 @@ def export_sch():
                 model2_rows.append(row)
             elif any(row[k] for k in model3_shift_keys):
                 model3_rows.append(row)
-        
+
         # Helper to render a table for a given set of rows and shift keys
         def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
             if not rows:
@@ -2629,12 +2629,7 @@ def export_history():
             ''', (date_obj,))
         assignments = cursor.fetchall()
         conn.close()
-
-        # Build data structure: list of rows, each row is a unique (machine, article) for the day
-        # Each row will have shift assignments for that machine+article
-        # This allows multiple articles per machine per day
-
-        # Step 1: collect all unique (machine_name, article_name, article_abbreviation, machine_type)
+        # Collect all unique (machine_name, article_name, article_abbreviation, machine_type)
         machine_article_keys = []
         machine_article_map = {}  # (machine_name, article_name, article_abbreviation, machine_type) -> {shift_key: operator_name}
         for row in assignments:
@@ -2839,19 +2834,17 @@ def export_history():
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 # Table header row (row 0): Helvetica-Bold
                 ('FONTNAME', (0, 0), (-1, 0), helvetica_bold_font),
-                # Machine names (first column, all data rows): Helvetica-Bold
                 ('FONTNAME', (0, 1), (0, -1), helvetica_bold_font),
-                # Other cells: fallback to font_name (Amiri/Arabic/Helvetica)
                 ('FONTNAME', (1, 1), (-1, -1), bold_font_name),
                 # Other cells: fallback to font_name (Amiri/Arabic/Helvetica)
                 ('FONTNAME', (1, 2), (-1, -1), bold_font_name),
-                ('FONTSIZE', (0, 0), (-1, 0), 16),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 0),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#000000')),
-                ('FONTSIZE', (0, 1), (0, -1), 14),
-                ('FONTSIZE', (1, 1), (-1, -1), 12 if name_type == 'latin' else 16),
+                ('FONTSIZE', (0, 1), (0, -1), 12),
+                ('FONTSIZE', (1, 1), (-1, -1), 10 if name_type == 'latin' else 15),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('WORDWRAP', (0, 0), (-1, -1), True),
