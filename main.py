@@ -2917,42 +2917,77 @@ def split_production():
                 return jsonify({'success': False, 'message': 'Production not found'}), 404
 
             old_machine_id = prod['machine_id']
+            old_article_id = prod['article_id']
+            old_quantity = prod['quantity']
+            old_status = prod['status']
+            old_start_date = prod['start_date']
+            old_end_date = prod['end_date']
 
-            # 2. Set the end_date of the current production to yesterday and mark as completed
-            today = datetime.strptime(start_date, '%Y-%m-%d').date()
-            yesterday = today - timedelta(days=1)
-            cursor.execute(
-                "UPDATE production SET end_date = %s, status = 'completed' WHERE id = %s",
-                (yesterday.strftime('%Y-%m-%d'), production_id)
-            )
+            # Only split (insert new) if machine or article changed
+            machine_changed = str(machine_id) != str(old_machine_id)
+            article_changed = str(article_id) != str(old_article_id)
 
-            # 3. Insert the new production starting today
-            insert_sql = """
-                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(
-                insert_sql,
-                (machine_id, article_id, quantity, start_date, end_date, status)
-            )
-            new_production_id = cursor.lastrowid
+            if machine_changed or article_changed:
+                # 2. Set the end_date of the current production to yesterday and mark as completed
+                today = datetime.strptime(start_date, '%Y-%m-%d').date()
+                yesterday = today - timedelta(days=1)
+                cursor.execute(
+                    "UPDATE production SET end_date = %s, status = 'completed' WHERE id = %s",
+                    (yesterday.strftime('%Y-%m-%d'), production_id)
+                )
 
-            # 4. Update schedule assignments for the current week to point to the new production
-            week_number = today.isocalendar()[1]
-            year = today.year
-            
-            update_schedule_sql = """
-                UPDATE schedule
-                SET machine_id = %s, production_id = %s
-                WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
-            """
-            cursor.execute(
-                update_schedule_sql,
-                (machine_id, new_production_id, old_machine_id, production_id, week_number, year)
-            )
+                # 3. Insert the new production starting today
+                insert_sql = """
+                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(
+                    insert_sql,
+                    (machine_id, article_id, quantity, start_date, end_date, status)
+                )
+                new_production_id = cursor.lastrowid
 
-            connection.commit()
-            return jsonify({'success': True, 'message': 'Production split and new production created successfully'})
+                # 4. Update schedule assignments for the current week to point to the new production
+                week_number = datetime.strptime(start_date, '%Y-%m-%d').date().isocalendar()[1]
+                year = datetime.strptime(start_date, '%Y-%m-%d').date().year
+
+                update_schedule_sql = """
+                    UPDATE schedule
+                    SET machine_id = %s, production_id = %s
+                    WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
+                """
+                cursor.execute(
+                    update_schedule_sql,
+                    (machine_id, new_production_id, old_machine_id, production_id, week_number, year)
+                )
+
+                connection.commit()
+                return jsonify({'success': True, 'message': 'Production split and new production created successfully'})
+            else:
+                # Only update the fields that changed (quantity, status, end_date)
+                updates = []
+                params = []
+
+                if quantity is not None and str(quantity) != str(old_quantity):
+                    updates.append("quantity = %s")
+                    params.append(quantity)
+                if status is not None and str(status) != str(old_status):
+                    updates.append("status = %s")
+                    params.append(status)
+                if end_date is not None and (not old_end_date or str(end_date) != str(old_end_date)):
+                    updates.append("end_date = %s")
+                    params.append(end_date)
+                elif end_date is None and old_end_date is not None:
+                    updates.append("end_date = NULL")
+
+                if not updates:
+                    return jsonify({'success': True, 'message': 'No changes detected'})
+
+                sql = f"UPDATE production SET {', '.join(updates)} WHERE id = %s"
+                params.append(production_id)
+                cursor.execute(sql, params)
+                connection.commit()
+                return jsonify({'success': True, 'message': 'Production updated successfully (no split)'})
     except Exception as e:
         connection.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500

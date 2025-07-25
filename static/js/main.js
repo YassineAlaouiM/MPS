@@ -632,6 +632,11 @@ function saveProductionEdit() {
     const id = document.getElementById('editProductionId').value;
     const machineSelect = document.getElementById('editProductionMachine');
     const machineId = machineSelect.value;
+    const originalMachineId = machineSelect.getAttribute('data-original');
+    const articleSelect = document.getElementById('editProductionArticle');
+    const articleId = articleSelect.value;
+    const originalArticleId = articleSelect.getAttribute('data-original');
+    const quantity = document.getElementById('editProductionQuantity').value;
     const startDate = document.getElementById('editProductionStartDate').value;
     const endDate = document.getElementById('editProductionEndDate').value;
     const status = document.getElementById('editProductionStatus').value;
@@ -648,27 +653,22 @@ function saveProductionEdit() {
 
     if (!machineId || !startDate) {
         alert('Veuillez remplir tous les champs obligatoires');
-            return;
+        return;
     }
 
+    // If machine or article changed, use split logic
+    if (machineId !== originalMachineId || articleId !== originalArticleId) {
+        saveSplitProduction();
+        return;
+    }
+
+    // Otherwise, just update the existing production
     const data = {
-        machine_id: machineId,
+        quantity: quantity,
+        status: status,
         start_date: startDate,
-        end_date: endDate || null,
-        status: status
+        end_date: endDate || null
     };
-
-    // Add article data only if it's not a service machine
-    const selectedOption = machineSelect.options[machineSelect.selectedIndex];
-    const isService = selectedOption.getAttribute('data-type') === 'true';
-    
-    if (!isService) {
-        const articleId = document.getElementById('editProductionArticle').value;
-        const quantity = document.getElementById('editProductionQuantity').value;
-        
-        data.article_id = articleId;
-        data.quantity = quantity;
-    }
 
     fetch(`/api/production/${id}`, {
         method: 'PUT',
@@ -704,29 +704,29 @@ function editProduction(id) {
             document.getElementById('editProductionId').value = production.id;
             const machineSelect = document.getElementById('editProductionMachine');
             machineSelect.value = production.machine_id;
-            document.getElementById('editProductionArticle').value = production.article_id;
+            machineSelect.setAttribute('data-original', production.machine_id);
+            const articleSelect = document.getElementById('editProductionArticle');
+            articleSelect.value = production.article_id;
+            articleSelect.setAttribute('data-original', production.article_id);
             document.getElementById('editProductionQuantity').value = production.quantity;
 
             const startDateInput = document.getElementById('editProductionStartDate');
-            const originalStartDate = new Date(production.start_date);
-            const today = new Date();
-            if (originalStartDate < today) {
-                startDateInput.value = today.toISOString().split('T')[0];
+            if (production.start_date) {
+                const startDateObj = new Date(production.start_date);
+                startDateInput.value = !isNaN(startDateObj) ? startDateObj.toISOString().split('T')[0] : '';
             } else {
-                startDateInput.value = production.start_date.split('T')[0];
+                startDateInput.value = '';
             }
 
             const endDateInput = document.getElementById('editProductionEndDate');
             const statusInput = document.getElementById('editProductionStatus');
 
-            // Helper to handle status change and end date logic
             function handleStatusChange() {
                 const status = statusInput.value;
                 if (status === 'active') {
                     endDateInput.value = '';
                     endDateInput.disabled = true;
                 } else if (status === 'completed' || status === 'cancelled') {
-                    // Set to today if not already set
                     const todayStr = new Date().toISOString().split('T')[0];
                     endDateInput.value = todayStr;
                     endDateInput.disabled = false;
@@ -735,7 +735,6 @@ function editProduction(id) {
                 }
             }
 
-            // Set initial status and end date
             statusInput.value = production.status;
             if (production.status === 'active') {
                 endDateInput.value = '';
@@ -748,8 +747,7 @@ function editProduction(id) {
                 endDateInput.disabled = false;
             }
 
-            // Attach event listener for status change
-            statusInput.removeEventListener('change', handleStatusChange); // Remove previous if any
+            statusInput.removeEventListener('change', handleStatusChange);
             statusInput.addEventListener('change', handleStatusChange);
 
             new bootstrap.Modal(document.getElementById('editProductionModal')).show();
