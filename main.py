@@ -2997,6 +2997,9 @@ def split_production():
 @app.route('/rest_days')
 @login_required
 def rest_days():
+    if not has_page_access('rest_days'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
     # Get start_date from query or use today
     start_date_str = request.args.get('start_date')
     if start_date_str:
@@ -3019,11 +3022,16 @@ def rest_days():
     # Map: (operator_id, date) -> True
     rest_map = {(r['operator_id'], str(r['date'])[:10]): True for r in rest_days}
     week_dates = [(week_start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-    return render_template('rest_days.html', week_start=week_start, week_end=week_end, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name, timedelta=timedelta)
+    current_access = get_user_accessible_pages(current_user.id)
+    can_edit = current_access.get('rest_days', True) if current_user.role != 'admin' else True
+    return render_template('rest_days.html', week_start=week_start, week_end=week_end, week_dates=week_dates, operators=operators, rest_map=rest_map, day_name=day_name, timedelta=timedelta, can_edit=can_edit)
 
 @app.route('/api/rest_days', methods=['GET', 'POST'])
 @login_required
 def api_rest_days():
+    if request.method == 'POST':
+        if not has_page_access('rest_days', require_edit=True):
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
     if request.method == 'GET':
         week = int(request.args.get('week'))
         year = int(request.args.get('year'))

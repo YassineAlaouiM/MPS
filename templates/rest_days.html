@@ -41,7 +41,7 @@
                             <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par opérateur ou jour de repos...">
                         </div>
                     </div>
-                    <form id="restDaysForm">
+                    <form id="restDaysForm" data-can-edit="{{ 'true' if can_edit else 'false' }}">
                         <div class="table-responsive">
                             <table class="table table-bordered align-middle text-center" id="restDaysTable">
                                 <thead class="table-light">
@@ -61,7 +61,9 @@
                                         <td class="text-start">{{ operator.name }}</td>
                                         {% for d in week_dates %}
                                         <td>
-                                            <input type="checkbox" class="rest-day-checkbox" name="rest_{{ operator.id }}" value="{{ d }}" {% if rest_map.get((operator.id, d)) %}checked{% endif %}>
+                                            {% if rest_map.get((operator.id, d)) or can_edit %}
+                                            <input type="checkbox" class="rest-day-checkbox" name="rest_{{ operator.id }}" value="{{ d }}" {% if rest_map.get((operator.id, d)) %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                                            {% endif %}
                                         </td>
                                         {% endfor %}
                                     </tr>
@@ -70,7 +72,9 @@
                             </table>
                         </div>
                         <div class="text-end d-flex justify-content-between mt-3">
+                            {% if can_edit %}
                             <button type="button" class="btn btn-primary" onclick="saveRestDays()">Enregistrer</button>
+                            {% endif %}
                             <div class="text-end mb-3">
                                 <button id="export-rest-days-pdf-button" class="btn btn-light" onclick="exportRestDaysPDF('fr')">
                                     Exporter en Français
@@ -97,6 +101,12 @@ function getUrlParams() {
 }
 
 function saveRestDays() {
+    const restForm = document.getElementById('restDaysForm');
+    const canEdit = restForm.getAttribute('data-can-edit') === 'true';
+    if (!canEdit) {
+        alert('Vous n\'avez pas les permissions pour modifier les jours de repos.');
+        return;
+    }
     const form = document.getElementById('restDaysForm');
     const checkboxes = form.querySelectorAll('input[type=checkbox]:checked');
     const rest_days = [];
