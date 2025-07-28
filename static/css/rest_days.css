@@ -32,9 +32,19 @@ tr:hover {
     margin: 0;
 }
 
+.table {
+    width: 100% !important;
+    table-layout: auto;
+}
+
 .table-responsive {
     border-radius: 12px;
     overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    -ms-overflow-style: -ms-autohiding-scrollbar;
+    scrollbar-width: thin;
+    scrollbar-color: #d7dde4 #f8f9fa;
 }
 
 .table-bordered {
@@ -247,4 +257,45 @@ table input[type="checkbox"] {
 table input[type="checkbox"]:checked {
     background-color: #1461d4;
     border-color: #1461d4;
+}
+
+#restDaysTable {
+  min-width: 900px;
+}
+
+@media (max-width: 992px) {
+    .table th, .table td {
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 80px;
+    }
+  }
+
+@media (max-width: 576px) {
+  .table th, .table td {
+    font-size: 13px;
+    padding: 6px 4px;
+    max-width: 60px;
+  }
+  .card .card-body {
+    padding: 0.5rem;
+  }
+  .card .card-header {
+    padding: 0.75rem;
+  }
+  .navigation-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .week-navigation {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .btn, .btn-primary, .btn-light, button, .form-select, input[type='date'] {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+    height: auto !important;
+    min-height: 36px !important;
+  }
 }
