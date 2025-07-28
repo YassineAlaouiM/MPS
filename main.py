@@ -2643,7 +2643,12 @@ def export_history():
             if key not in machine_article_map:
                 machine_article_map[key] = {}
                 machine_article_keys.append(key)
-            machine_article_map[key][s] = op
+            # Handle multiple operators for the same machine/shift combination
+            if s in machine_article_map[key]:
+                # If there's already an operator, append with comma separator
+                machine_article_map[key][s] = machine_article_map[key][s] + ', ' + op
+            else:
+                machine_article_map[key][s] = op
 
         # Prepare rows for the PDF (like export_sch)
         model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
