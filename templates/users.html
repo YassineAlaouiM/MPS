@@ -137,48 +137,75 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Pages accessibles</label>
-                        <div class="border rounded p-3">
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="page_machines" value="machines">
-                                <label class="form-check-label me-2" for="page_machines">
-                                    <i class='bx bx-cube me-2'></i>Machines
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="perm_machines" style="min-width:120px;" disabled>
+                        <div class="border rounded p-3 row">
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_machines" value="machines">
+                                    <label class="form-check-label" for="page_machines">Machines</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_machines" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="page_operators" value="operators">
-                                <label class="form-check-label me-2" for="page_operators">
-                                    <i class='bx bx-group me-2'></i>Opérateurs
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="perm_operators" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_operators" value="operators">
+                                    <label class="form-check-label" for="page_operators">Opérateurs</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_operators" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="page_production" value="production">
-                                <label class="form-check-label me-2" for="page_production">
-                                    <i class='bx bx-cube-alt me-2'></i>Production
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="perm_production" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_production" value="production">
+                                    <label class="form-check-label" for="page_production">Production</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_production" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="page_schedule" value="schedule">
-                                <label class="form-check-label me-2" for="page_schedule">
-                                    <i class='bx bx-calendar me-2'></i>Planning
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="perm_schedule" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_schedule" value="schedule">
+                                    <label class="form-check-label" for="page_schedule">Planning</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_schedule" disabled>
+                                    <option value="edit">Modification</option>
+                                    <option value="read">Lecture seule</option>
+                                </select>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_history" value="history">
+                                    <label class="form-check-label" for="page_history">Historique</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_history" disabled>
+                                    <option value="edit">Modification</option>
+                                    <option value="read">Lecture seule</option>
+                                </select>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="page_rest_days" value="rest_days">
+                                    <label class="form-check-label" for="page_rest_days">Repos</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="perm_rest_days" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
                         </div>
+                        <!--
+                        Recommended CSS for square checkboxes:
+                        .form-check-input[type="checkbox"] {
+                          width: 1.2em;
+                          height: 1.2em;
+                        }
+                        -->
                     </div>
                 </form>
             </div>
@@ -241,48 +268,75 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Pages accessibles</label>
-                        <div class="border rounded p-3">
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="edit_page_machines" value="machines">
-                                <label class="form-check-label me-2" for="edit_page_machines">
-                                    <i class='bx bx-cube me-2'></i>Machines
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="edit_perm_machines" style="min-width:120px;" disabled>
+                        <div class="border rounded p-3 row">
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_machines" value="machines">
+                                    <label class="form-check-label" for="edit_page_machines">Machines</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_machines" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="edit_page_operators" value="operators">
-                                <label class="form-check-label me-2" for="edit_page_operators">
-                                    <i class='bx bx-group me-2'></i>Opérateurs
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="edit_perm_operators" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_operators" value="operators">
+                                    <label class="form-check-label" for="edit_page_operators">Opérateurs</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_operators" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="edit_page_production" value="production">
-                                <label class="form-check-label me-2" for="edit_page_production">
-                                    <i class='bx bx-cube-alt me-2'></i>Production
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="edit_perm_production" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_production" value="production">
+                                    <label class="form-check-label" for="edit_page_production">Production</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_production" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
-                            <div class="form-check d-flex align-items-center mb-2">
-                                <input class="form-check-input me-2" type="checkbox" id="edit_page_schedule" value="schedule">
-                                <label class="form-check-label me-2" for="edit_page_schedule">
-                                    <i class='bx bx-calendar me-2'></i>Planning
-                                </label>
-                                <select class="form-select form-select-sm w-auto ms-2" id="edit_perm_schedule" style="min-width:120px;" disabled>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_schedule" value="schedule">
+                                    <label class="form-check-label" for="edit_page_schedule">Planning</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_schedule" disabled>
+                                    <option value="edit">Modification</option>
+                                    <option value="read">Lecture seule</option>
+                                </select>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_history" value="history">
+                                    <label class="form-check-label" for="edit_page_history">Historique</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_history" disabled>
+                                    <option value="edit">Modification</option>
+                                    <option value="read">Lecture seule</option>
+                                </select>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_page_rest_days" value="rest_days">
+                                    <label class="form-check-label" for="edit_page_rest_days">Repos</label>
+                                </div>
+                                <select class="form-select form-select-sm w-100 mt-1" id="edit_perm_rest_days" disabled>
                                     <option value="edit">Modification</option>
                                     <option value="read">Lecture seule</option>
                                 </select>
                             </div>
                         </div>
+                        <!--
+                        Recommended CSS for square checkboxes:
+                        .form-check-input[type="checkbox"] {
+                          width: 1.2em;
+                          height: 1.2em;
+                        }
+                        -->
                     </div>
                 </form>
             </div>

@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Utility to handle enabling/disabling permission dropdowns
             function setupPagePermissionHandlers(prefix = '') {
-                const pages = ['machines', 'operators', 'production', 'schedule'];
+                const pages = ['machines', 'operators', 'production', 'schedule', 'rest_days', 'history'];
                 pages.forEach(page => {
                     const checkbox = document.getElementById(`${prefix}page_${page}`);
                     const select = document.getElementById(`${prefix}perm_${page}`);
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Collect accessible_pages array for backend
             function collectAccessiblePages(prefix = '') {
-                const pages = ['machines', 'operators', 'production', 'schedule'];
+                const pages = ['machines', 'operators', 'production', 'schedule', 'rest_days', 'history'];
                 const result = [];
                 pages.forEach(page => {
                     const checkbox = document.getElementById(`${prefix}page_${page}`);
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.getElementById('editEmail').value = user.email;
                         document.getElementById('editRole').value = user.role;
                         // Reset checkboxes and dropdowns
-                        ['machines', 'operators', 'production', 'schedule'].forEach(page => {
+                        ['machines', 'operators', 'production', 'schedule', 'rest_days', 'history'].forEach(page => {
                             const cb = document.getElementById(`edit_page_${page}`);
                             const sel = document.getElementById(`edit_perm_${page}`);
                             cb.checked = false;
