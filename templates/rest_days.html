@@ -70,7 +70,6 @@
                             </table>
                         </div>
                         <div class="text-end d-flex justify-content-between mt-3">
-                            {% if can_edit %}
                             <button type="button" class="btn btn-primary" onclick="saveRestDays()">Enregistrer</button>
                             <div class="text-end mb-3">
                                 <button id="export-rest-days-pdf-button" class="btn btn-light" onclick="exportRestDaysPDF('fr')">
@@ -80,16 +79,6 @@
                                     Exporter en Arabe
                                 </button>
                             </div>
-                            {% else %}
-                            <div class="text-end mb-3">
-                                <button id="export-rest-days-pdf-button" class="btn btn-light" onclick="exportRestDaysPDF('fr')">
-                                    Exporter en Français
-                                </button>
-                                <button id="export-rest-days-pdf-ar-button" class="btn btn-light ms-2" onclick="exportRestDaysPDF('ar')">
-                                    Exporter en Arabe
-                                </button>
-                            </div>
-                            {% endif %}
                         </div>
                     </form>
                 </div>
