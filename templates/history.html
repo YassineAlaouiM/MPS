@@ -74,15 +74,36 @@
                                         {% if schedule_data %}
                                             <div class="machines-grid">
                                                 {% for machine, assignments in schedule_data.items() %}
-                                                <div class="machine-card" data-machine="{{ machine.lower() }}">
+                                                {% set has_completed = false %}
+                                                {% for assignment in assignments %}
+                                                    {% if assignment.is_completed %}
+                                                        {% set has_completed = true %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                <div class="machine-card {% if has_completed %}has-completed{% endif %}" data-machine="{{ machine.lower() }}">
                                                     <div class="machine-header">
-                                                        <h5>{{ machine }}</h5>
+                                                        <h5>
+                                                            {{ machine }}
+                                                            {% set has_non_functioning = false %}
+                                                            {% for assignment in assignments %}
+                                                                {% if assignment.is_non_functioning and not has_non_functioning %}
+                                                                    {% set has_non_functioning = true %}
+                                                                    <span class="non-functioning-inline">
+                                                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                                                        Panne - {{ assignment.start_time }}
+                                                                    </span>
+                                                                {% endif %}
+                                                            {% endfor %}
+                                                        </h5>
                                                     </div>
                                                     <div class="assignments-list">
                                                         {% for assignment in assignments %}
-                                                        <div class="assignment-item">
+                                                        {% if not assignment.is_non_functioning %}
+                                                        <div class="assignment-item {% if assignment.is_repaired %}repaired{% endif %}{% if assignment.is_completed %} completed{% endif %}">
                                                             <div class="operator-info">
-                                                                <span class="operator-name">{{ assignment.operator }}</span>
+                                                                <span class="operator-name {% if assignment.is_repaired %}text-success{% endif %}">
+                                                                    {{ assignment.operator or assignment.operator_name }}
+                                                                </span>
                                                             </div>
                                                             <div class="shift-article-info">
                                                                 <div class="article-info">
@@ -97,9 +118,30 @@
                                                                         {{ assignment.start_time.split(':')[0]|int }}h-{{ assignment.end_time.split(':')[0]|int }}h
                                                                     </span>
                                                                 </div>
-
                                                             </div>
                                                         </div>
+                                                        {% else %}
+                                                        <!-- NFM notification only - no operators -->
+                                                        <div class="assignment-item non-functioning">
+                                                            <div class="operator-info">
+                                                                <span class="operator-name text-danger">
+                                                                    Machine en panne
+                                                                </span>
+                                                            </div>
+                                                            <div class="shift-article-info non-functioning">
+                                                                <div class="article-info">
+                                                                    <i class="fas fa-exclamation-triangle text-danger"></i>
+                                                                    <small class="text text-danger">{{ assignment.article }}</small>
+                                                                </div>
+                                                                <div class="shift-info">
+                                                                    <i class="fas fa-exclamation-circle text-danger"></i>
+                                                                    <span class="shift-time text-danger">
+                                                                        Signalée à {{ assignment.start_time }}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
                                                         {% endfor %}
                                                     </div>
                                                 </div>

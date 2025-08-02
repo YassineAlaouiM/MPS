@@ -199,6 +199,17 @@
     color: #000;
 }
 
+.non-functioning-inline {
+    color: #dc3545;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-left: 0.75rem;
+}
+
+.non-functioning-inline i {
+    margin-right: 0.25rem;
+}
+
 .machine-card:hover .machine-header{
     border-bottom: 1px solid #1461d4;
 }
@@ -220,6 +231,57 @@
 
 .assignment-item:hover {
     border-color: #1461d4;
+}
+
+/* Non-functioning machine styling */
+.assignment-item.non-functioning {
+    background: rgba(220, 53, 69, 0.05);
+    border-color: #dc3545;
+}
+
+.assignment-item.non-functioning:hover {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.1);
+}
+
+/* Completed Productions Styling */
+.assignment-item.completed {
+    background-color: #f8f9fa;
+    border: 1px solid #6c757d;
+    border-left: 4px solid #6c757d;
+    opacity: 0.5;
+}
+
+.assignment-item.completed:hover {
+    background-color: #e9ecef;
+    border-color: #1461d4;
+    border: 1px solid #6c757d;
+    border-left: 4px solid #6c757d;
+    opacity: 0.5;
+}
+
+.assignment-item.completed:hover {
+    background-color: #e9ecef;
+    border-color: #1461d4;
+    border-left-color: #1461d4;
+    opacity: 1;
+}
+
+.assignment-item.completed .operator-name {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.assignment-item.completed .shift-article-info {
+    opacity: 0.9;
+}
+
+.assignment-item.completed .article-info small {
+    color: #6c757d;
+}
+
+.assignment-item.completed .shift-time {
+    color: #6c757d;
 }
 
 /* Operator Information Styles */
@@ -254,6 +316,10 @@
     background: #f8f9fa;
     border-radius: 4px;
     border-left: 3px solid #1461d4;
+}
+
+.shift-article-info.non-functioning {
+    border-left: 3px solid #dc3545;
 }
 
 /* Shift Information Styles */

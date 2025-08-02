@@ -66,9 +66,16 @@
             </thead>
             <tbody>
                 {% for machine in machines %}
-                <tr>
+                <tr {% if machine.is_nfm %}class="nfm-machine"{% endif %}>
                     <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
-                    <td {% if machine.production_id %}onclick="editProduction('{{ machine.production_id }}')" style="cursor:pointer;" onmouseover="this.style.color='#1461d4'" onmouseout="this.style.color='black'" {% endif %}>
+                    <td 
+                        {% if machine.production_id %}
+                            onclick="editProduction('{{ machine.production_id }}')" 
+                            style="cursor:pointer;" 
+                            onmouseover="this.style.color='{{ ' #d51837' if machine.is_nfm else '#1461d4' }}'" 
+                            onmouseout="this.style.color='black'" 
+                        {% endif %}
+                    >
                         {{ machine.name }}
                         {% if machine.article_name %}
                         <br><small class="text-muted">{{ machine.article_name }}</small>
@@ -108,6 +115,11 @@
                                                 {% if (operator.absence_status == 'upcoming_absence' or operator.absence_status == 'long_absence' or operator.absence_status == 'current_absence') and operator.start_date %}
                                                     ({{ operator.start_date }}{% if operator.end_date and operator.end_date != operator.start_date %} -> {{ operator.end_date }}{% endif %})
                                                 {% endif %}
+                                            </option>
+                                            {% endfor %}
+                                            {% for operator in all_operators if operator.status == 'inactive' and assignment.operator_id == operator.id %}
+                                            <option value="{{ operator.id }}" selected disabled style="color: #b3b3b3;">
+                                                {{ operator.name }} (Inactif)
                                             </option>
                                             {% endfor %}
                                         </select>
@@ -219,6 +231,14 @@
                         <label for="productionEndDate" class="form-label">Date de fin</label>
                         <input type="date" class="form-control" id="productionEndDate">
                     </div>
+                    <div class="mb-3">
+                        <label for="productionHourStart" class="form-label">Heure de début</label>
+                        <input type="time" class="form-control" id="productionHourStart">
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionHourEnd" class="form-label">Heure de fin</label>
+                        <input type="time" class="form-control" id="productionHourEnd">
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -242,7 +262,7 @@
                     <input type="hidden" id="editProductionId">
                     <div class="mb-3">
                         <label for="editProductionMachine" class="form-label">Machine</label>
-                        <select class="form-select" id="editProductionMachine" required>
+                        <select class="form-select" id="editProductionMachine" required onchange="toggleEditArticleFields()">
                             <option value="">Sélectionner une machine</option>
                             {% for machine in all_machines %}
                             <option value="{{ machine.id }}" data-type="{{ machine.type }}">{{ machine.name }}</option>
@@ -271,6 +291,14 @@
                         <input type="date" class="form-control" id="editProductionEndDate">
                     </div>
                     <div class="mb-3">
+                        <label for="editProductionHourStart" class="form-label">Heure de début</label>
+                        <input type="time" class="form-control" id="editProductionHourStart">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionHourEnd" class="form-label">Heure de fin</label>
+                        <input type="time" class="form-control" id="editProductionHourEnd">
+                    </div>
+                    <div class="mb-3">
                         <label for="editProductionStatus" class="form-label">Statut</label>
                         <select class="form-select" id="editProductionStatus" required>
                             <option value="active">Actif</option>
@@ -290,6 +318,8 @@
 {% endif %}
 
 <script>
+// editProduction function is now globally available from main.js
+
 function exportToPDF(nameType) {
     // Get current week and year from the page
     const week = {{ week }};
@@ -583,6 +613,34 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStoredAssignments();
     initializeSelects();
     updateOperatorDropdowns();
+    
+    // Add modal reset functionality for add production modal
+    const addProductionModal = document.getElementById('addProductionModal');
+    if (addProductionModal) {
+        // Reset modal when it's shown
+        addProductionModal.addEventListener('show.bs.modal', function() {
+            resetAddProductionModal();
+        });
+        
+        // Reset modal when it's hidden (closed without confirming)
+        addProductionModal.addEventListener('hidden.bs.modal', function() {
+            resetAddProductionModal();
+        });
+    }
+    
+    // Add modal reset functionality for edit production modal
+    const editProductionModal = document.getElementById('editProductionModal');
+    if (editProductionModal) {
+        // Reset modal when it's shown
+        editProductionModal.addEventListener('show.bs.modal', function() {
+            resetEditProductionModal();
+        });
+        
+        // Reset modal when it's hidden (closed without confirming)
+        editProductionModal.addEventListener('hidden.bs.modal', function() {
+            resetEditProductionModal();
+        });
+    }
 });
 
 function removeFromDisplay() {
@@ -1138,6 +1196,100 @@ function addOperator(button) {
     operatorItem.querySelector('select').value = '';
     operatorsList.appendChild(operatorItem);
     updateOperatorDropdowns();
+}
+
+function resetAddProductionModal() {
+    // Only reset if we're not in edit mode (no ID in the hidden field)
+    const editId = document.getElementById('editProductionId');
+    if (editId && editId.value) {
+        return; // Don't reset if we're editing
+    }
+    
+    // Reset all form fields
+    const form = document.getElementById('addProductionForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Reset specific fields to ensure they're empty
+    const fields = [
+        'productionMachine',
+        'productionArticle', 
+        'productionQuantity',
+        'productionStartDate',
+        'productionEndDate',
+        'productionHourStart',
+        'productionHourEnd'
+    ];
+    
+    fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.value = '';
+        }
+    });
+    
+    // Show article fields by default so users can see them
+    const articleFields = document.querySelectorAll('.article-field');
+    articleFields.forEach(field => {
+        field.style.display = 'block';
+    });
+    
+    // Reset any validation states
+    if (form) {
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.classList.remove('is-valid', 'is-invalid');
+        });
+    }
+}
+
+function resetEditProductionModal() {
+    // Don't reset if we're actively editing - let the editProduction function handle the population
+    const editId = document.getElementById('editProductionId');
+    if (editId && editId.value) {
+        return; // Don't reset if we're editing
+    }
+    
+    // Only reset if we're opening the modal for adding new production
+    // Reset all form fields
+    const form = document.getElementById('editProductionForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Reset specific fields to ensure they're empty
+    const fields = [
+        'editProductionMachine',
+        'editProductionArticle', 
+        'editProductionQuantity',
+        'editProductionStartDate',
+        'editProductionEndDate',
+        'editProductionHourStart',
+        'editProductionHourEnd',
+        'editProductionStatus'
+    ];
+    
+    fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.value = '';
+        }
+    });
+    
+    // Show article fields by default so users can see them
+    const articleFields = document.querySelectorAll('.edit-article-field');
+    articleFields.forEach(field => {
+        field.style.display = 'block';
+    });
+    
+    // Reset any validation states
+    if (form) {
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.classList.remove('is-valid', 'is-invalid');
+        });
+    }
 }
 </script>
 {% endblock %}

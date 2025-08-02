@@ -37,7 +37,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -46,7 +46,6 @@ db_config = {
 # Login manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-# login_manager.login_view = 'login'  # <-- Remove or comment out this line
 
 class User(UserMixin):
     def __init__(self, user_id, username, role):
@@ -471,6 +470,7 @@ def toggle_machine_type(machine_id):
 
 @app.route('/api/machines/<int:machine_id>/poste', methods=['GET'])
 @login_required
+
 def get_machine_poste(machine_id):
     connection = get_db_connection()
     try:
@@ -509,8 +509,93 @@ def delete_machine(machine_id):
         return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
-
+#Completed Productions Management
+def save_completed_production_to_history(production_id, completion_date):
+    """Save completed production assignments to completed_productions table"""
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Get all assignments for this production
+            cursor.execute('''
+                SELECT 
+                    s.machine_id, m.name as machine_name,
+                    s.production_id, p.article_id,
+                    a.name as article_name, a.abbreviation as article_abbreviation,
+                    s.operator_id, o.name as operator_name,
+                    s.shift_id, sh.name as shift_name,
+                    s.position, s.week_number, s.year
+                FROM schedule s
+                JOIN machines m ON s.machine_id = m.id
+                JOIN production p ON s.production_id = p.id
+                LEFT JOIN articles a ON p.article_id = a.id
+                JOIN operators o ON s.operator_id = o.id
+                JOIN shifts sh ON s.shift_id = sh.id
+                WHERE s.production_id = %s
+            ''', (production_id,))
+            
+            assignments = cursor.fetchall()
+            
+            # Insert each assignment into completed_productions
+            for assignment in assignments:
+                cursor.execute('''
+                    INSERT INTO completed_productions (
+                        production_id, machine_id, machine_name,
+                        article_id, article_name, article_abbreviation,
+                        operator_id, operator_name, shift_id, shift_name,
+                        shift_start_time, shift_end_time, position, week_number, year, completion_date
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    assignment['production_id'], assignment['machine_id'], assignment['machine_name'],
+                    assignment['article_id'], assignment['article_name'], assignment['article_abbreviation'],
+                    assignment['operator_id'], assignment['operator_name'], assignment['shift_id'], assignment['shift_name'],
+                    assignment['start_time'], assignment['end_time'], assignment['position'], assignment['week_number'], assignment['year'], completion_date
+                ))
+            
+            connection.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving completed production to history: {str(e)}")
+        connection.rollback()
+        return False
+    finally:
+        connection.close()
 #Non-Functioning Machines Management (Mahcines en panne)
+def save_non_functioning_machine_to_history(machine_id, issue, reported_date, is_repair=False):
+    """Save non-functioning machine event to history immediately"""
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Get machine name
+            cursor.execute("SELECT name FROM machines WHERE id = %s", (machine_id,))
+            machine_result = cursor.fetchone()
+            if not machine_result:
+                return False
+            
+            machine_name = machine_result['name']
+            # Handle different datetime formats
+            try:
+                reported_date_obj = datetime.strptime(reported_date, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    reported_date_obj = datetime.strptime(reported_date, '%Y-%m-%d %H:%M')
+                except ValueError:
+                    # If still fails, try just the date
+                    reported_date_obj = datetime.strptime(reported_date, '%Y-%m-%d %H:%M')
+            
+            date_recorded = reported_date_obj.date()
+            week = date_recorded.isocalendar()[1]
+            year = date_recorded.year
+            reported_time = reported_date_obj.strftime('%H:%M')
+            
+            connection.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving non-functioning machine to history: {str(e)}")
+        connection.rollback()
+        return False
+    finally:
+        connection.close()
+
 @app.route('/api/non_functioning_machines', methods=['POST'])
 @login_required
 def create_non_functioning_machine():
@@ -535,8 +620,13 @@ def create_non_functioning_machine():
                 INSERT INTO non_functioning_machines (machine_id, issue, reported_date)
                 VALUES (%s, %s, %s)
             """
+            # Get the machine name
             cursor.execute(sql, (machine_id, issue, reported_date))
             connection.commit()
+            
+            # Save to history immediately
+            save_non_functioning_machine_to_history(machine_id, issue, reported_date, is_repair=False)
+            
             return jsonify({'success': True, 'message': 'Non-functioning machine added successfully'})
     except pymysql.Error as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -556,14 +646,15 @@ def mark_machine_fixed(id):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Get machine_id
-            sql = "SELECT machine_id FROM non_functioning_machines WHERE id = %s"
+            # Get machine_id and issue
+            sql = "SELECT machine_id, issue FROM non_functioning_machines WHERE id = %s"
             cursor.execute(sql, (id,))
             result = cursor.fetchone()
             if not result or not isinstance(result, dict):
                 return jsonify({'success': False, 'message': 'Record not found'})
 
             machine_id = result['machine_id']
+            issue = result['issue']
 
             # Update non_functioning_machines with fixed date
             sql = "UPDATE non_functioning_machines SET fixed_date = %s WHERE id = %s"
@@ -574,6 +665,10 @@ def mark_machine_fixed(id):
             cursor.execute(sql, (machine_id,))
 
             connection.commit()
+            
+            # Save repair event to history immediately
+            save_non_functioning_machine_to_history(machine_id, issue, fixed_date, is_repair=True)
+            
             return jsonify({'success': True, 'message': 'Machine marked as fixed successfully'})
     except pymysql.Error as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -862,8 +957,6 @@ def create_production():
     start_date = data.get('start_date')
     end_date = data.get('end_date')
     
-    print(f"Creating production with data: {data}")  # Debug log
-    
     if not machine_id or not start_date:
         return jsonify({'success': False, 'message': 'Machine and start date are required'})
     
@@ -899,16 +992,14 @@ def create_production():
             
             # Add to production - for services, article_id and quantity are optional
             sql = """
-                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
-                VALUES (%s, %s, %s, %s, %s, 'active')
+                INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, hour_start, hour_end, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')
             """
-            cursor.execute(sql, (machine_id, article_id, quantity, start_date, end_date))
+            cursor.execute(sql, (machine_id, article_id, quantity, start_date, end_date, None, None))
                 
             connection.commit()
-            print("Production record created successfully")  # Debug log
             return jsonify({'success': True, 'message': 'Production added successfully'})
     except pymysql.Error as e:
-        print(f"Database error: {str(e)}")  # Debug log
         return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
@@ -951,6 +1042,16 @@ def update_production(id):
                 params.append(end_date)
             else:
                 updates.append("end_date = NULL")
+            if data.get('hour_start') is not None:
+                updates.append("hour_start = %s")
+                params.append(data.get('hour_start'))
+            else:
+                updates.append("hour_start = NULL")
+            if data.get('hour_end') is not None:
+                updates.append("hour_end = %s")
+                params.append(data.get('hour_end'))
+            else:
+                updates.append("hour_end = NULL")
             if status is not None:
                 updates.append("status = %s")
                 params.append(status)
@@ -985,6 +1086,32 @@ def get_production(id):
             production = cursor.fetchone()
             
             if production and isinstance(production, dict):
+                # Handle NULL values for hour fields and convert timedelta to string
+                hour_start = None
+                hour_end = None
+                
+                if production['hour_start'] is not None:
+                    if hasattr(production['hour_start'], 'total_seconds'):
+                        # Convert timedelta to HH:MM:SS format
+                        total_seconds = int(production['hour_start'].total_seconds())
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        seconds = total_seconds % 60
+                        hour_start = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                    else:
+                        hour_start = str(production['hour_start'])
+                
+                if production['hour_end'] is not None:
+                    if hasattr(production['hour_end'], 'total_seconds'):
+                        # Convert timedelta to HH:MM:SS format
+                        total_seconds = int(production['hour_end'].total_seconds())
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        seconds = total_seconds % 60
+                        hour_end = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                    else:
+                        hour_end = str(production['hour_end'])
+                
                 return jsonify({
                     'id': production['id'],
                     'machine_id': production['machine_id'],
@@ -995,11 +1122,15 @@ def get_production(id):
                     'quantity': production['quantity'],
                     'start_date': production['start_date'],
                     'end_date': production['end_date'],
+                    'hour_start': hour_start,
+                    'hour_end': hour_end,
                     'status': production['status']
                 })
             else:
                 return jsonify({'success': False, 'message': 'Production record not found'}), 404
     except pymysql.Error as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
@@ -1059,6 +1190,43 @@ def delete_schedule(assignment_id):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
+                # Get the assignment details before deleting
+                cursor.execute("""
+                    SELECT s.*, m.name as machine_name, o.name as operator_name, sh.name as shift_name,
+                           sh.start_time, sh.end_time, p.article_id, a.name as article_name, a.abbreviation as article_abbreviation
+                    FROM schedule s
+                    JOIN machines m ON s.machine_id = m.id
+                    JOIN operators o ON s.operator_id = o.id
+                    JOIN shifts sh ON s.shift_id = sh.id
+                    LEFT JOIN production p ON s.production_id = p.id
+                    LEFT JOIN articles a ON p.article_id = a.id
+                    WHERE s.id = %s
+                """, (assignment_id,))
+                
+                assignment = cursor.fetchone()
+                if assignment:
+                    # Save the assignment to history before deleting
+                    today = datetime.now().date()
+                    week = today.isocalendar()[1]
+                    year = today.year
+                    
+                    cursor.execute('''
+                        INSERT INTO daily_schedule_history (
+                            date_recorded, week_number, year,
+                            machine_id, production_id, operator_id, shift_id, position,
+                            machine_name, operator_name, shift_name, shift_start_time, shift_end_time,
+                            article_name, article_abbreviation
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (
+                        today, week, year,
+                        assignment['machine_id'], assignment.get('production_id'), assignment['operator_id'],
+                        assignment['shift_id'], assignment['position'],
+                        assignment['machine_name'], assignment['operator_name'], assignment['shift_name'],
+                        assignment['start_time'], assignment['end_time'],
+                        assignment['article_name'] or '', assignment['article_abbreviation'] or ''
+                    ))
+                
+                # Now delete the assignment
                 cursor.execute("DELETE FROM schedule WHERE id = %s", (assignment_id,))
                 conn.commit()
                 return jsonify({'success': True, 'message': 'Assignment deleted successfully'})
@@ -1126,6 +1294,7 @@ def get_machines_in_production():
         flash(f"Error loading machines in production: {str(e)}", "error")
         return []
 
+#Get Operators with their absence status for the selected week
 def get_operators(week=None, year=None):
     try:
         with get_db_connection() as conn:
@@ -1170,7 +1339,7 @@ def get_operators(week=None, year=None):
                             %s BETWEEN a.start_date AND a.end_date
                             OR a.start_date BETWEEN %s AND %s
                         )
-                    WHERE o.status != 'inactive'
+                    WHERE o.status IN ('active', 'absent')
                     GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
                 """, (week_dates['week_start'], week_dates['week_start'],
                       week_dates['week_start'], week_dates['week_end'],
@@ -1311,10 +1480,13 @@ def schedule():
                     flash(f"Error calculating week dates for week {week} of {year}", "error")
                     return render_template('schedule.html', machines=[], operators=[], shifts=[], assignments=[], can_edit=False)
                 cursor.execute("""
-                    SELECT m.*, p.id as production_id, p.article_id, a.name as article_name
+                    SELECT m.*, p.id as production_id, p.article_id, a.name as article_name,
+                           CASE WHEN nfm.id IS NOT NULL THEN 1 ELSE 0 END as is_nfm
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
                     LEFT JOIN articles a ON p.article_id = a.id
+                    LEFT JOIN non_functioning_machines nfm ON m.id = nfm.machine_id 
+                        AND (nfm.fixed_date IS NULL OR DATE(nfm.fixed_date) > CURDATE())
                     WHERE p.status = 'active'
                     AND (
                         (p.start_date <= %s AND (p.end_date IS NULL OR p.end_date >= %s))
@@ -1332,7 +1504,40 @@ def schedule():
                 cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
                 all_machines = cursor.fetchall()
                 # --- End add ---
+                # Get operators for dropdown (exclude inactive)
                 operators = get_operators(week, year)
+                
+                # Get all operators including inactive for display purposes
+                cursor.execute("""
+                    SELECT o.*, 
+                           MAX(a.start_date) as start_date,
+                           MAX(a.end_date) as end_date,
+                           CASE 
+                               WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
+                                   CASE 
+                                       WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
+                                           AND %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)    
+                                       THEN 'long_absence'
+                                       WHEN %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                       THEN 'current_absence'
+                                       WHEN MAX(a.start_date) BETWEEN %s AND %s
+                                       THEN 'upcoming_absence'
+                                       ELSE 'no_absence'
+                                   END
+                               ELSE 'no_absence'
+                           END as absence_status
+                    FROM operators o
+                    LEFT JOIN absences a ON o.id = a.operator_id 
+                        AND (
+                            %s BETWEEN a.start_date AND a.end_date
+                            OR a.start_date BETWEEN %s AND %s
+                        )
+                    GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
+                """, (week_dates['week_start'], week_dates['week_start'],
+                      week_dates['week_start'], week_dates['week_end'],
+                      week_dates['week_start'],
+                      week_dates['week_start'], week_dates['week_end']))
+                all_operators = cursor.fetchall()
                 shifts = get_shifts()
                 cursor.execute("""
                     SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position,
@@ -1360,11 +1565,12 @@ def schedule():
                          machines=machines,
                          all_machines=all_machines,
                          operators=operators,
+                         all_operators=all_operators,
                          shifts=shifts,
                          assignments=assignments,
                          can_edit=can_edit,
-                         articles=articles)  # Pass articles and all_machines for modal
-
+                         articles=articles)
+#Get Schedule Assignments
 @app.route('/api/schedule', methods=['GET'])
 @login_required
 def get_schedule():
@@ -1437,13 +1643,60 @@ def confirm_assignments():
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Clear existing assignments for this week
+            # 1. Before deleting, insert only completed productions into completed_productions
+            cursor.execute("""
+                SELECT 
+                    s.id as schedule_id,
+                    s.machine_id, m.name as machine_name,
+                    s.production_id, p.article_id,
+                    a.name as article_name, a.abbreviation as article_abbreviation,
+                    s.operator_id, o.name as operator_name,
+                    s.shift_id, sh.name as shift_name,
+                    sh.start_time, sh.end_time,
+                    s.position, s.week_number, s.year
+                FROM schedule s
+                JOIN machines m ON s.machine_id = m.id
+                JOIN production p ON s.production_id = p.id
+                LEFT JOIN articles a ON p.article_id = a.id
+                JOIN operators o ON s.operator_id = o.id
+                JOIN shifts sh ON s.shift_id = sh.id
+                WHERE s.week_number = %s AND s.year = %s
+                AND p.status = 'completed'
+                AND p.end_date IS NOT NULL
+            """, (week_number, year))
+            old_assignments = cursor.fetchall()
+            
+            # Get completion dates for each production
+            for assignment in old_assignments:
+                cursor.execute("""
+                    SELECT end_date FROM production WHERE id = %s
+                """, (assignment['production_id'],))
+                production_result = cursor.fetchone()
+                
+                if production_result and production_result['end_date']:
+                    completion_date = production_result['end_date']
+                    
+                    cursor.execute('''
+                        INSERT INTO completed_productions (
+                            production_id, machine_id, machine_name,
+                            article_id, article_name, article_abbreviation,
+                            operator_id, operator_name, shift_id, shift_name,
+                            shift_start_time, shift_end_time, position, week_number, year, completion_date
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (
+                        assignment['production_id'], assignment['machine_id'], assignment['machine_name'],
+                        assignment['article_id'], assignment['article_name'], assignment['article_abbreviation'],
+                        assignment['operator_id'], assignment['operator_name'], assignment['shift_id'], assignment['shift_name'],
+                        assignment['start_time'], assignment['end_time'], assignment['position'], assignment['week_number'], assignment['year'], completion_date
+                    ))
+
+            # 2. Clear existing assignments for this week
             cursor.execute("""
                 DELETE FROM schedule 
                 WHERE week_number = %s AND year = %s
             """, (week_number, year))
             
-            # Save new assignments to the database
+            # 3. Save new assignments to the database
             for assignment in assignments:
                 cursor.execute("""
                     INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, position, week_number, year)
@@ -1649,7 +1902,7 @@ def random_assignments():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-#PDF
+#PDF - Schedule Export
 @app.route('/export_schedule', methods=['GET'])
 @login_required
 def export_sch():
@@ -1722,6 +1975,7 @@ def export_sch():
             LEFT JOIN articles a ON p.article_id = a.id
             LEFT JOIN shifts s ON sc.shift_id = s.id
             LEFT JOIN operators o ON sc.operator_id = o.id
+            WHERE m.status != 'broken'
             GROUP BY m.id, m.name, p.id, a.name, a.abbreviation
             HAVING shift_1 IS NOT NULL 
                 OR shift_2 IS NOT NULL 
@@ -2028,7 +2282,6 @@ def get_local_ip():
         s.close()
     return ip
 
-# Add this after the User class definition
 def get_user_accessible_pages(user_id):
     connection = get_db_connection()
     try:
@@ -2056,7 +2309,6 @@ def has_page_access(page, require_edit=False):
         return accessible_pages[page]
     return True
 
-# Add this decorator function
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -2066,7 +2318,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Add these routes after the existing routes
+#Users Management
 @app.route('/users')
 @login_required
 @admin_required
@@ -2261,24 +2513,103 @@ def save_daily_schedule_history(date_to_save=None):
                 ORDER BY m.name, sh.start_time, s.position
             ''', (week, year))
             
-            assignments = cursor.fetchall()
+            current_assignments = cursor.fetchall()
+            
+            # Ensure current_assignments is a list
+            if current_assignments is None:
+                current_assignments = []
+            
+            # Get completed productions from completed_productions table
+            # Only include completed productions for the exact date they were completed
+            cursor.execute('''
+                SELECT 
+                    cp.machine_id, cp.machine_name,
+                    cp.production_id, cp.article_id,
+                    cp.article_name, cp.article_abbreviation,
+                    cp.operator_id, cp.operator_name,
+                    cp.shift_id, cp.shift_name,
+                    cp.shift_start_time as start_time, cp.shift_end_time as end_time,
+                    cp.position, cp.week_number, cp.year
+                FROM completed_productions cp
+                WHERE DATE(cp.completion_date) = %s
+                ORDER BY cp.machine_name, cp.shift_start_time, cp.position
+            ''', (date_to_save,))
+            
+            completed_assignments = cursor.fetchall()
+            
+            # Ensure completed_assignments is a list
+            if completed_assignments is None:
+                completed_assignments = []
+            
+            # Get non-functioning machines that were reported today or recently
+            cursor.execute('''
+                SELECT DISTINCT m.id, m.name as machine_name, nfm.reported_date, nfm.issue, nfm.fixed_date
+                FROM non_functioning_machines nfm
+                JOIN machines m ON nfm.machine_id = m.id
+                WHERE DATE(nfm.reported_date) = %s
+                ORDER BY m.name
+            ''', (date_to_save,))
+            
+            non_functioning_machines = cursor.fetchall()
+            
+            # Don't add any historical operators for NFM machines
+            historical_assignments = []
+            
+            # Combine current, completed, and historical assignments
+            all_assignments = list(current_assignments) + list(completed_assignments) + list(historical_assignments)
+            
+            # Group assignments by machine_name (case-insensitive, trimmed)
+            from collections import defaultdict
+            grouped_assignments = defaultdict(list)
+            for assignment in all_assignments:
+                machine_key = assignment['machine_name'].strip().lower()
+                grouped_assignments[machine_key].append(assignment)
+            
+
             
             # Insert each assignment into daily history
-            for assignment in assignments:
+            for assignment in all_assignments:
+                # Check if this assignment is completed
+                is_completed = False
+                if completed_assignments:
+                    completed_keys = set()
+                    for cp in completed_assignments:
+                        completed_keys.add((
+                            cp.get('machine_name', ''),
+                            cp.get('operator_name', ''),
+                            cp.get('shift_name', ''),
+                            cp.get('start_time'),
+                            cp.get('end_time'),
+                            cp.get('position', 0),
+                            cp.get('production_id', 0)
+                        ))
+                    
+                    current_key = (
+                        assignment.get('machine_name', ''),
+                        assignment.get('operator_name', ''),
+                        assignment.get('shift_name', ''),
+                        assignment.get('start_time'),
+                        assignment.get('end_time'),
+                        assignment.get('position', 0),
+                        assignment.get('production_id', 0)
+                    )
+                    is_completed = current_key in completed_keys
+                
                 cursor.execute('''
                     INSERT INTO daily_schedule_history (
                         date_recorded, week_number, year,
                         machine_id, production_id, operator_id, shift_id, position,
                         machine_name, operator_name, shift_name, shift_start_time, shift_end_time,
-                        article_name, article_abbreviation
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        article_name, article_abbreviation, status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
-                    date_to_save, assignment['week_number'], assignment['year'],
-                    assignment['machine_id'], assignment['production_id'], 
-                    assignment['operator_id'], assignment['shift_id'], assignment['position'],
+                    date_to_save, assignment.get('week_number', week), assignment.get('year', year),
+                    assignment.get('machine_id'), assignment.get('production_id'), 
+                    assignment.get('operator_id'), assignment.get('shift_id'), assignment.get('position', 0),
                     assignment['machine_name'], assignment['operator_name'], 
                     assignment['shift_name'], assignment['start_time'], assignment['end_time'],
-                    assignment['article_name'], assignment['article_abbreviation']
+                    assignment['article_name'], assignment['article_abbreviation'],
+                    'completed' if is_completed else 'active'
                 ))
             
             connection.commit()
@@ -2316,17 +2647,169 @@ def get_daily_schedule_history(start_date=None, end_date=None):
             for date_record in dates:
                 date_recorded = date_record['date_recorded']
                 
-                # Get all assignments for this date
+                # Get all assignments for this date from daily_schedule_history
                 cursor.execute('''
-                    SELECT 
+                    SELECT DISTINCT
                         machine_name, operator_name, shift_name, 
-                        shift_start_time, shift_end_time, article_name, article_abbreviation
+                        shift_start_time, shift_end_time, article_name, article_abbreviation,
+                        machine_id, production_id, operator_id, shift_id, position, status
                     FROM daily_schedule_history
                     WHERE date_recorded = %s
                     ORDER BY machine_name, shift_start_time, position
                 ''', (date_recorded,))
                 
-                assignments = cursor.fetchall()
+                historical_assignments = cursor.fetchall()
+                
+                # Check if any machines have completed productions on or before this date
+                # If so, filter out those machines from historical assignments for subsequent dates
+                cursor.execute('''
+                    SELECT DISTINCT machine_id
+                    FROM completed_productions
+                    WHERE DATE(completion_date) <= %s
+                ''', (date_recorded,))
+                
+                completed_machines_before_date = {row['machine_id'] for row in cursor.fetchall()}
+                
+                # Filter out historical assignments for machines that completed production before this date
+                # Only keep historical assignments if they are from the exact completion date
+                filtered_historical_assignments = []
+                for assignment in historical_assignments:
+                    machine_id = assignment.get('machine_id')
+                    if machine_id and machine_id in completed_machines_before_date:
+                        # Check if this assignment is from the exact completion date
+                        cursor.execute('''
+                            SELECT COUNT(*) as count
+                            FROM completed_productions
+                            WHERE machine_id = %s AND DATE(completion_date) = %s
+                        ''', (machine_id, date_recorded))
+                        
+                        completion_count = cursor.fetchone()['count']
+                        if completion_count > 0:
+                            # This is the completion date, so keep the assignment
+                            filtered_historical_assignments.append(assignment)
+                        # If completion_count is 0, this machine completed before this date, so don't show it
+                    else:
+                        # Machine hasn't completed production, so keep the assignment
+                        filtered_historical_assignments.append(assignment)
+                
+                historical_assignments = filtered_historical_assignments
+                
+                # Get current active assignments from schedule table (only active productions)
+                cursor.execute('''
+                    SELECT 
+                        m.name as machine_name, o.name as operator_name, s.name as shift_name,
+                        s.start_time as shift_start_time, s.end_time as shift_end_time,
+                        a.name as article_name, a.abbreviation as article_abbreviation,
+                        m.id as machine_id, p.id as production_id, o.id as operator_id, s.id as shift_id, sch.position
+                    FROM schedule sch
+                    JOIN machines m ON sch.machine_id = m.id
+                    JOIN production p ON sch.production_id = p.id
+                    JOIN articles a ON p.article_id = a.id
+                    JOIN operators o ON sch.operator_id = o.id
+                    JOIN shifts s ON sch.shift_id = s.id
+                    WHERE sch.week_number = %s AND sch.year = %s
+                    AND p.status = 'active'
+                    ORDER BY m.name, s.start_time, sch.position
+                ''', (date_recorded.isocalendar()[1], date_recorded.year))
+                
+                current_assignments = cursor.fetchall()
+                
+                # Get completed assignments from completed_productions table
+                # Only show completed productions on the exact day they were completed
+                cursor.execute('''
+                    SELECT 
+                        cp.machine_name, cp.operator_name, cp.shift_name,
+                        cp.shift_start_time, cp.shift_end_time,
+                        cp.article_name, cp.article_abbreviation,
+                        cp.machine_id, cp.production_id, cp.operator_id, cp.shift_id, cp.position
+                    FROM completed_productions cp
+                    WHERE DATE(cp.completion_date) = %s
+                    ORDER BY cp.machine_name, cp.shift_start_time, cp.position
+                ''', (date_recorded,))
+                
+                completed_assignments = cursor.fetchall()
+                
+                # Filter out machines that have completed productions from current_assignments
+                # This ensures that once a production is completed, it doesn't show as active in subsequent days
+                if completed_assignments:
+                    completed_machine_ids = {assignment['machine_id'] for assignment in completed_assignments if assignment.get('machine_id')}
+                    if completed_machine_ids:
+                        # Remove current assignments for machines that have completed productions
+                        current_assignments = [
+                            assignment for assignment in current_assignments 
+                            if assignment.get('machine_id') not in completed_machine_ids
+                        ]
+                
+                
+                
+                # Combine all assignments with deduplication
+                assignments = []
+                seen_assignments = set()  # Track unique assignments
+                
+                # Helper function to create unique key for assignment
+                # Allow duplicate operators if not created at the same time (i.e., in different productions)
+                def get_assignment_key(assignment):
+                    return (
+                        assignment.get('machine_name', ''),
+                        assignment.get('operator_name', ''),
+                        assignment.get('shift_name', ''),
+                        assignment.get('shift_start_time'),
+                        assignment.get('shift_end_time'),
+                        assignment.get('position', 0),
+                        assignment.get('production_id', 0)  # Add production_id to allow duplicates across productions
+                    )
+                
+                # Add assignments with deduplication
+                for assignment_list in [historical_assignments, current_assignments, completed_assignments]:
+                    if assignment_list:
+                        for assignment in assignment_list:
+                            key = get_assignment_key(assignment)
+                            if key not in seen_assignments:
+                                seen_assignments.add(key)
+                                # Mark completed assignments with status
+                                if assignment_list is completed_assignments:
+                                    assignment['status'] = 'completed'
+                                assignments.append(assignment)
+                
+                # Get non-functioning machines for this date (only if they were in production this week)
+                week = date_recorded.isocalendar()[1]
+                year = date_recorded.year
+                
+                # Get NFM machines that were reported on this date OR fixed on this date
+                # OR machines that are still broken (regardless of when they were reported)
+                cursor.execute('''
+                    SELECT 
+                        m.name as machine_name,
+                        nfm.reported_date,
+                        nfm.issue,
+                        nfm.fixed_date,
+                        m.id as machine_id
+                    FROM non_functioning_machines nfm
+                    JOIN machines m ON nfm.machine_id = m.id
+                    WHERE DATE(nfm.reported_date) = %s 
+                       OR DATE(nfm.fixed_date) = %s
+                       OR m.status = 'broken'
+                    ORDER BY m.name
+                ''', (date_recorded, date_recorded))
+                
+                all_nfm_machines = cursor.fetchall()
+                
+                # Filter to only include NFM machines that were in production this week
+                non_functioning_machines = []
+                for nfm in all_nfm_machines:
+                    # Check if this machine was in production this week (even if it's not in current schedule)
+                    cursor.execute('''
+                        SELECT COUNT(*) as count
+                        FROM production p
+                        WHERE p.machine_id = %s 
+                        AND p.status = 'active'
+                        AND p.start_date <= %s
+                        AND (p.end_date IS NULL OR p.end_date >= %s)
+                    ''', (nfm['machine_id'], date_recorded, date_recorded))
+                    
+                    count_result = cursor.fetchone()
+                    if count_result and count_result['count'] > 0:
+                        non_functioning_machines.append(nfm)
                 
                 # Structure: {machine: [{operator, shift, start_time, end_time, article}]}
                 day_data = {}
@@ -2339,13 +2822,63 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     if assignment['article_name']:
                         article_info = assignment['article_abbreviation'] or assignment['article_name']
                     
+                    # Check if this is a historical assignment (no machine_id means it's historical)
+                    is_historical = assignment.get('machine_id') is None
+                    
+                    # Check if this assignment is completed based on status
+                    is_completed = assignment.get('status') == 'completed'
+                    
                     day_data[machine].append({
                         'operator': assignment['operator_name'],
                         'shift': assignment['shift_name'],
                         'start_time': str(assignment['shift_start_time']),
                         'end_time': str(assignment['shift_end_time']),
-                        'article': article_info
+                        'article': article_info,
+                        'is_historical': is_historical,
+                        'is_completed': is_completed
                     })
+                
+                # Add non-functioning machines to the day data
+                for nfm in non_functioning_machines:
+                    machine = nfm['machine_name']
+                    if machine not in day_data:
+                        day_data[machine] = []
+                    
+                    # Add a special entry for non-functioning machine
+                    reported_time = nfm['reported_date'].strftime('%H:%M') if nfm['reported_date'] else ''
+                    
+                    # Check if machine was fixed on this date
+                    is_fixed_on_this_date = nfm['fixed_date'] and nfm['fixed_date'].date() == date_recorded
+                    # Check if machine was reported on this date
+                    is_reported_on_this_date = nfm['reported_date'] and nfm['reported_date'].date() == date_recorded
+                    
+                    # Get current machine status
+                    cursor.execute('SELECT status FROM machines WHERE id = %s', (nfm['machine_id'],))
+                    current_status = cursor.fetchone()
+                    machine_is_broken = current_status and current_status['status'] == 'broken'
+                    
+                    if is_fixed_on_this_date:
+                        # Machine was repaired on this date
+                        fixed_time = nfm['fixed_date'].strftime('%H:%M') if nfm['fixed_date'] else ''
+                        day_data[machine].append({
+                            'operator': 'Machine réparée',
+                            'shift': 'Réparée',
+                            'start_time': reported_time,
+                            'end_time': fixed_time,
+                            'article': f"{nfm['issue'] or 'Panne signalée'} (Réparée)",
+                            'is_non_functioning': True,
+                            'is_repaired': True
+                        })
+                    elif is_reported_on_this_date or machine_is_broken:
+                        # Machine was reported broken on this date OR is currently still broken
+                        day_data[machine].append({
+                            'operator': 'Machine en panne',
+                            'shift': 'Non fonctionnelle',
+                            'start_time': reported_time,
+                            'end_time': '',
+                            'article': nfm['issue'] or 'Panne signalée',
+                            'is_non_functioning': True
+                        })
                 
                 # Use date as key (YYYY-MM-DD format)
                 key = date_recorded.strftime('%Y-%m-%d')
@@ -2456,6 +2989,7 @@ def get_daily_history_api():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+#Ensure Today History is saved in the database
 def ensure_today_history():
     today = datetime.now().date()
     connection = get_db_connection()
@@ -2468,8 +3002,8 @@ def ensure_today_history():
                 last = cursor.fetchone()
                 if last:
                     last_date = last['date_recorded']
-                    # Copy all records from last_date to today
-                    cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s", (last_date,))
+                    # Copy only active records from last_date to today
+                    cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'", (last_date,))
                     rows = cursor.fetchall()
                     for row in rows:
                         # Remove the id and change date_recorded to today
@@ -2480,6 +3014,83 @@ def ensure_today_history():
                         placeholders = ', '.join(['%s'] * len(row_data))
                         cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
                     connection.commit()
+                
+                # Also ensure today has any non-functioning machine events that were saved directly
+                # Check if there are any non-functioning machine events for today that weren't copied
+                cursor.execute("""
+                    SELECT nfm.*, m.name as machine_name 
+                    FROM non_functioning_machines nfm 
+                    JOIN machines m ON nfm.machine_id = m.id 
+                    WHERE DATE(nfm.reported_date) = %s
+                """, (today,))
+                nfm_events = cursor.fetchall()
+                
+                for event in nfm_events:
+                    # Check if this event is already in history
+                    cursor.execute("""
+                        SELECT 1 FROM daily_schedule_history 
+                        WHERE date_recorded = %s AND machine_name = %s 
+                        AND operator_name = 'Machine en panne' AND article_name = %s
+                    """, (today, event['machine_name'], event['issue']))
+                    
+                    if not cursor.fetchone():
+                        # Add non-functioning notification to history
+                        reported_time = event['reported_date'].strftime('%H:%M') if event['reported_date'] else ''
+                        week = today.isocalendar()[1]
+                        year = today.year
+                        
+                        cursor.execute('''
+                            INSERT INTO daily_schedule_history (
+                                date_recorded, week_number, year,
+                                machine_id, production_id, operator_id, shift_id, position,
+                                machine_name, operator_name, shift_name, shift_start_time, shift_end_time,
+                                article_name, article_abbreviation, status
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ''', (
+                            today, week, year,
+                            None, None, None, None, 0,
+                            event['machine_name'], 'Machine en panne', 'Non fonctionnelle', 
+                            reported_time, '', event['issue'] or 'Panne signalée', '', 'active'
+                        ))
+                
+                # Check for repair events for today
+                cursor.execute("""
+                    SELECT nfm.*, m.name as machine_name 
+                    FROM non_functioning_machines nfm 
+                    JOIN machines m ON nfm.machine_id = m.id 
+                    WHERE DATE(nfm.fixed_date) = %s AND nfm.fixed_date IS NOT NULL
+                """, (today,))
+                repair_events = cursor.fetchall()
+                
+                for event in repair_events:
+                    # Check if this repair event is already in history
+                    cursor.execute("""
+                        SELECT 1 FROM daily_schedule_history 
+                        WHERE date_recorded = %s AND machine_name = %s 
+                        AND operator_name = 'Machine réparée' AND article_name = %s
+                    """, (today, event['machine_name'], event['issue']))
+                    
+                    if not cursor.fetchone():
+                        # Add repair notification to history
+                        fixed_time = event['fixed_date'].strftime('%H:%M') if event['fixed_date'] else ''
+                        week = today.isocalendar()[1]
+                        year = today.year
+                        
+                        cursor.execute('''
+                            INSERT INTO daily_schedule_history (
+                                date_recorded, week_number, year,
+                                machine_id, production_id, operator_id, shift_id, position,
+                                machine_name, operator_name, shift_name, shift_start_time, shift_end_time,
+                                article_name, article_abbreviation, status
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ''', (
+                            today, week, year,
+                            None, None, None, None, 1,
+                            event['machine_name'], 'Machine réparée', 'Fonctionnelle', 
+                            fixed_time, '', event['issue'] or 'Panne réparée', '', 'active'
+                        ))
+                
+                connection.commit()
     finally:
         connection.close()
 
@@ -2497,7 +3108,6 @@ def get_postes():
         return jsonify({'success': False, 'message': str(e)})
     finally:
         connection.close()
-
 @app.route('/api/machines/<int:machine_id>/poste')
 @login_required
 def get_machine_poste_api(machine_id):
@@ -2595,7 +3205,31 @@ def export_history():
         shift_headers = {f'shift_{s["id"]}': format_shift_time(s['start_time'], s['end_time']) for s in shifts}
         shift_keys = [f'shift_{s["id"]}' for s in shifts]
 
-        # Get all assignments for the day
+        # Get all non-functioning machines for this date
+        cursor.execute('''
+            SELECT m.id
+            FROM non_functioning_machines nfm
+            JOIN machines m ON nfm.machine_id = m.id
+            WHERE DATE(nfm.reported_date) = %s
+            AND (nfm.fixed_date IS NULL OR DATE(nfm.fixed_date) > %s)
+        ''', (date_obj, date_obj))
+        non_functioning_ids = set(row['id'] for row in cursor.fetchall())
+
+        # Get machines that were NFM on the previous day and weren't repaired
+        previous_date = date_obj - timedelta(days=1)
+        cursor.execute('''
+            SELECT m.id
+            FROM non_functioning_machines nfm
+            JOIN machines m ON nfm.machine_id = m.id
+            WHERE DATE(nfm.reported_date) = %s
+            AND (nfm.fixed_date IS NULL OR DATE(nfm.fixed_date) > %s)
+        ''', (previous_date, date_obj))
+        previous_nfm_ids = set(row['id'] for row in cursor.fetchall())
+
+        # Combine both sets of non-functioning machine IDs
+        all_non_functioning_ids = non_functioning_ids.union(previous_nfm_ids)
+
+        # Get all assignments for the day, but filter out non-functioning, historical, and completed productions
         if name_type == 'arabic':
             cursor.execute('''
                 SELECT 
@@ -2609,7 +3243,10 @@ def export_history():
                 FROM daily_schedule_history d
                 LEFT JOIN machines m ON d.machine_id = m.id
                 LEFT JOIN operators o ON d.operator_name = o.name
+                LEFT JOIN production p ON d.production_id = p.id
                 WHERE d.date_recorded = %s
+                AND d.machine_id IS NOT NULL
+                AND (p.status IS NULL OR p.status = 'active')
                 ORDER BY d.machine_name, d.article_name, d.shift_id
             ''', (date_obj,))
         else:
@@ -2624,10 +3261,13 @@ def export_history():
                     d.operator_name
                 FROM daily_schedule_history d
                 LEFT JOIN machines m ON d.machine_id = m.id
+                LEFT JOIN production p ON d.production_id = p.id
                 WHERE d.date_recorded = %s
+                AND d.machine_id IS NOT NULL
+                AND (p.status IS NULL OR p.status = 'active')
                 ORDER BY d.machine_name, d.article_name, d.shift_id
             ''', (date_obj,))
-        assignments = cursor.fetchall()
+        assignments = [row for row in cursor.fetchall() if row['machine_id'] not in all_non_functioning_ids]
         conn.close()
         # Collect all unique (machine_name, article_name, article_abbreviation, machine_type)
         machine_article_keys = []
@@ -2650,7 +3290,7 @@ def export_history():
             else:
                 machine_article_map[key][s] = op
 
-        # Prepare rows for the PDF (like export_sch)
+        # Prepare rows for the PDF
         model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
         model2_shift_keys = ['shift_4', 'shift_5']
         model3_shift_keys = ['shift_6']
@@ -2894,6 +3534,9 @@ def export_history():
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
+#Split Production - When an article is changed, the production is split into two
+#Production status is set to completed for the old production
+#And a new production is created with the new article and quantity
 @app.route('/api/schedule/split_production', methods=['POST'])
 @login_required
 def split_production():
@@ -2904,6 +3547,8 @@ def split_production():
     quantity = data.get('quantity')
     start_date = data.get('start_date')  # new start date (should be today)
     end_date = data.get('end_date')      # new end date (optional)
+    hour_start = data.get('hour_start')  # new hour start (optional)
+    hour_end = data.get('hour_end')      # new hour end (optional)
     status = data.get('status', 'active')
 
     if not production_id or not machine_id or not start_date:
@@ -2928,46 +3573,97 @@ def split_production():
             old_start_date = prod['start_date']
             old_end_date = prod['end_date']
 
-            # Only split (insert new) if machine or article changed
+            # Check what changed
             machine_changed = str(machine_id) != str(old_machine_id)
             article_changed = str(article_id) != str(old_article_id)
 
-            if machine_changed or article_changed:
-                # 2. Set the end_date of the current production to yesterday and mark as completed
+            if article_changed:
+                # Article changed: mark old production as completed and create new one
                 today = datetime.strptime(start_date, '%Y-%m-%d').date()
                 yesterday = today - timedelta(days=1)
                 cursor.execute(
                     "UPDATE production SET end_date = %s, status = 'completed' WHERE id = %s",
                     (yesterday.strftime('%Y-%m-%d'), production_id)
                 )
+                
+                # Save completed production to history
+                save_completed_production_to_history(production_id, yesterday.strftime('%Y-%m-%d'))
 
                 # 3. Insert the new production starting today
                 insert_sql = """
-                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, status)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, hour_start, hour_end, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(
                     insert_sql,
-                    (machine_id, article_id, quantity, start_date, end_date, status)
+                    (machine_id, article_id, quantity, start_date, end_date, hour_start, hour_end, status)
                 )
                 new_production_id = cursor.lastrowid
 
-                # 4. Update schedule assignments for the current week to point to the new production
+                # 4. Copy schedule assignments for the current week from old machine/production to new machine/production
                 week_number = datetime.strptime(start_date, '%Y-%m-%d').date().isocalendar()[1]
                 year = datetime.strptime(start_date, '%Y-%m-%d').date().year
 
-                update_schedule_sql = """
-                    UPDATE schedule
-                    SET machine_id = %s, production_id = %s
+                copy_schedule_sql = """
+                    INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, position, week_number, year)
+                    SELECT %s, %s, operator_id, shift_id, position, week_number, year
+            FROM schedule
                     WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
                 """
                 cursor.execute(
-                    update_schedule_sql,
+                    copy_schedule_sql,
                     (machine_id, new_production_id, old_machine_id, production_id, week_number, year)
                 )
 
+                # 5. Delete old assignments for this week (move, not copy)
+                delete_old_sql = """
+                    DELETE FROM schedule
+                    WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
+                """
+                cursor.execute(
+                    delete_old_sql,
+                    (old_machine_id, production_id, week_number, year)
+                )
+
                 connection.commit()
-                return jsonify({'success': True, 'message': 'Production split and new production created successfully'})
+                return jsonify({'success': True, 'message': 'Production split and new production created successfully (article changed)'})
+            elif machine_changed:
+                # Machine changed: create new production without marking old as completed
+                insert_sql = """
+                    INSERT INTO production (machine_id, article_id, quantity, start_date, end_date, hour_start, hour_end, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(
+                    insert_sql,
+                    (machine_id, old_article_id, quantity, start_date, end_date, hour_start, hour_end, status)
+                )
+                new_production_id = cursor.lastrowid
+
+                # Move assignments to new machine/production for the current week
+                week_number = datetime.strptime(start_date, '%Y-%m-%d').date().isocalendar()[1]
+                year = datetime.strptime(start_date, '%Y-%m-%d').date().year
+
+                copy_schedule_sql = """
+                        INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, position, week_number, year)
+                    SELECT %s, %s, operator_id, shift_id, position, week_number, year
+                    FROM schedule
+                    WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
+                """
+                cursor.execute(
+                    copy_schedule_sql,
+                    (machine_id, new_production_id, old_machine_id, production_id, week_number, year)
+                )
+                delete_old_sql = """
+                    DELETE FROM schedule
+                    WHERE machine_id = %s AND production_id = %s AND week_number = %s AND year = %s
+                """
+                cursor.execute(
+                    delete_old_sql,
+                    (old_machine_id, production_id, week_number, year)
+                    )
+
+                connection.commit()
+                return jsonify({'success': True, 'message': 'Production split and new production created successfully (machine changed)'})
             else:
                 # Only update the fields that changed (quantity, status, end_date)
                 updates = []
@@ -2984,6 +3680,16 @@ def split_production():
                     params.append(end_date)
                 elif end_date is None and old_end_date is not None:
                     updates.append("end_date = NULL")
+                if hour_start is not None:
+                    updates.append("hour_start = %s")
+                    params.append(hour_start)
+                else:
+                    updates.append("hour_start = NULL")
+                if hour_end is not None:
+                    updates.append("hour_end = %s")
+                    params.append(hour_end)
+                else:
+                    updates.append("hour_end = NULL")
 
                 if not updates:
                     return jsonify({'success': True, 'message': 'No changes detected'})

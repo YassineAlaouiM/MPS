@@ -583,6 +583,8 @@ function saveProduction() {
     const machineId = machineSelect.value;
     const startDate = document.getElementById('productionStartDate').value;
     const endDate = document.getElementById('productionEndDate').value;
+    const hourStart = document.getElementById('productionHourStart').value;
+    const hourEnd = document.getElementById('productionHourEnd').value;
     
     if (!machineId || !startDate) {
         alert('Veuillez remplir tous les champs obligatoires');
@@ -592,7 +594,9 @@ function saveProduction() {
     const data = {
         machine_id: machineId,
         start_date: startDate,
-        end_date: endDate || null
+        end_date: endDate || null,
+        hour_start: hourStart || null,
+        hour_end: hourEnd || null
     };
 
     // Add article data only if it's not a service machine
@@ -639,6 +643,10 @@ function saveProductionEdit() {
     const quantity = document.getElementById('editProductionQuantity').value;
     const startDate = document.getElementById('editProductionStartDate').value;
     const endDate = document.getElementById('editProductionEndDate').value;
+    const hourStartInput = document.getElementById('editProductionHourStart');
+    const hourEndInput = document.getElementById('editProductionHourEnd');
+    const hourStart = hourStartInput ? hourStartInput.value : '';
+    const hourEnd = hourEndInput ? hourEndInput.value : '';
     const status = document.getElementById('editProductionStatus').value;
 
     // Validation: start date should not be after end date
@@ -658,6 +666,23 @@ function saveProductionEdit() {
 
     // If machine or article changed, use split logic
     if (machineId !== originalMachineId || articleId !== originalArticleId) {
+        // Determine the new status based on what changed
+        let newStatus = status;
+        
+        console.log('Changes detected:');
+        console.log('Machine changed:', machineId !== originalMachineId);
+        console.log('Article changed:', articleId !== originalArticleId);
+        console.log('Original status:', status);
+        
+        if (articleId !== originalArticleId) {
+            // If article changed, set status to completed
+            newStatus = 'completed';
+            document.getElementById('editProductionStatus').value = 'completed';
+            console.log('Article changed - setting status to completed');
+        } else {
+            console.log('Only machine changed - keeping current status:', status);
+        }
+        
         saveSplitProduction();
         return;
     }
@@ -667,7 +692,9 @@ function saveProductionEdit() {
         quantity: quantity,
         status: status,
         start_date: startDate,
-        end_date: endDate || null
+        end_date: endDate || null,
+        hour_start: hourStart || null,
+        hour_end: hourEnd || null
     };
 
     fetch(`/api/production/${id}`, {
@@ -692,34 +719,89 @@ function saveProductionEdit() {
 }
 
 function editProduction(id) {
-    console.log('editProduction called with id:', id);
+    // First, show the modal
+    const modal = new bootstrap.Modal(document.getElementById('editProductionModal'));
+    modal.show();
+    
+    // Then fetch and populate the data
     fetch(`/api/production/${id}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Échec de la récupération des détails de la production');
+                return response.text().then(text => {
+                    throw new Error('Échec de la récupération des détails de la production');
+                });
             }
             return response.json();
         })
         .then(production => {
+            
+            // Set the production ID first
             document.getElementById('editProductionId').value = production.id;
+            
+            // Populate machine select
             const machineSelect = document.getElementById('editProductionMachine');
-            machineSelect.value = production.machine_id;
-            machineSelect.setAttribute('data-original', production.machine_id);
+            if (machineSelect) {
+                machineSelect.value = production.machine_id;
+                machineSelect.setAttribute('data-original', production.machine_id);
+            }
+            
+            // Populate article select
             const articleSelect = document.getElementById('editProductionArticle');
-            articleSelect.value = production.article_id;
-            articleSelect.setAttribute('data-original', production.article_id);
-            document.getElementById('editProductionQuantity').value = production.quantity;
-
-            const startDateInput = document.getElementById('editProductionStartDate');
-            if (production.start_date) {
-                const startDateObj = new Date(production.start_date);
-                startDateInput.value = !isNaN(startDateObj) ? startDateObj.toISOString().split('T')[0] : '';
-            } else {
-                startDateInput.value = '';
+            if (articleSelect) {
+                articleSelect.value = production.article_id;
+                articleSelect.setAttribute('data-original', production.article_id);
+            }
+            
+            // Populate quantity
+            const quantityInput = document.getElementById('editProductionQuantity');
+            if (quantityInput) {
+                quantityInput.value = production.quantity;
             }
 
+            // Populate start date
+            const startDateInput = document.getElementById('editProductionStartDate');
+            if (startDateInput) {
+                // Use the actual production start date
+                if (production.start_date) {
+                    const startDateObj = new Date(production.start_date);
+                    startDateInput.value = !isNaN(startDateObj) ? startDateObj.toISOString().split('T')[0] : '';
+                } else {
+                    // Fallback to today if no start date is set
+                    const today = new Date();
+                    startDateInput.value = today.toISOString().split('T')[0];
+                }
+            }
+
+            // Populate end date
             const endDateInput = document.getElementById('editProductionEndDate');
+            if (endDateInput && production.end_date) {
+                const endDateObj = new Date(production.end_date);
+                endDateInput.value = !isNaN(endDateObj) ? endDateObj.toISOString().split('T')[0] : '';
+            }
+
+            // Handle hour fields
+            const hourStartInput = document.getElementById('editProductionHourStart');
+            const hourEndInput = document.getElementById('editProductionHourEnd');
+            
+            if (hourStartInput && production.hour_start) {
+                hourStartInput.value = production.hour_start;
+            }
+            
+            if (hourEndInput && production.hour_end) {
+                hourEndInput.value = production.hour_end;
+            }
+
+            // Populate status
             const statusInput = document.getElementById('editProductionStatus');
+            if (statusInput) {
+                statusInput.value = production.status;
+            }
+
+            // Ensure article fields are visible when editing
+            const articleFields = document.querySelectorAll('.article-field');
+            articleFields.forEach(field => {
+                field.style.display = 'block';
+            });
 
             function handleStatusChange() {
                 const status = statusInput.value;
@@ -735,28 +817,61 @@ function editProduction(id) {
                 }
             }
 
-            statusInput.value = production.status;
-            if (production.status === 'active') {
-                endDateInput.value = '';
-                endDateInput.disabled = true;
-            } else if (production.status === 'completed' || production.status === 'cancelled') {
-                const todayStr = new Date().toISOString().split('T')[0];
-                endDateInput.value = todayStr;
-                endDateInput.disabled = false;
-            } else {
-                endDateInput.disabled = false;
+            if (statusInput) {
+                if (production.status === 'active') {
+                    endDateInput.value = '';
+                    endDateInput.disabled = true;
+                } else if (production.status === 'completed' || production.status === 'cancelled') {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    endDateInput.value = todayStr;
+                    endDateInput.disabled = false;
+                } else {
+                    endDateInput.disabled = false;
+                }
+
+                statusInput.removeEventListener('change', handleStatusChange);
+                statusInput.addEventListener('change', handleStatusChange);
             }
 
-            statusInput.removeEventListener('change', handleStatusChange);
-            statusInput.addEventListener('change', handleStatusChange);
-
-            new bootstrap.Modal(document.getElementById('editProductionModal')).show();
+            // Ensure article fields are properly handled based on machine type
+            toggleEditArticleFields();
+            
+            // Store the original data to preserve it when machine changes
+            window.originalProductionData = {
+                id: production.id,
+                machine_id: production.machine_id,
+                article_id: production.article_id,
+                quantity: production.quantity,
+                start_date: production.start_date,
+                end_date: production.end_date,
+                hour_start: production.hour_start,
+                hour_end: production.hour_end,
+                status: production.status
+            };
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des détails de la production :', error);
             alert('Erreur lors de la récupération des détails de la production');
         });
 }
+
+// Clear edit ID when edit modal is hidden
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = document.getElementById('editProductionModal');
+    if (editModal) {
+        editModal.addEventListener('hidden.bs.modal', function() {
+            const editId = document.getElementById('editProductionId');
+            if (editId) {
+                editId.value = '';
+            }
+            // Clear the original production data
+            window.originalProductionData = null;
+        });
+    }
+});
+
+// Make editProduction globally available
+window.editProduction = editProduction;
 
 function saveSplitProduction() {
     const productionId = document.getElementById('editProductionId').value;
@@ -765,6 +880,10 @@ function saveSplitProduction() {
     const quantity = document.getElementById('editProductionQuantity').value;
     const startDate = document.getElementById('editProductionStartDate').value;
     let endDate = document.getElementById('editProductionEndDate').value;
+    const hourStartInput = document.getElementById('editProductionHourStart');
+    const hourEndInput = document.getElementById('editProductionHourEnd');
+    const hourStart = hourStartInput ? hourStartInput.value : '';
+    const hourEnd = hourEndInput ? hourEndInput.value : '';
     const status = document.getElementById('editProductionStatus').value;
 
     if (!productionId || !machineId || !startDate) {
@@ -789,6 +908,8 @@ function saveSplitProduction() {
             quantity: quantity,
             start_date: startDate,
             end_date: endDate,
+            hour_start: hourStart || null,
+            hour_end: hourEnd || null,
             status: status
         })
     })
@@ -1253,11 +1374,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Production modal reset
     document.getElementById('addProductionModal').addEventListener('show.bs.modal', function() {
+        // Only reset if we're not in edit mode
+        const editId = document.getElementById('editProductionId');
+        if (editId && editId.value) {
+            return; // Don't reset if we're editing
+        }
+        
         document.getElementById('productionMachine').value = '';
         document.getElementById('productionArticle').value = '';
         document.getElementById('productionQuantity').value = '';
         document.getElementById('productionStartDate').value = '';
         document.getElementById('productionEndDate').value = '';
+        document.getElementById('productionHourStart').value = '';
+        document.getElementById('productionHourEnd').value = '';
         // Reset article fields visibility
         const articleFields = document.querySelectorAll('.article-field');
         articleFields.forEach(field => {
@@ -1309,6 +1438,13 @@ function filterProduction() {
     const endDate = document.getElementById('endDateSearch').value;
     const isDateSearchEnabled = document.getElementById('dateSearchToggle').checked;
     
+    console.log('Filtering production with:', {
+        searchText,
+        startDate,
+        endDate,
+        isDateSearchEnabled
+    });
+    
     const rows = document.querySelectorAll('#productionBody tr');
     let hasVisibleRows = false;
     
@@ -1323,17 +1459,38 @@ function filterProduction() {
 
         if (isDateSearchEnabled && (startDate || endDate)) {
             if (startDate && endDate) {
-                matchesDate = (rowStartDate >= startDate && (rowEndDate === '-' || rowEndDate <= endDate));
+                // For date range search: show records active during the range
+                const hasValidEndDate = rowEndDate !== '-';
+                // Record is active during range if:
+                // - It starts before or during the range AND
+                // - It hasn't ended yet OR it ends during or after the range
+                matchesDate = (rowStartDate <= endDate && (!hasValidEndDate || rowEndDate >= startDate));
             } else if (startDate) {
-                matchesDate = (rowStartDate >= startDate);
+                // For single date search: show records active on that specific date
+                const hasValidEndDate = rowEndDate !== '-';
+                // Record is active on the date if:
+                // - It started on or before the date AND
+                // - It hasn't ended yet OR it ended on or after the date
+                matchesDate = (rowStartDate <= startDate && (!hasValidEndDate || rowEndDate >= startDate));
             } else if (endDate) {
-                matchesDate = (rowEndDate === '-' || rowEndDate <= endDate);
+                // For end date filter: show records that ended on or before the date
+                const hasValidEndDate = rowEndDate !== '-';
+                matchesDate = (!hasValidEndDate || rowEndDate <= endDate);
             }
         }
 
         const isVisible = matchesText && matchesDate;
         row.style.display = isVisible ? '' : 'none';
         if (isVisible) hasVisibleRows = true;
+        
+        console.log('Row:', {
+            machineName,
+            rowStartDate,
+            rowEndDate,
+            matchesText,
+            matchesDate,
+            isVisible
+        });
     });
     
     document.getElementById('noProductionFound').style.display = hasVisibleRows ? 'none' : 'block';
@@ -1362,6 +1519,7 @@ function filterArticles() {
 function toggleDateSearch() {
     const dateInputs = document.getElementById('dateSearchInputs');
     const isChecked = document.getElementById('dateSearchToggle').checked;
+    console.log('Toggle date search:', isChecked);
     dateInputs.style.display = isChecked ? 'block' : 'none';
     if (!isChecked) {
         document.getElementById('startDateSearch').value = '';
@@ -1393,13 +1551,22 @@ function toggleArticleFields() {
                 input.required = !isService;
             }
         });
+    } else {
+        // Show article fields by default when no machine is selected
+        articleFields.forEach(field => {
+            field.style.display = 'block';
+            const input = field.querySelector('select, input');
+            if (input) {
+                input.required = false;
+            }
+        });
     }
 }
 
 // Toggle article fields in edit form
 function toggleEditArticleFields() {
     const machineSelect = document.getElementById('editProductionMachine');
-    const articleFields = document.querySelectorAll('.edit-article-field');
+    const articleFields = document.querySelectorAll('.article-field');
     
     if (machineSelect && machineSelect.selectedIndex > 0) {
         const selectedOption = machineSelect.options[machineSelect.selectedIndex];
@@ -1412,6 +1579,63 @@ function toggleEditArticleFields() {
                 input.required = !isService;
             }
         });
+    } else {
+        // Show article fields by default when no machine is selected
+        articleFields.forEach(field => {
+            field.style.display = 'block';
+            const input = field.querySelector('select, input');
+            if (input) {
+                input.required = false;
+            }
+        });
+    }
+    
+    // Always preserve form data when editing, regardless of machine change
+    const editId = document.getElementById('editProductionId');
+    if (editId && editId.value && window.originalProductionData) {
+        const originalData = window.originalProductionData;
+        
+        // Preserve article data
+        const articleSelect = document.getElementById('editProductionArticle');
+        if (articleSelect && originalData.article_id) {
+            articleSelect.value = originalData.article_id;
+        }
+        
+        // Preserve quantity
+        const quantityInput = document.getElementById('editProductionQuantity');
+        if (quantityInput && originalData.quantity) {
+            quantityInput.value = originalData.quantity;
+        }
+        
+        // Preserve dates
+        const startDateInput = document.getElementById('editProductionStartDate');
+        if (startDateInput && originalData.start_date) {
+            const startDateObj = new Date(originalData.start_date);
+            startDateInput.value = !isNaN(startDateObj) ? startDateObj.toISOString().split('T')[0] : '';
+        }
+        
+        const endDateInput = document.getElementById('editProductionEndDate');
+        if (endDateInput && originalData.end_date) {
+            const endDateObj = new Date(originalData.end_date);
+            endDateInput.value = !isNaN(endDateObj) ? endDateObj.toISOString().split('T')[0] : '';
+        }
+        
+        // Preserve hour fields
+        const hourStartInput = document.getElementById('editProductionHourStart');
+        if (hourStartInput && originalData.hour_start) {
+            hourStartInput.value = originalData.hour_start;
+        }
+        
+        const hourEndInput = document.getElementById('editProductionHourEnd');
+        if (hourEndInput && originalData.hour_end) {
+            hourEndInput.value = originalData.hour_end;
+        }
+        
+        // Preserve status
+        const statusInput = document.getElementById('editProductionStatus');
+        if (statusInput && originalData.status) {
+            statusInput.value = originalData.status;
+        }
     }
 }
 

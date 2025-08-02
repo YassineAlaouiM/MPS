@@ -457,3 +457,16 @@ table td:first-child {
 .operator-item .add-operator-btn {
     display: none !important;
 }
+
+/* NFM Machine Styling */
+tr.nfm-machine {
+    border-left: 4px solid #d51837;
+}
+
+/* NFM Machine Name Styling */
+tr.nfm-machine td:first-child + td {
+    font-weight: 600;
+}
+tr.nfm-machine:hover td:first-child + td {
+    color: #d51837;
+}

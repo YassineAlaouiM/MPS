@@ -37,7 +37,7 @@
                                 {% for article in articles %}
                                 <tr>
                                     <td>{{ article.name }}</td>
-                                    <td>{{ article.abbreviation }}
+                                    <td>{{ article.abbreviation }}</td>
                                     <td>{{ article.description }}</td>
                                     <td>
                                         {% if can_edit %}
@@ -104,6 +104,8 @@
                                     <th>Quantité</th>
                                     <th>Date de début</th>
                                     <th>Date de fin</th>
+                                    <th>Heure début</th>
+                                    <th>Heure fin</th>
                                     <th>Statut</th>
                                     <th>Actions</th>
                                 </tr>
@@ -117,6 +119,8 @@
                                     <td>{{ prod.quantity if prod.quantity else '-' }}</td>
                                     <td>{{ prod.start_date }}</td>
                                     <td>{{ prod.end_date if prod.end_date else '-' }}</td>
+                                    <td>{{ prod.hour_start if prod.hour_start else '-' }}</td>
+                                    <td>{{ prod.hour_end if prod.hour_end else '-' }}</td>
                                     <td>
                                         <span class="badge bg-{{ 'success' if prod.status == 'active' else 'secondary' if prod.status == 'completed' else 'danger' }}">
                                             {{ prod.status }}
@@ -249,6 +253,14 @@
                         <label for="productionEndDate" class="form-label">Date de fin</label>
                         <input type="date" class="form-control" id="productionEndDate">
                     </div>
+                    <div class="mb-3">
+                        <label for="productionHourStart" class="form-label">Heure de début</label>
+                        <input type="time" class="form-control" id="productionHourStart">
+                    </div>
+                    <div class="mb-3">
+                        <label for="productionHourEnd" class="form-label">Heure de fin</label>
+                        <input type="time" class="form-control" id="productionHourEnd">
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -297,6 +309,14 @@
                     <div class="mb-3">
                         <label for="editProductionEndDate" class="form-label">Date de fin</label>
                         <input type="date" class="form-control" id="editProductionEndDate">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionHourStart" class="form-label">Heure de début</label>
+                        <input type="time" class="form-control" id="editProductionHourStart">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProductionHourEnd" class="form-label">Heure de fin</label>
+                        <input type="time" class="form-control" id="editProductionHourEnd">
                     </div>
                     <div class="mb-3">
                         <label for="editProductionStatus" class="form-label">Statut</label>
