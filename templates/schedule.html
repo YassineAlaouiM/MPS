@@ -70,7 +70,7 @@
                     <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
                     <td 
                         {% if machine.production_id %}
-                            onclick="editProduction('{{ machine.production_id }}')" 
+                            onclick="editProduction({{ machine.production_id }})" 
                             style="cursor:pointer;" 
                             onmouseover="this.style.color='{{ ' #d51837' if machine.is_nfm else '#1461d4' }}'" 
                             onmouseout="this.style.color='black'" 
