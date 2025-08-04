@@ -851,7 +851,7 @@ function editProduction(id) {
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des détails de la production :', error);
-            alert('Erreur lors de la récupération des détails de la production');
+            alert(`Erreur lors de la récupération des détails de la production: ${error.message}`);
         });
 }
 
