@@ -69,7 +69,8 @@ def load_user(user_id):
     return None
 
 def get_db_connection():
-    return pymysql.connect(**db_config)
+    connection = pymysql.connect(**db_config)
+    return connection
 
 @app.route('/')
 def dashboard():
@@ -1074,7 +1075,7 @@ def update_production(id):
 def get_production(id):
     connection = get_db_connection()
     try:
-        with connection.cursor() as cursor:
+        with connection.cursor(pymysql.cursors.DictCursor) as cursor:
             sql = """
                 SELECT p.*, m.name as machine_name, m.type as machine_type, a.name as article_name
                 FROM production p
@@ -1084,8 +1085,9 @@ def get_production(id):
             """
             cursor.execute(sql, (id,))
             production = cursor.fetchone()
+            print(f"DEBUG: production result: {production}, type: {type(production)}")
             
-            if production and isinstance(production, dict):
+            if production:
                 # Handle NULL values for hour fields and convert timedelta to string
                 hour_start = None
                 hour_end = None
@@ -1127,10 +1129,13 @@ def get_production(id):
                     'status': production['status']
                 })
             else:
+                print(f"DEBUG: Production not found for id: {id}")
                 return jsonify({'success': False, 'message': 'Production record not found'}), 404
     except pymysql.Error as e:
+        print(f"DEBUG: PyMySQL error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
     except Exception as e:
+        print(f"DEBUG: General error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
