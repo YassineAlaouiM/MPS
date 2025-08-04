@@ -1085,7 +1085,6 @@ def get_production(id):
             """
             cursor.execute(sql, (id,))
             production = cursor.fetchone()
-            print(f"DEBUG: production result: {production}, type: {type(production)}")
             
             if production:
                 # Handle NULL values for hour fields and convert timedelta to string
@@ -1129,13 +1128,10 @@ def get_production(id):
                     'status': production['status']
                 })
             else:
-                print(f"DEBUG: Production not found for id: {id}")
                 return jsonify({'success': False, 'message': 'Production record not found'}), 404
     except pymysql.Error as e:
-        print(f"DEBUG: PyMySQL error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
     except Exception as e:
-        print(f"DEBUG: General error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         connection.close()
