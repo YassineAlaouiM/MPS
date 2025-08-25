@@ -37,7 +37,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Root.123'),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -2776,27 +2776,28 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 week = date_recorded.isocalendar()[1]
                 year = date_recorded.year
                 
-                # Get NFM machines that were reported on this date OR fixed on this date
-                # OR machines that are still broken (regardless of when they were reported)
+                # Enhanced NFM notification logic
+                # Get all NFM events for this machine on this date and previous day
                 cursor.execute('''
                     SELECT 
                         m.name as machine_name,
                         nfm.reported_date,
                         nfm.issue,
                         nfm.fixed_date,
-                        m.id as machine_id
+                        m.id as machine_id,
+                        m.status as current_status
                     FROM non_functioning_machines nfm
                     JOIN machines m ON nfm.machine_id = m.id
-                    WHERE DATE(nfm.reported_date) = %s 
-                       OR DATE(nfm.fixed_date) = %s
-                       OR m.status = 'broken'
-                    ORDER BY m.name
-                ''', (date_recorded, date_recorded))
+                    WHERE (DATE(nfm.reported_date) = %s OR DATE(nfm.fixed_date) = %s)
+                       OR (DATE(nfm.reported_date) = %s AND nfm.fixed_date IS NULL)
+                       OR (m.status = 'broken' AND DATE(nfm.reported_date) <= %s)
+                    ORDER BY m.name, nfm.reported_date
+                ''', (date_recorded, date_recorded, date_recorded - timedelta(days=1), date_recorded))
                 
                 all_nfm_machines = cursor.fetchall()
                 
                 # Filter to only include NFM machines that were in production this week
-                non_functioning_machines = []
+                base_nfm_machines = []
                 for nfm in all_nfm_machines:
                     # Check if this machine was in production this week (even if it's not in current schedule)
                     cursor.execute('''
@@ -2810,7 +2811,36 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     
                     count_result = cursor.fetchone()
                     if count_result and count_result['count'] > 0:
-                        non_functioning_machines.append(nfm)
+                        base_nfm_machines.append(nfm)
+                
+                # Group NFM events by machine to handle same-day multiple events
+                nfm_by_machine = {}
+                for nfm in base_nfm_machines:
+                    machine_id = nfm['machine_id']
+                    if machine_id not in nfm_by_machine:
+                        nfm_by_machine[machine_id] = []
+                    nfm_by_machine[machine_id].append(nfm)
+                
+                # Process NFM notifications with enhanced logic
+                non_functioning_machines = []
+                for machine_id, nfm_events in nfm_by_machine.items():
+                    # Sort events by reported_date
+                    nfm_events.sort(key=lambda x: x['reported_date'])
+                    
+                    # Check if any events are from the current date
+                    current_date_events = [e for e in nfm_events if e['reported_date'].date() == date_recorded]
+                    previous_date_events = [e for e in nfm_events if e['reported_date'].date() == date_recorded - timedelta(days=1)]
+                    
+                    # If there are events from current date, show all current date events
+                    if current_date_events:
+                        for event in current_date_events:
+                            non_functioning_machines.append(event)
+                    # If no current date events but machine is still broken from previous day
+                    elif previous_date_events and any(e['current_status'] == 'broken' for e in previous_date_events):
+                        # Only show the most recent event from previous day if machine is still broken
+                        latest_previous = max(previous_date_events, key=lambda x: x['reported_date'])
+                        if latest_previous['current_status'] == 'broken':
+                            non_functioning_machines.append(latest_previous)
                 
                 # Structure: {machine: [{operator, shift, start_time, end_time, article}]}
                 day_data = {}
@@ -2839,7 +2869,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         'is_completed': is_completed
                     })
                 
-                # Add non-functioning machines to the day data
+                # Add non-functioning machines to the day data with enhanced notification logic
                 for nfm in non_functioning_machines:
                     machine = nfm['machine_name']
                     if machine not in day_data:
@@ -2852,11 +2882,8 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     is_fixed_on_this_date = nfm['fixed_date'] and nfm['fixed_date'].date() == date_recorded
                     # Check if machine was reported on this date
                     is_reported_on_this_date = nfm['reported_date'] and nfm['reported_date'].date() == date_recorded
-                    
-                    # Get current machine status
-                    cursor.execute('SELECT status FROM machines WHERE id = %s', (nfm['machine_id'],))
-                    current_status = cursor.fetchone()
-                    machine_is_broken = current_status and current_status['status'] == 'broken'
+                    # Check if machine was reported on previous day but is still broken
+                    is_from_previous_day = nfm['reported_date'] and nfm['reported_date'].date() == date_recorded - timedelta(days=1)
                     
                     if is_fixed_on_this_date:
                         # Machine was repaired on this date
@@ -2866,17 +2893,33 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                             'shift': 'Réparée',
                             'start_time': reported_time,
                             'end_time': fixed_time,
+                            'start_date': nfm['fixed_date'].strftime('%Y-%m-%d') if nfm['fixed_date'] else '',
+                            'end_date': nfm['fixed_date'].strftime('%Y-%m-%d') if nfm['fixed_date'] else '',
                             'article': f"{nfm['issue'] or 'Panne signalée'} (Réparée)",
                             'is_non_functioning': True,
                             'is_repaired': True
                         })
-                    elif is_reported_on_this_date or machine_is_broken:
-                        # Machine was reported broken on this date OR is currently still broken
+                    elif is_reported_on_this_date:
+                        # Machine was reported broken on this date - show notification
                         day_data[machine].append({
                             'operator': 'Machine en panne',
                             'shift': 'Non fonctionnelle',
                             'start_time': reported_time,
                             'end_time': '',
+                            'start_date': nfm['reported_date'].strftime('%Y-%m-%d') if nfm['reported_date'] else '',
+                            'end_date': nfm['reported_date'].strftime('%Y-%m-%d') if nfm['reported_date'] else '',
+                            'article': nfm['issue'] or 'Panne signalée',
+                            'is_non_functioning': True
+                        })
+                    elif is_from_previous_day and nfm['current_status'] == 'broken':
+                        # Machine was reported on previous day and is still broken - show current notification
+                        day_data[machine].append({
+                            'operator': 'Machine en panne',
+                            'shift': 'Non fonctionnelle',
+                            'start_time': reported_time,
+                            'end_time': '',
+                            'start_date': nfm['reported_date'].strftime('%Y-%m-%d') if nfm['reported_date'] else '',
+                            'end_date': nfm['reported_date'].strftime('%Y-%m-%d') if nfm['reported_date'] else '',
                             'article': nfm['issue'] or 'Panne signalée',
                             'is_non_functioning': True
                         })
@@ -3169,7 +3212,7 @@ def delete_operator(operator_id):
 @login_required
 def export_history():
     date_str = request.args.get('date')
-    name_type = request.args.get('name_type', 'latin')  # Default to latin names
+    name_type = request.args.get('name_type', 'latin')
 
     if not date_str:
         return jsonify({"error": "Date parameter is required"}), 400
@@ -3246,6 +3289,7 @@ def export_history():
                 LEFT JOIN operators o ON d.operator_name = o.name
                 LEFT JOIN production p ON d.production_id = p.id
                 WHERE d.date_recorded = %s
+                AND m.status != 'broken'
                 AND d.machine_id IS NOT NULL
                 AND (p.status IS NULL OR p.status = 'active')
                 ORDER BY d.machine_name, d.article_name, d.shift_id
@@ -3264,6 +3308,7 @@ def export_history():
                 LEFT JOIN machines m ON d.machine_id = m.id
                 LEFT JOIN production p ON d.production_id = p.id
                 WHERE d.date_recorded = %s
+                AND m.status != 'broken'
                 AND d.machine_id IS NOT NULL
                 AND (p.status IS NULL OR p.status = 'active')
                 ORDER BY d.machine_name, d.article_name, d.shift_id
