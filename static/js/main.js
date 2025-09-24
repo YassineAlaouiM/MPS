@@ -1273,14 +1273,19 @@ function updateOperatorDropdowns() {
     // Get all currently selected operators
     const selectedOperators = new Set();
     dropdowns.forEach(dropdown => {
-        if (dropdown.value) {
+        // Only consider non-empty explicit selections
+        if (dropdown && dropdown.value && dropdown.value !== '') {
             selectedOperators.add(dropdown.value);
         }
     });
 
     // Update each dropdown
     dropdowns.forEach(dropdown => {
-        const currentValue = dropdown.value;
+        // If the dropdown has no explicit selection, force it to empty
+        if (!dropdown.hasAttribute('data-selected-operator') && (!dropdown.value || dropdown.value === '')) {
+            dropdown.value = '';
+        }
+        const currentValue = dropdown.value || '';
         const options = Array.from(dropdown.querySelectorAll('option'));
 
         // Clear the dropdown
@@ -1321,10 +1326,8 @@ function updateOperatorDropdowns() {
             dropdown.appendChild(option);
         });
 
-        // Restore the current selection
-        if (currentValue) {
-            dropdown.value = currentValue;
-        }
+        // Restore the current selection only if non-empty
+        dropdown.value = currentValue || '';
     });
 }
 // Add event listeners for modal show events

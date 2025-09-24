@@ -1173,9 +1173,23 @@ function addOperator(button) {
     const referenceSelect = document.querySelector('.operator-select');
     let optionsHtml = '';
     if (referenceSelect) {
-        optionsHtml = Array.from(referenceSelect.options)
-            .map(opt => opt.outerHTML)
-            .join('');
+        // Build fresh options without any pre-selected state
+        const builtOptions = Array.from(referenceSelect.options).map(opt => {
+            const value = opt.value;
+            const text = opt.textContent;
+            const disabled = opt.disabled ? ' disabled' : '';
+            const style = opt.getAttribute('style') ? ` style="${opt.getAttribute('style')}"` : '';
+            const lastShift = opt.getAttribute('data-last-shift') || '';
+            const nextShift = opt.getAttribute('data-next-shift') || '';
+            if (!value) {
+                return '<option value="">Sélectionner un opérateur</option>';
+            }
+            return `<option value="${value}" data-last-shift="${lastShift}" data-next-shift="${nextShift}"${disabled}${style}>${text}</option>`;
+        });
+        // Ensure the placeholder is first and unique
+        const placeholder = '<option value="">Sélectionner un opérateur</option>';
+        const filtered = builtOptions.filter(html => !html.includes('value=""'));
+        optionsHtml = placeholder + filtered.join('');
     } else {
         optionsHtml = '<option value="">Sélectionner un opérateur</option>';
     }
