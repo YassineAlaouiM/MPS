@@ -2661,6 +2661,9 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 
                 historical_assignments = cursor.fetchall()
                 
+                # Determine if this date already has saved history entries
+                has_saved_history_for_date = bool(historical_assignments)
+                
                 # Check if any machines have completed productions on or before this date
                 # If so, filter out those machines from historical assignments for subsequent dates
                 cursor.execute('''
@@ -2695,25 +2698,29 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 
                 historical_assignments = filtered_historical_assignments
                 
-                # Get current active assignments from schedule table (only active productions)
-                cursor.execute('''
-                    SELECT 
-                        m.name as machine_name, o.name as operator_name, s.name as shift_name,
-                        s.start_time as shift_start_time, s.end_time as shift_end_time,
-                        a.name as article_name, a.abbreviation as article_abbreviation,
-                        m.id as machine_id, p.id as production_id, o.id as operator_id, s.id as shift_id, sch.position
-                    FROM schedule sch
-                    JOIN machines m ON sch.machine_id = m.id
-                    JOIN production p ON sch.production_id = p.id
-                    JOIN articles a ON p.article_id = a.id
-                    JOIN operators o ON sch.operator_id = o.id
-                    JOIN shifts s ON sch.shift_id = s.id
-                    WHERE sch.week_number = %s AND sch.year = %s
-                    AND p.status = 'active'
-                    ORDER BY m.name, s.start_time, sch.position
-                ''', (date_recorded.isocalendar()[1], date_recorded.year))
-                
-                current_assignments = cursor.fetchall()
+                # If there is already saved history for this date, do NOT mix in current week's schedule.
+                # Otherwise, fall back to pulling current active assignments for that week.
+                current_assignments = []
+                if not has_saved_history_for_date:
+                    # Get current active assignments from schedule table (only active productions)
+                    cursor.execute('''
+                        SELECT 
+                            m.name as machine_name, o.name as operator_name, s.name as shift_name,
+                            s.start_time as shift_start_time, s.end_time as shift_end_time,
+                            a.name as article_name, a.abbreviation as article_abbreviation,
+                            m.id as machine_id, p.id as production_id, o.id as operator_id, s.id as shift_id, sch.position
+                        FROM schedule sch
+                        JOIN machines m ON sch.machine_id = m.id
+                        JOIN production p ON sch.production_id = p.id
+                        JOIN articles a ON p.article_id = a.id
+                        JOIN operators o ON sch.operator_id = o.id
+                        JOIN shifts s ON sch.shift_id = s.id
+                        WHERE sch.week_number = %s AND sch.year = %s
+                        AND p.status = 'active'
+                        ORDER BY m.name, s.start_time, sch.position
+                    ''', (date_recorded.isocalendar()[1], date_recorded.year))
+                    
+                    current_assignments = cursor.fetchall()
                 
                 # Get completed assignments from completed_productions table
                 # Only show completed productions on the exact day they were completed
@@ -3046,18 +3053,47 @@ def ensure_today_history():
                 last = cursor.fetchone()
                 if last:
                     last_date = last['date_recorded']
-                    # Copy only active records from last_date to today
-                    cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'", (last_date,))
-                    rows = cursor.fetchall()
-                    for row in rows:
-                        # Remove the id and change date_recorded to today
-                        row_data = dict(row)
-                        row_data['date_recorded'] = today
-                        row_data.pop('id', None)
-                        columns = ', '.join(row_data.keys())
-                        placeholders = ', '.join(['%s'] * len(row_data))
-                        cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
-                    connection.commit()
+                    last_week, last_year = last_date.isocalendar()[1], last_date.year
+                    this_week, this_year = today.isocalendar()[1], today.year
+                    same_iso_week = (last_week == this_week) and (last_year == this_year)
+                    if same_iso_week:
+                        # Same week: copy active rows
+                        cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'", (last_date,))
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            row_data = dict(row)
+                            row_data['date_recorded'] = today
+                            row_data.pop('id', None)
+                            columns = ', '.join(row_data.keys())
+                            placeholders = ', '.join(['%s'] * len(row_data))
+                            cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
+                        connection.commit()
+                    else:
+                        # New week: if a program exists for the new week, snapshot it; otherwise copy the last day's active rows
+                        cursor.execute('''
+                            SELECT COUNT(*) AS cnt
+                            FROM schedule sch
+                            JOIN production p ON sch.production_id = p.id
+                            WHERE sch.week_number = %s AND sch.year = %s AND p.status = 'active'
+                        ''', (this_week, this_year))
+                        week_has_program = (cursor.fetchone() or {}).get('cnt', 0) > 0
+                        if week_has_program:
+                            # Snapshot today's schedule into history for the new week start
+                            # Commit any prior reads first to keep connection clean
+                            connection.commit()
+                            save_daily_schedule_history(today)
+                        else:
+                            # No program for the new week yet → copy active rows from last recorded day (typically Sunday)
+                            cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'", (last_date,))
+                            rows = cursor.fetchall()
+                            for row in rows:
+                                row_data = dict(row)
+                                row_data['date_recorded'] = today
+                                row_data.pop('id', None)
+                                columns = ', '.join(row_data.keys())
+                                placeholders = ', '.join(['%s'] * len(row_data))
+                                cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
+                            connection.commit()
                 
                 # Also ensure today has any non-functioning machine events that were saved directly
                 # Check if there are any non-functioning machine events for today that weren't copied
