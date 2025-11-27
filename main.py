@@ -2934,6 +2934,18 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 # Use date as key (YYYY-MM-DD format)
                 key = date_recorded.strftime('%Y-%m-%d')
                 history[key] = day_data
+
+            # ===== ADD THIS DEBUG BEFORE RETURN =====
+            print(f"\n=== FINAL HISTORY DATA ===")
+            for date_key, machines in history.items():
+                print(f"Date: {date_key}")
+                print(f"  Machines: {list(machines.keys())}")
+                if 'EMBALLAGES' in machines:
+                    print(f"  ✅ EMBALLAGES: {machines['EMBALLAGES']}")
+                else:
+                    print(f"  ❌ EMBALLAGES NOT FOUND")
+            print(f"=== END ===\n")
+            # ===== END DEBUG =====
             
             return history
     finally:
