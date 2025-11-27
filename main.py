@@ -2665,44 +2665,44 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 has_saved_history_for_date = bool(historical_assignments)
                 
                 # Check if any machines have completed productions on or before this date
-                # If so, filter out those machines from historical assignments for subsequent dates
                 cursor.execute('''
-                    SELECT DISTINCT machine_id
+                    SELECT DISTINCT machine_id, machine_name
                     FROM completed_productions
                     WHERE DATE(completion_date) <= %s
                 ''', (date_recorded,))
                 
-                completed_machines_before_date = {row['machine_id'] for row in cursor.fetchall()}
+                completed_machines_before_date = cursor.fetchall()
+                completed_machine_ids = {row['machine_id'] for row in completed_machines_before_date if row.get('machine_id')}
+                completed_machine_names = {row['machine_name'] for row in completed_machines_before_date}
                 
                 # Filter out historical assignments for machines that completed production before this date
-                # Only keep historical assignments if they are from the exact completion date
                 filtered_historical_assignments = []
                 for assignment in historical_assignments:
                     machine_id = assignment.get('machine_id')
-                    if machine_id and machine_id in completed_machines_before_date:
+                    machine_name = assignment.get('machine_name')
+                    
+                    # Check by machine_id OR machine_name
+                    if (machine_id and machine_id in completed_machine_ids) or (machine_name in completed_machine_names):
                         # Check if this assignment is from the exact completion date
                         cursor.execute('''
                             SELECT COUNT(*) as count
                             FROM completed_productions
-                            WHERE machine_id = %s AND DATE(completion_date) = %s
-                        ''', (machine_id, date_recorded))
+                            WHERE (machine_id = %s OR machine_name = %s) AND DATE(completion_date) = %s
+                        ''', (machine_id, machine_name, date_recorded))
                         
                         completion_count = cursor.fetchone()['count']
                         if completion_count > 0:
                             # This is the completion date, so keep the assignment
                             filtered_historical_assignments.append(assignment)
-                        # If completion_count is 0, this machine completed before this date, so don't show it
                     else:
                         # Machine hasn't completed production, so keep the assignment
                         filtered_historical_assignments.append(assignment)
                 
                 historical_assignments = filtered_historical_assignments
                 
-                # If there is already saved history for this date, do NOT mix in current week's schedule.
-                # Otherwise, fall back to pulling current active assignments for that week.
+                # Get current active assignments from schedule table (only active productions)
                 current_assignments = []
                 if not has_saved_history_for_date:
-                    # Get current active assignments from schedule table (only active productions)
                     cursor.execute('''
                         SELECT 
                             m.name as machine_name, o.name as operator_name, s.name as shift_name,
@@ -2712,7 +2712,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         FROM schedule sch
                         JOIN machines m ON sch.machine_id = m.id
                         JOIN production p ON sch.production_id = p.id
-                        JOIN articles a ON p.article_id = a.id
+                        LEFT JOIN articles a ON p.article_id = a.id
                         JOIN operators o ON sch.operator_id = o.id
                         JOIN shifts s ON sch.shift_id = s.id
                         WHERE sch.week_number = %s AND sch.year = %s
@@ -2723,7 +2723,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     current_assignments = cursor.fetchall()
                 
                 # Get completed assignments from completed_productions table
-                # Only show completed productions on the exact day they were completed
                 cursor.execute('''
                     SELECT 
                         cp.machine_name, cp.operator_name, cp.shift_name,
@@ -2738,24 +2737,21 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 completed_assignments = cursor.fetchall()
                 
                 # Filter out machines that have completed productions from current_assignments
-                # This ensures that once a production is completed, it doesn't show as active in subsequent days
                 if completed_assignments:
                     completed_machine_ids = {assignment['machine_id'] for assignment in completed_assignments if assignment.get('machine_id')}
-                    if completed_machine_ids:
-                        # Remove current assignments for machines that have completed productions
+                    completed_machine_names = {assignment['machine_name'] for assignment in completed_assignments}
+                    
+                    if completed_machine_ids or completed_machine_names:
                         current_assignments = [
                             assignment for assignment in current_assignments 
-                            if assignment.get('machine_id') not in completed_machine_ids
+                            if (assignment.get('machine_id') not in completed_machine_ids 
+                                and assignment.get('machine_name') not in completed_machine_names)
                         ]
-                
-                
                 
                 # Combine all assignments with deduplication
                 assignments = []
-                seen_assignments = set()  # Track unique assignments
+                seen_assignments = set()
                 
-                # Helper function to create unique key for assignment
-                # Allow duplicate operators if not created at the same time (i.e., in different productions)
                 def get_assignment_key(assignment):
                     return (
                         assignment.get('machine_name', ''),
@@ -2764,7 +2760,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         assignment.get('shift_start_time'),
                         assignment.get('shift_end_time'),
                         assignment.get('position', 0),
-                        assignment.get('production_id', 0)  # Add production_id to allow duplicates across productions
+                        assignment.get('production_id', 0)
                     )
                 
                 # Add assignments with deduplication
@@ -2774,24 +2770,21 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                             key = get_assignment_key(assignment)
                             if key not in seen_assignments:
                                 seen_assignments.add(key)
-                                # Mark completed assignments with status
                                 if assignment_list is completed_assignments:
                                     assignment['status'] = 'completed'
                                 assignments.append(assignment)
                 
-                # Get non-functioning machines for this date (only if they were in production this week)
+                # Get non-functioning machines for this date
                 week = date_recorded.isocalendar()[1]
                 year = date_recorded.year
                 
-                # Enhanced NFM notification logic
-                # Get all NFM events for this machine on this date and previous day
                 cursor.execute('''
                     SELECT 
                         m.name as machine_name,
+                        m.id as machine_id,
                         nfm.reported_date,
                         nfm.issue,
                         nfm.fixed_date,
-                        m.id as machine_id,
                         m.status as current_status
                     FROM non_functioning_machines nfm
                     JOIN machines m ON nfm.machine_id = m.id
@@ -2806,7 +2799,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 # Filter to only include NFM machines that were in production this week
                 base_nfm_machines = []
                 for nfm in all_nfm_machines:
-                    # Check if this machine was in production this week (even if it's not in current schedule)
                     cursor.execute('''
                         SELECT COUNT(*) as count
                         FROM production p
@@ -2820,7 +2812,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     if count_result and count_result['count'] > 0:
                         base_nfm_machines.append(nfm)
                 
-                # Group NFM events by machine to handle same-day multiple events
+                # Group NFM events by machine
                 nfm_by_machine = {}
                 for nfm in base_nfm_machines:
                     machine_id = nfm['machine_id']
@@ -2828,23 +2820,18 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         nfm_by_machine[machine_id] = []
                     nfm_by_machine[machine_id].append(nfm)
                 
-                # Process NFM notifications with enhanced logic
+                # Process NFM notifications
                 non_functioning_machines = []
                 for machine_id, nfm_events in nfm_by_machine.items():
-                    # Sort events by reported_date
                     nfm_events.sort(key=lambda x: x['reported_date'])
                     
-                    # Check if any events are from the current date
                     current_date_events = [e for e in nfm_events if e['reported_date'].date() == date_recorded]
                     previous_date_events = [e for e in nfm_events if e['reported_date'].date() == date_recorded - timedelta(days=1)]
                     
-                    # If there are events from current date, show all current date events
                     if current_date_events:
                         for event in current_date_events:
                             non_functioning_machines.append(event)
-                    # If no current date events but machine is still broken from previous day
                     elif previous_date_events and any(e['current_status'] == 'broken' for e in previous_date_events):
-                        # Only show the most recent event from previous day if machine is still broken
                         latest_previous = max(previous_date_events, key=lambda x: x['reported_date'])
                         if latest_previous['current_status'] == 'broken':
                             non_functioning_machines.append(latest_previous)
@@ -2860,10 +2847,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     if assignment['article_name']:
                         article_info = assignment['article_abbreviation'] or assignment['article_name']
                     
-                    # Check if this is a historical assignment (no machine_id means it's historical)
                     is_historical = assignment.get('machine_id') is None
-                    
-                    # Check if this assignment is completed based on status
                     is_completed = assignment.get('status') == 'completed'
                     
                     day_data[machine].append({
@@ -2876,24 +2860,19 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         'is_completed': is_completed
                     })
                 
-                # Add non-functioning machines to the day data with enhanced notification logic
+                # Add non-functioning machines to the day data
                 for nfm in non_functioning_machines:
                     machine = nfm['machine_name']
                     if machine not in day_data:
                         day_data[machine] = []
                     
-                    # Add a special entry for non-functioning machine
                     reported_time = nfm['reported_date'].strftime('%H:%M') if nfm['reported_date'] else ''
                     
-                    # Check if machine was fixed on this date
                     is_fixed_on_this_date = nfm['fixed_date'] and nfm['fixed_date'].date() == date_recorded
-                    # Check if machine was reported on this date
                     is_reported_on_this_date = nfm['reported_date'] and nfm['reported_date'].date() == date_recorded
-                    # Check if machine was reported on previous day but is still broken
                     is_from_previous_day = nfm['reported_date'] and nfm['reported_date'].date() == date_recorded - timedelta(days=1)
                     
                     if is_fixed_on_this_date:
-                        # Machine was repaired on this date
                         fixed_time = nfm['fixed_date'].strftime('%H:%M') if nfm['fixed_date'] else ''
                         day_data[machine].append({
                             'operator': 'Machine réparée',
@@ -2907,7 +2886,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                             'is_repaired': True
                         })
                     elif is_reported_on_this_date:
-                        # Machine was reported broken on this date - show notification
                         day_data[machine].append({
                             'operator': 'Machine en panne',
                             'shift': 'Non fonctionnelle',
@@ -2919,7 +2897,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                             'is_non_functioning': True
                         })
                     elif is_from_previous_day and nfm['current_status'] == 'broken':
-                        # Machine was reported on previous day and is still broken - show current notification
                         day_data[machine].append({
                             'operator': 'Machine en panne',
                             'shift': 'Non fonctionnelle',
