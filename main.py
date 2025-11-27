@@ -1286,7 +1286,7 @@ def get_machines_in_production():
                     SELECT DISTINCT m.*, p.article_id, a.name as article_name
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
-                    LEFT JOIN articles a ON p.article_id = a.id
+                    JOIN articles a ON p.article_id = a.id
                     WHERE p.status = 'active'
                     AND CURDATE() BETWEEN p.start_date AND COALESCE(p.end_date, CURDATE())
                 """)
@@ -2712,7 +2712,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         FROM schedule sch
                         JOIN machines m ON sch.machine_id = m.id
                         JOIN production p ON sch.production_id = p.id
-                        JOIN articles a ON p.article_id = a.id
+                        LEFT JOIN articles a ON p.article_id = a.id
                         JOIN operators o ON sch.operator_id = o.id
                         JOIN shifts s ON sch.shift_id = s.id
                         WHERE sch.week_number = %s AND sch.year = %s
