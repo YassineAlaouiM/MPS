@@ -4184,6 +4184,36 @@ bold_font_name = 'Amiri'
 # Use font_name and bold_font_name in all TableStyle, ParagraphStyle, and canvas.setFont calls for all output.
 # Remove any logic that sets Arial or other fonts as the default for non-Arabic output.
 
+@app.route('/debug_history')
+@login_required
+def debug_history():
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=7)
+    
+    history_data = get_daily_schedule_history(start_date, end_date)
+    
+    debug_output = []
+    debug_output.append(f"<h2>History Debug</h2>")
+    debug_output.append(f"<p>Date range: {start_date} to {end_date}</p>")
+    debug_output.append(f"<p>Total dates: {len(history_data)}</p>")
+    debug_output.append("<hr>")
+    
+    for date_key, machines in history_data.items():
+        debug_output.append(f"<h3>Date: {date_key}</h3>")
+        debug_output.append(f"<p>Total machines: {len(machines)}</p>")
+        
+        machine_list = list(machines.keys())
+        debug_output.append(f"<p>Machines: {', '.join(machine_list[:30])}</p>")
+        
+        if 'EMBALLAGES' in machines:
+            debug_output.append(f"<p style='color:green;font-weight:bold;'>✅ EMBALLAGES FOUND with {len(machines['EMBALLAGES'])} assignments</p>")
+            debug_output.append(f"<pre>{machines['EMBALLAGES']}</pre>")
+        else:
+            debug_output.append(f"<p style='color:red;font-weight:bold;'>❌ EMBALLAGES NOT FOUND</p>")
+        debug_output.append("<hr>")
+    
+    return '\n'.join(debug_output)
+
 if __name__ == "__main__":
     local_ip = get_local_ip()
     print(f"Server is starting on http://{local_ip}:8000 ...")
