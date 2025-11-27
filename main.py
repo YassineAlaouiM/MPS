@@ -1286,7 +1286,7 @@ def get_machines_in_production():
                     SELECT DISTINCT m.*, p.article_id, a.name as article_name
                     FROM machines m
                     JOIN production p ON m.id = p.machine_id
-                    JOIN articles a ON p.article_id = a.id
+                    LEFT JOIN articles a ON p.article_id = a.id
                     WHERE p.status = 'active'
                     AND CURDATE() BETWEEN p.start_date AND COALESCE(p.end_date, CURDATE())
                 """)
