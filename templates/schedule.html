@@ -104,7 +104,7 @@
                                                 data-shift-id="{{ shift_id }}"
                                                 data-position="{{ assignment.position }}"
                                                 onchange="handleOperatorSelection(this)">
-                                            <option value="">Sélectionner un opérateur</option>
+                                            <option value="">Sélectionner un personnel</option>
                                             {% for operator in operators %}
                                             <option value="{{ operator.id }}" 
                                                     {% if assignment.operator_id == operator.id %}selected{% endif %}
@@ -137,7 +137,7 @@
                                                 data-shift-id="{{ shift_id }}"
                                                 data-position="1"
                                                 onchange="handleOperatorSelection(this)">
-                                            <option value="">Sélectionner un opérateur</option>
+                                            <option value="">Sélectionner un personnel</option>
                                             {% for operator in operators %}
                                             <option value="{{ operator.id }}" 
                                                     {% if operator.absence_status == 'current_absence' or operator.absence_status == 'long_absence' %}disabled style="color: #b3b3b3;"{% endif %}
@@ -391,7 +391,7 @@ function updateOperatorDropdowns() {
         // Add the default option
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
-        defaultOption.textContent = 'Sélectionner un opérateur';
+        defaultOption.textContent = 'Sélectionner un personnel';
         dropdown.appendChild(defaultOption);
         
         // Add enabled options first
@@ -1182,16 +1182,16 @@ function addOperator(button) {
             const lastShift = opt.getAttribute('data-last-shift') || '';
             const nextShift = opt.getAttribute('data-next-shift') || '';
             if (!value) {
-                return '<option value="">Sélectionner un opérateur</option>';
+                return '<option value="">Sélectionner un personnel</option>';
             }
             return `<option value="${value}" data-last-shift="${lastShift}" data-next-shift="${nextShift}"${disabled}${style}>${text}</option>`;
         });
         // Ensure the placeholder is first and unique
-        const placeholder = '<option value="">Sélectionner un opérateur</option>';
+        const placeholder = '<option value="">Sélectionner un personnel</option>';
         const filtered = builtOptions.filter(html => !html.includes('value=""'));
         optionsHtml = placeholder + filtered.join('');
     } else {
-        optionsHtml = '<option value="">Sélectionner un opérateur</option>';
+        optionsHtml = '<option value="">Sélectionner un personnel</option>';
     }
     operatorItem.innerHTML = `
         <div class="select-wrapper">
