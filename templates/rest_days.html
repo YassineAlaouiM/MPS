@@ -38,7 +38,7 @@
                     <!-- Search bar -->
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par opérateur ou jour de repos...">
+                            <input type="text" class="form-control" id="restSearch" placeholder="Rechercher par personnel ou jour de repos...">
                         </div>
                     </div>
                     <form id="restDaysForm" data-can-edit="{{ 'true' if can_edit else 'false' }}">
@@ -46,7 +46,7 @@
                             <table class="table table-bordered align-middle text-center" id="restDaysTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Opérateur</th>
+                                        <th>Personnel</th>
                                         {% for d in week_dates %}
                                             <th>
                                                 {% set jours_fr = ['Samedi', 'Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'] %}
