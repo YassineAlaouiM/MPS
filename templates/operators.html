@@ -12,7 +12,7 @@
         <!-- Operators Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h3>Opérateurs</h3>
+                <h3>Personnels</h3>
                 {% if can_edit %}
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOperatorModal">
                     <i class='bx bx-plus'></i>
@@ -87,7 +87,7 @@
         <!-- Absences Section -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h3>Absences des opérateurs</h3>
+                <h3>Absences des personnels</h3>
                 {% if can_edit %}
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAbsenceModal">
                     <i class='bx bx-plus'></i>
@@ -103,7 +103,7 @@
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Opérateur</th>
+                                    <th>Personnel</th>
                                     <th>Date de début</th>
                                     <th>Date de fin</th>
                                     <th>Raison</th>
@@ -146,13 +146,13 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Ajouter un opérateur</h5>
+                <h5 class="modal-title">Ajouter un personnel</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="addOperatorForm" data-form-action="saveOperator">
                     <div class="mb-3">
-                        <label for="operatorName" class="form-label">Nom de l'opérateur</label>
+                        <label for="operatorName" class="form-label">Nom du personnel</label>
                         <input type="text" class="form-control" id="operatorName" required>
                     </div>
                     <div class="mb-3">
