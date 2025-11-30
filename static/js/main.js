@@ -1119,7 +1119,7 @@ function assignOperator(machineId, shiftId, weekNumber, year) {
     const operatorId = operatorSelect ? operatorSelect.value : null;
 
     if (!operatorId) {
-        alert('Veuillez sélectionner un opérateur');
+        alert('Veuillez sélectionner un personnel');
         return;
     }
 
@@ -1294,7 +1294,7 @@ function updateOperatorDropdowns() {
         // Ensure the default option is always on top and only once
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
-        defaultOption.textContent = 'Sélectionner un opérateur';
+        defaultOption.textContent = 'Sélectionner un personnel';
         dropdown.appendChild(defaultOption);
 
         // Separate enabled and disabled options
@@ -1353,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('operatorName').value = '';
             document.getElementById('operatorArabicName').value = '';
             document.getElementById('operatorStatus').value = 'active';
-            document.querySelector('#addOperatorModal .modal-title').textContent = 'Ajouter un opérateur';
+            document.querySelector('#addOperatorModal .modal-title').textContent = 'Ajouter un personnel';
             document.querySelector('#addOperatorModal .btn-primary').textContent = 'Enregistrer';
             document.querySelector('#addOperatorModal .btn-primary').onclick = saveOperator;
         }
