@@ -355,7 +355,7 @@ function handleOperatorSelection(selectElement) {
     // Add the new operator to the set
     if (selectElement.value) {
         if (selectedOperators.has(selectElement.value)) {
-            alert('Cet opérateur est déjà affecté à un autre poste.');
+            alert('Ce personnel est déjà affecté à un autre poste.');
             selectElement.value = ""; // Reset the selection
             return;
         }
