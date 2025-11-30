@@ -5,7 +5,7 @@
     <script src="{{ url_for('static', filename='js/operators.js') }}"></script>
     
 {% endblock %}
-{% block title %}Opérateurs{% endblock %}
+{% block title %}Personnels{% endblock %}
 {% block content %}
 <div class="row">
     <div class="col-md-12">
@@ -21,7 +21,7 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" id="operatorSearch" placeholder="Rechercher des opérateurs...">
+                    <input type="text" class="form-control" id="operatorSearch" placeholder="Rechercher des personnels...">
                 </div>
                 <div class="scrollable-section">
                     <div class="table-responsive">
@@ -76,7 +76,7 @@
                             </tbody>
                         </table>
                         <div id="noOperatorsFound" class="text-center py-3" style="display: none;">
-                            <p class="text-muted">Aucun opérateur trouvé correspondant à votre recherche</p>
+                            <p class="text-muted">Aucun personnel trouvé correspondant à votre recherche</p>
                         </div>
                     </div>
                 </div>
@@ -190,14 +190,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Modifier l'opérateur</h5>
+                <h5 class="modal-title">Modifier le personnel</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="editOperatorForm" data-form-action="saveOperatorEdit">
                     <input type="hidden" id="editOperatorId">
                     <div class="mb-3">
-                        <label for="editOperatorName" class="form-label">Nom de l'opérateur</label>
+                        <label for="editOperatorName" class="form-label">Nom du personnel</label>
                         <input type="text" class="form-control" id="editOperatorName" required>
                     </div>
                     <div class="mb-3">
@@ -241,9 +241,9 @@
             <div class="modal-body">
                 <form id="addAbsenceForm" data-form-action="saveAbsence">
                     <div class="mb-3">
-                        <label for="operatorSelect" class="form-label">Opérateur</label>
+                        <label for="operatorSelect" class="form-label">Personnel</label>
                         <select class="form-select" id="operatorSelect" required>
-                            <option value="">Sélectionner un opérateur</option>
+                            <option value="">Sélectionner un personnel</option>
                             {% for operator in operators %}
                             {% if operator.status == 'active' %}
                             <option value="{{ operator.id }}">{{ operator.name }}</option>
@@ -284,9 +284,9 @@
                 <form id="editAbsenceForm" data-form-action="saveAbsenceEdit">
                     <input type="hidden" id="editAbsenceId">
                     <div class="mb-3">
-                        <label for="editOperatorSelect" class="form-label">Opérateur</label>
+                        <label for="editOperatorSelect" class="form-label">Personnel</label>
                         <select class="form-select" id="editOperatorSelect" required>
-                            <option value="">Sélectionner un opérateur</option>
+                            <option value="">Sélectionner un personnel</option>
                             {% for operator in operators %}
                             <option value="{{ operator.id }}">{{ operator.name }}</option>
                             {% endfor %}
