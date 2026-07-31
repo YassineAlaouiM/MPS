@@ -37,7 +37,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'root@localhost'),
+    'password': os.getenv('DB_PASSWORD', ''),
     'database': os.getenv('DB_NAME', 'schedule_management'),
     'charset': 'utf8mb4',
     'cursorclass': DictCursor  # <-- Use DictCursor directly
@@ -1855,6 +1855,7 @@ def random_assignments():
                         selected_operator = None
                         for operator in eligible_operators:
                             last_shift_id = operator['last_shift_id']
+                            next_shift = None
                             if last_shift_id is None:
                                 if shift['id'] == 1:
                                     selected_operator = operator
