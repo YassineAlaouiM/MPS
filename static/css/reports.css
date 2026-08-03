@@ -1,0 +1,236 @@
+/* Reports Page Styles */
+.reports-card {
+    border-radius: 0.8rem;
+    overflow: hidden;
+}
+
+.reports-card .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 1.5rem;
+}
+
+.reports-card .card-header h3 {
+    color: #000;
+    font-weight: 600;
+    margin: 0;
+}
+
+.reports-tabs .nav-link {
+    color: #495057;
+    font-weight: 500;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 0.75rem 1rem;
+}
+
+.reports-tabs .nav-link.active {
+    color: #1461d4;
+    border-bottom-color: #1461d4;
+    background: transparent;
+}
+
+.report-filters {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+}
+
+.report-filters .form-label {
+    font-weight: 600;
+    color: #000;
+}
+
+/* Filter / reset buttons — match History & Programme */
+.report-filter-actions {
+    justify-content: flex-end;
+}
+
+.inline-button {
+    height: 40px;
+    min-width: 100px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.report-reset-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 10px;
+    border: 2px solid #d7dde4;
+    background-color: #fff;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+}
+
+.report-reset-btn:hover {
+    transform: translateY(-3px);
+    border-color: #1461d4;
+    color: #1461d4;
+}
+
+.export-btn {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 2px solid #d7dde4;
+    background-color: #d7dde4;
+    color: #000;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+}
+
+.export-btn:hover {
+    transform: translateY(-3px);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1461d4;
+    line-height: 1.2;
+}
+
+.stat-card .stat-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.chart-container {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    max-height: 350px;
+}
+
+.charts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.report-table-section {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.5rem;
+    overflow-x: auto;
+}
+
+.report-table-section h5 {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.report-table {
+    margin-bottom: 0;
+}
+
+.report-table thead th {
+    background: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+    white-space: nowrap;
+}
+
+.empty-report-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.report-loading {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.report-error {
+    background: #f8d7da;
+    color: #842029;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+}
+
+.report-section-title {
+    font-weight: 600;
+    color: #333;
+    margin: 1.5rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.period-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.period-matin { background: #fff3cd; color: #856404; }
+.period-apres_midi { background: #d1ecf1; color: #0c5460; }
+.period-nuit { background: #d4edda; color: #155724; }
+
+.badge-shift-matin { background: #ffc107; color: #000; }
+.badge-shift-apres_midi { background: #17a2b8; color: #fff; }
+.badge-shift-nuit { background: #28a745; color: #fff; }
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .reports-card .card-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+
+    .export-btn {
+        width: 100%;
+    }
+
+    .report-filter-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .inline-button {
+        flex: 1;
+    }
+}

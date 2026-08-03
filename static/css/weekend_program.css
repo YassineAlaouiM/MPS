@@ -1,0 +1,94 @@
+.weekend-nav-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 220px;
+}
+
+.weekend-nav-center .week-dates {
+    width: auto;
+    margin: 0;
+    padding: 0;
+}
+
+.weekend-selected-date {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1461d4;
+    line-height: 1.2;
+}
+
+.weekend-day-tabs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.weekend-day-tab {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 2px solid #1461d4;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    background-color: transparent;
+    color: #1461d4;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    cursor: pointer;
+}
+
+.weekend-day-tab:hover {
+    background-color: #1461d4;
+    color: #fff;
+    transform: translateY(-3px);
+}
+
+.weekend-day-tab.active {
+    background-color: #1461d4;
+    color: #fff;
+}
+
+.weekend-day-tab.active:hover {
+    background-color: #1461d4;
+    color: #fff;
+    transform: translateY(-3px);
+}
+
+.week-controls,
+.year-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.weekend-modified-machine td:first-child + td {
+    border-left: 3px solid #1461d4;
+}
+
+.btn-danger-outline {
+    background: transparent;
+    border: 1px solid #d51837;
+    color: #d51837;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-danger-outline:hover {
+    background: #d51837;
+    color: #fff;
+}
+
+@media (max-width: 900px) {
+    .weekend-nav-center {
+        min-width: 160px;
+    }
+
+    .weekend-day-tab {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+}

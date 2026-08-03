@@ -4,7 +4,6 @@ import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
-from dotenv import load_dotenv
 import random
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, portrait, landscape
@@ -13,7 +12,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Table, TableStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
 from reportlab.lib.enums import TA_CENTER
 from io import BytesIO
 import arabic_reshaper
@@ -27,21 +29,12 @@ from pymysql.cursors import DictCursor
 from typing import cast, List
 from calendar import day_name
 from collections import defaultdict
+import re
 
-load_dotenv()
+from config import db_config, is_smtp_configured, smtp_config
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
-
-# Database configuration
-db_config = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_NAME', 'schedule_management'),
-    'charset': 'utf8mb4',
-    'cursorclass': DictCursor  # <-- Use DictCursor directly
-}
 
 # Login manager setup
 login_manager = LoginManager()
@@ -622,11 +615,22 @@ def create_non_functioning_machine():
                 VALUES (%s, %s, %s)
             """
             # Get the machine name
+            cursor.execute("SELECT name FROM machines WHERE id = %s", (machine_id,))
+            machine = cursor.fetchone()
+            machine_name = machine['name'] if machine else f'Machine #{machine_id}'
+
             cursor.execute(sql, (machine_id, issue, reported_date))
             connection.commit()
             
             # Save to history immediately
             save_non_functioning_machine_to_history(machine_id, issue, reported_date, is_repair=False)
+
+            create_notification(
+                'nfm_reported',
+                f'Machine en panne : {machine_name}',
+                issue or 'Panne signalée',
+                reported_date,
+            )
             
             return jsonify({'success': True, 'message': 'Non-functioning machine added successfully'})
     except pymysql.Error as e:
@@ -657,6 +661,10 @@ def mark_machine_fixed(id):
             machine_id = result['machine_id']
             issue = result['issue']
 
+            cursor.execute("SELECT name FROM machines WHERE id = %s", (machine_id,))
+            machine = cursor.fetchone()
+            machine_name = machine['name'] if machine else f'Machine #{machine_id}'
+
             # Update non_functioning_machines with fixed date
             sql = "UPDATE non_functioning_machines SET fixed_date = %s WHERE id = %s"
             cursor.execute(sql, (fixed_date, id))
@@ -669,6 +677,13 @@ def mark_machine_fixed(id):
             
             # Save repair event to history immediately
             save_non_functioning_machine_to_history(machine_id, issue, fixed_date, is_repair=True)
+
+            create_notification(
+                'nfm_fixed',
+                f'Machine réparée : {machine_name}',
+                issue or 'Panne résolue',
+                fixed_date,
+            )
             
             return jsonify({'success': True, 'message': 'Machine marked as fixed successfully'})
     except pymysql.Error as e:
@@ -725,6 +740,10 @@ def create_absence():
                 VALUES (%s, %s, %s, %s)
             """
             cursor.execute(sql, (operator_id, start_date, end_date, reason))
+
+            cursor.execute("SELECT name FROM operators WHERE id = %s", (operator_id,))
+            operator = cursor.fetchone()
+            operator_name = operator['name'] if operator else f'Opérateur #{operator_id}'
             
             # Update operator status to 'absent' if the absence period includes current date
             if start_date_obj <= current_date <= end_date_obj:
@@ -732,6 +751,13 @@ def create_absence():
                 cursor.execute(sql, (operator_id,))
             
             connection.commit()
+
+            create_notification(
+                'absence_created',
+                f'Absence enregistrée : {operator_name}',
+                f"Période : {start_date} → {end_date}. Motif : {reason}",
+            )
+
             return jsonify({'success': True, 'message': 'Absence added successfully'})
     except pymysql.Error as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -1713,6 +1739,15 @@ def confirm_assignments():
                     )
             connection.commit()
             save_daily_schedule_history()  # Automatically save after confirmation
+
+            week_start, week_end = get_iso_week_date_range(week_number, year)
+            date_range = format_date_range_display(week_start, week_end)
+            create_notification(
+                'schedule_confirmed',
+                f'Planning confirmé — {date_range}',
+                f'Le planning du {date_range} a été confirmé par {current_user.username}.',
+            )
+
             return jsonify({'success': True, 'message': 'Assignments confirmed successfully.'})
     except Exception as e:
         connection.rollback()
@@ -1904,6 +1939,1026 @@ def random_assignments():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+# --- Weekend Program (extends production schedule) ---
+
+WEEKEND_DAYS = ('saturday', 'sunday')
+WEEKEND_DAY_LABELS = {
+    'saturday': {'fr': 'Samedi', 'ar': 'السبت'},
+    'sunday': {'fr': 'Dimanche', 'ar': 'الأحد'},
+}
+
+def _normalize_assignment_key(assignment):
+    return (
+        int(assignment['machine_id']),
+        int(assignment['production_id']),
+        int(assignment['shift_id']),
+        int(assignment.get('position', 1)),
+        int(assignment['operator_id']),
+    )
+
+def _group_assignments_by_machine(assignments):
+    grouped = defaultdict(list)
+    for assignment in assignments:
+        key = (int(assignment['machine_id']), int(assignment['production_id']))
+        grouped[key].append(assignment)
+    return grouped
+
+def _assignments_equal(production_group, candidate_group):
+    prod_keys = {_normalize_assignment_key(a) for a in production_group if a.get('operator_id')}
+    cand_keys = {
+        (
+            int(a['machine_id']),
+            int(a['production_id']),
+            int(a['shift_id']),
+            int(a.get('position', 1)),
+            int(a['operator_id']),
+        )
+        for a in candidate_group if a.get('operator_id')
+    }
+    return prod_keys == cand_keys
+
+def get_production_schedule_assignments(cursor, week, year):
+    cursor.execute("""
+        SELECT s.id, s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position,
+               s.week_number, s.year,
+               m.name as machine_name, o.name as operator_name, sh.name as shift_name,
+               p.article_id, a.name as article_name
+        FROM schedule s
+        JOIN machines m ON s.machine_id = m.id
+        JOIN production p ON s.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        JOIN operators o ON s.operator_id = o.id
+        JOIN shifts sh ON s.shift_id = sh.id
+        WHERE s.week_number = %s AND s.year = %s
+        ORDER BY m.name, p.start_date, sh.id, s.position
+    """, (week, year))
+    return cursor.fetchall()
+
+def get_weekend_schedule_assignments(cursor, week, year, day):
+    cursor.execute("""
+        SELECT ws.id, ws.machine_id, ws.production_id, ws.operator_id, ws.shift_id, ws.position,
+               ws.week_number, ws.year,
+               m.name as machine_name, o.name as operator_name, sh.name as shift_name,
+               p.article_id, a.name as article_name
+        FROM weekend_schedule ws
+        JOIN machines m ON ws.machine_id = m.id
+        JOIN production p ON ws.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        JOIN operators o ON ws.operator_id = o.id
+        JOIN shifts sh ON ws.shift_id = sh.id
+        WHERE ws.week_number = %s AND ws.year = %s AND ws.day = %s
+        ORDER BY m.name, sh.id, ws.position
+    """, (week, year, day))
+    return cursor.fetchall()
+
+def get_weekend_cleared_keys(cursor, week, year, day):
+    cursor.execute("""
+        SELECT machine_id, production_id
+        FROM weekend_cleared_machines
+        WHERE week_number = %s AND year = %s AND day = %s
+    """, (week, year, day))
+    return {(int(r['machine_id']), int(r['production_id'])) for r in cursor.fetchall()}
+
+def get_production_assigned_machine_keys(cursor, week, year):
+    cursor.execute("""
+        SELECT DISTINCT machine_id, production_id
+        FROM schedule
+        WHERE week_number = %s AND year = %s
+    """, (week, year))
+    return {(int(r['machine_id']), int(r['production_id'])) for r in cursor.fetchall()}
+
+def get_weekend_visible_keys(cursor, week, year, day):
+    cursor.execute("""
+        SELECT machine_id, production_id
+        FROM weekend_visible_machines
+        WHERE week_number = %s AND year = %s AND day = %s
+    """, (week, year, day))
+    return {(int(r['machine_id']), int(r['production_id'])) for r in cursor.fetchall()}
+
+def filter_weekend_visible_machines(all_program_machines, visible_keys):
+    return [
+        machine for machine in all_program_machines
+        if (int(machine['id']), int(machine['production_id'])) in visible_keys
+    ]
+
+def _operator_ids_from_assignments(assignments):
+    return {int(a['operator_id']) for a in assignments if a.get('operator_id')}
+
+def _operator_ids_from_submitted_by_machine(submitted_by_machine, exclude_key=None):
+    operator_ids = set()
+    for key, group in submitted_by_machine.items():
+        if exclude_key is not None and key == exclude_key:
+            continue
+        operator_ids.update(_operator_ids_from_assignments(group))
+    return operator_ids
+
+def _effective_production_group(production_group, excluded_operator_ids):
+    return [
+        a for a in production_group
+        if a.get('operator_id') is not None and int(a['operator_id']) not in excluded_operator_ids
+    ]
+
+def merge_weekend_with_production(production_assignments, weekend_assignments, cleared_keys=None):
+    """Weekend takes priority: modified/cleared machines use weekend data only;
+    operators in weekend are removed from all other machines inherited from production."""
+    cleared_keys = cleared_keys or set()
+    modified_keys = {(int(a['machine_id']), int(a['production_id'])) for a in weekend_assignments}
+    modified_keys |= cleared_keys
+    weekend_operator_ids = _operator_ids_from_assignments(weekend_assignments)
+
+    merged = []
+    for assignment in production_assignments:
+        machine_id = assignment.get('machine_id')
+        production_id = assignment.get('production_id')
+        if machine_id is not None and production_id is not None:
+            if (int(machine_id), int(production_id)) in modified_keys:
+                continue
+        operator_id = assignment.get('operator_id')
+        if operator_id is not None and int(operator_id) in weekend_operator_ids:
+            continue
+        merged.append(assignment)
+
+    merged.extend(weekend_assignments)
+    return merged, modified_keys
+
+def _date_to_weekend_day(date_recorded):
+    weekday = date_recorded.weekday()
+    if weekday == 5:
+        return 'saturday'
+    if weekday == 6:
+        return 'sunday'
+    return None
+
+def _iso_week_to_weekend_date(week, year, day):
+    jan4 = datetime(year, 1, 4)
+    monday = jan4 - timedelta(days=jan4.isocalendar()[2] - 1) + timedelta(weeks=week - 1)
+    if day == 'saturday':
+        return (monday + timedelta(days=5)).date()
+    if day == 'sunday':
+        return (monday + timedelta(days=6)).date()
+    return None
+
+def get_iso_week_date_range(week, year):
+    jan4 = datetime(year, 1, 4)
+    monday = jan4 - timedelta(days=jan4.isocalendar()[2] - 1) + timedelta(weeks=week - 1)
+    sunday = monday + timedelta(days=6)
+    return monday.date(), sunday.date()
+
+def _format_notification_date_value(date_val):
+    if isinstance(date_val, str):
+        parts = date_val.split('-')
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    elif hasattr(date_val, 'strftime'):
+        return date_val.strftime('%d/%m/%Y')
+    return str(date_val)
+
+def format_date_range_display(start_date, end_date):
+    return f"{_format_notification_date_value(start_date)} — {_format_notification_date_value(end_date)}"
+
+def get_weekend_history_assignments(cursor, week, year, day, operator_name_field='o.name'):
+    cursor.execute(f"""
+        SELECT
+            m.name as machine_name, {operator_name_field} as operator_name, sh.name as shift_name,
+            sh.start_time as shift_start_time, sh.end_time as shift_end_time,
+            a.name as article_name, a.abbreviation as article_abbreviation,
+            ws.machine_id, ws.production_id, ws.operator_id, ws.shift_id, ws.position,
+            m.type as machine_type
+        FROM weekend_schedule ws
+        JOIN machines m ON ws.machine_id = m.id
+        JOIN production p ON ws.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        JOIN operators o ON ws.operator_id = o.id
+        JOIN shifts sh ON ws.shift_id = sh.id
+        WHERE ws.week_number = %s AND ws.year = %s AND ws.day = %s
+        ORDER BY m.name, sh.start_time, ws.position
+    """, (week, year, day))
+    return cursor.fetchall()
+
+def apply_weekend_overrides_to_history_assignments(cursor, assignments, date_recorded, operator_name_field='o.name'):
+    """Weekend schedule takes priority over production/history for Saturday and Sunday."""
+    day = _date_to_weekend_day(date_recorded)
+    if not day:
+        return assignments
+
+    week = date_recorded.isocalendar()[1]
+    year = date_recorded.year
+    weekend_assignments = get_weekend_history_assignments(cursor, week, year, day, operator_name_field)
+    if not weekend_assignments and not get_weekend_cleared_keys(cursor, week, year, day):
+        return assignments
+
+    cleared_keys = get_weekend_cleared_keys(cursor, week, year, day)
+    merged, _ = merge_weekend_with_production(assignments, weekend_assignments, cleared_keys)
+    return merged
+
+def load_weekend_program_page_data(week, year, day):
+    if day not in WEEKEND_DAYS:
+        raise ValueError('Invalid weekend day')
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
+                    STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
+            """, (year, week, year, week))
+            week_dates = cursor.fetchone()
+            if not week_dates or not week_dates['week_start'] or not week_dates['week_end']:
+                raise ValueError(f'Error calculating week dates for week {week} of {year}')
+
+            cursor.execute("""
+                SELECT m.*, p.id as production_id, p.article_id, a.name as article_name,
+                       CASE WHEN nfm.id IS NOT NULL THEN 1 ELSE 0 END as is_nfm
+                FROM machines m
+                JOIN production p ON m.id = p.machine_id
+                LEFT JOIN articles a ON p.article_id = a.id
+                LEFT JOIN non_functioning_machines nfm ON m.id = nfm.machine_id
+                    AND (nfm.fixed_date IS NULL OR DATE(nfm.fixed_date) > CURDATE())
+                WHERE p.status = 'active'
+                AND (
+                    (p.start_date <= %s AND (p.end_date IS NULL OR p.end_date >= %s))
+                    OR (p.start_date BETWEEN %s AND %s)
+                    OR ((p.end_date IS NOT NULL) AND p.end_date BETWEEN %s AND %s)
+                )
+                ORDER BY m.type, m.name, p.start_date
+            """, (week_dates['week_end'], week_dates['week_start'],
+                  week_dates['week_start'], week_dates['week_end'],
+                  week_dates['week_start'], week_dates['week_end']))
+            all_program_machines = cursor.fetchall()
+
+            cursor.execute("SELECT * FROM articles ORDER BY name")
+            articles = cursor.fetchall()
+            cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
+            all_machines = cursor.fetchall()
+
+            operators = get_operators(week, year)
+
+            cursor.execute("""
+                SELECT o.*,
+                       MAX(a.start_date) as start_date,
+                       MAX(a.end_date) as end_date,
+                       CASE
+                           WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
+                               CASE
+                                   WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
+                                       AND %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                   THEN 'long_absence'
+                                   WHEN %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                   THEN 'current_absence'
+                                   WHEN MAX(a.start_date) BETWEEN %s AND %s
+                                   THEN 'upcoming_absence'
+                                   ELSE 'no_absence'
+                               END
+                           ELSE 'no_absence'
+                       END as absence_status
+                FROM operators o
+                LEFT JOIN absences a ON o.id = a.operator_id
+                    AND (
+                        %s BETWEEN a.start_date AND a.end_date
+                        OR a.start_date BETWEEN %s AND %s
+                    )
+                GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
+            """, (week_dates['week_start'], week_dates['week_start'],
+                  week_dates['week_start'], week_dates['week_end'],
+                  week_dates['week_start'],
+                  week_dates['week_start'], week_dates['week_end']))
+            all_operators = cursor.fetchall()
+
+            shifts = get_shifts()
+            production_assignments = get_production_schedule_assignments(cursor, week, year)
+            weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
+            cleared_keys = get_weekend_cleared_keys(cursor, week, year, day)
+            assignments, modified_machines = merge_weekend_with_production(
+                production_assignments, weekend_assignments, cleared_keys
+            )
+
+            assigned_keys = get_production_assigned_machine_keys(cursor, week, year)
+            extra_visible_keys = get_weekend_visible_keys(cursor, week, year, day)
+            visible_keys = assigned_keys | extra_visible_keys | modified_machines | cleared_keys
+            machines = filter_weekend_visible_machines(all_program_machines, visible_keys)
+            available_program_machines = [
+                machine for machine in all_program_machines
+                if (int(machine['id']), int(machine['production_id'])) not in visible_keys
+            ]
+
+            cursor.execute(
+                "SELECT id FROM weekend_program WHERE week_number = %s AND year = %s",
+                (week, year)
+            )
+            has_weekend_program = cursor.fetchone() is not None
+
+            cursor.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM weekend_schedule
+                     WHERE week_number = %s AND year = %s AND day = %s)
+                  + (SELECT COUNT(*) FROM weekend_cleared_machines
+                     WHERE week_number = %s AND year = %s AND day = %s) AS cnt
+            """, (week, year, day, week, year, day))
+            has_day_modifications = cursor.fetchone()['cnt'] > 0
+
+            current_access = get_user_accessible_pages(current_user.id)
+            can_edit = current_access.get('weekend_program', True) if current_user.role != 'admin' else True
+
+    selected_day = _iso_week_to_weekend_date(week, year, day)
+
+    return {
+        'week': week,
+        'year': year,
+        'day': day,
+        'week_dates': week_dates,
+        'selected_day_date': (
+            f"{selected_day.day}/{selected_day.month}/{selected_day.year}" if selected_day else ''
+        ),
+        'machines': machines,
+        'all_program_machines': all_program_machines,
+        'available_program_machines': available_program_machines,
+        'all_machines': all_machines,
+        'operators': operators,
+        'all_operators': all_operators,
+        'shifts': shifts,
+        'assignments': assignments,
+        'modified_machines': modified_machines,
+        'has_weekend_program': has_weekend_program,
+        'has_day_modifications': has_day_modifications,
+        'can_edit': can_edit,
+        'articles': articles,
+    }
+
+def _ensure_weekend_program_header(cursor, week, year):
+    cursor.execute(
+        "INSERT IGNORE INTO weekend_program (week_number, year) VALUES (%s, %s)",
+        (week, year)
+    )
+
+def _cleanup_weekend_program_header(cursor, week, year):
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM weekend_schedule WHERE week_number = %s AND year = %s)
+          + (SELECT COUNT(*) FROM weekend_cleared_machines WHERE week_number = %s AND year = %s)
+          + (SELECT COUNT(*) FROM weekend_visible_machines WHERE week_number = %s AND year = %s)
+        AS cnt
+    """, (week, year, week, year, week, year))
+    if cursor.fetchone()['cnt'] == 0:
+        cursor.execute(
+            "DELETE FROM weekend_program WHERE week_number = %s AND year = %s",
+            (week, year)
+        )
+
+def save_weekend_assignments(week, year, day, submitted_assignments):
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            production_assignments = get_production_schedule_assignments(cursor, week, year)
+            production_by_machine = _group_assignments_by_machine(production_assignments)
+
+            submitted_by_machine = defaultdict(list)
+            for item in submitted_assignments:
+                if not item.get('operator_id'):
+                    continue
+                key = (int(item['machine_id']), int(item['production_id']))
+                submitted_by_machine[key].append(item)
+
+            all_machine_keys = set(production_by_machine.keys()) | set(submitted_by_machine.keys())
+            has_modifications = False
+
+            for machine_key in all_machine_keys:
+                production_group = production_by_machine.get(machine_key, [])
+                submitted_group = submitted_by_machine.get(machine_key, [])
+                machine_id, production_id = machine_key
+                other_operator_ids = _operator_ids_from_submitted_by_machine(
+                    submitted_by_machine, exclude_key=machine_key
+                )
+                effective_production = _effective_production_group(
+                    production_group, other_operator_ids
+                )
+
+                cursor.execute("""
+                    DELETE FROM weekend_schedule
+                    WHERE week_number = %s AND year = %s AND day = %s
+                      AND machine_id = %s AND production_id = %s
+                """, (week, year, day, machine_id, production_id))
+                cursor.execute("""
+                    DELETE FROM weekend_cleared_machines
+                    WHERE week_number = %s AND year = %s AND day = %s
+                      AND machine_id = %s AND production_id = %s
+                """, (week, year, day, machine_id, production_id))
+
+                if _assignments_equal(effective_production, submitted_group):
+                    continue
+
+                has_modifications = True
+                if submitted_group:
+                    for assignment in submitted_group:
+                        cursor.execute("""
+                            INSERT INTO weekend_schedule
+                                (week_number, year, day, machine_id, production_id,
+                                 operator_id, shift_id, position)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            week, year, day,
+                            machine_id, production_id,
+                            assignment['operator_id'],
+                            assignment['shift_id'],
+                            assignment.get('position', 1),
+                        ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO weekend_cleared_machines
+                            (week_number, year, day, machine_id, production_id)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (week, year, day, machine_id, production_id))
+
+            if has_modifications:
+                _ensure_weekend_program_header(cursor, week, year)
+            _cleanup_weekend_program_header(cursor, week, year)
+            conn.commit()
+
+def get_merged_weekend_export_rows(cursor, week, year, day, name_field='o.name'):
+    production_assignments = get_production_schedule_assignments(cursor, week, year)
+    weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
+    merged_assignments, _ = merge_weekend_with_production(production_assignments, weekend_assignments)
+
+    if not merged_assignments:
+        return []
+
+    cursor.execute(f"""
+        SELECT
+            m.name AS machine_name,
+            m.type AS machine_type,
+            p.id as production_id,
+            a.name as article_name,
+            a.abbreviation as article_abbreviation,
+            sc.machine_id,
+            sc.shift_id,
+            sc.position,
+            {name_field} as operator_name
+        FROM (
+            SELECT machine_id, production_id, operator_id, shift_id, position
+            FROM weekend_schedule
+            WHERE week_number = %s AND year = %s AND day = %s
+            UNION ALL
+            SELECT s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position
+            FROM schedule s
+            WHERE s.week_number = %s AND s.year = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM weekend_schedule ws
+                WHERE ws.week_number = s.week_number AND ws.year = s.year
+                  AND ws.day = %s
+                  AND ws.machine_id = s.machine_id
+                  AND ws.production_id = s.production_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM weekend_schedule ws2
+                WHERE ws2.week_number = s.week_number AND ws2.year = s.year
+                  AND ws2.day = %s
+                  AND ws2.operator_id = s.operator_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM weekend_cleared_machines wc
+                WHERE wc.week_number = s.week_number AND wc.year = s.year
+                  AND wc.day = %s
+                  AND wc.machine_id = s.machine_id
+                  AND wc.production_id = s.production_id
+            )
+        ) sc
+        INNER JOIN machines m ON sc.machine_id = m.id
+        INNER JOIN production p ON sc.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        LEFT JOIN shifts s ON sc.shift_id = s.id
+        LEFT JOIN operators o ON sc.operator_id = o.id
+        WHERE m.status != 'broken'
+        ORDER BY m.type, m.name, p.start_date, sc.shift_id, sc.position
+    """, (week, year, day, week, year, day, day, day))
+    rows = cursor.fetchall()
+
+    grouped = {}
+    for row in rows:
+        key = (row['machine_name'], row['production_id'], row.get('article_name'), row.get('article_abbreviation'), row.get('machine_type'))
+        if key not in grouped:
+            grouped[key] = {
+                'machine_name': row['machine_name'],
+                'machine_type': row['machine_type'],
+                'production_id': row['production_id'],
+                'article_name': row.get('article_name'),
+                'article_abbreviation': row.get('article_abbreviation'),
+                'shift_1': None, 'shift_2': None, 'shift_3': None,
+                'shift_4': None, 'shift_5': None, 'shift_6': None,
+            }
+        shift_col = f"shift_{row['shift_id']}"
+        if shift_col in grouped[key]:
+            existing = grouped[key][shift_col]
+            if existing and row['operator_name']:
+                grouped[key][shift_col] = f"{existing},{row['operator_name']}"
+            elif row['operator_name']:
+                grouped[key][shift_col] = row['operator_name']
+
+    return list(grouped.values())
+
+def generate_schedule_pdf_response(schedule_data, week, year, name_type, filename, weekend_day=None):
+    """Generate schedule PDF using the same layout as the production programme export."""
+    buffer = BytesIO()
+    page_width, page_height = portrait(A4)
+    p = canvas.Canvas(buffer, pagesize=portrait(A4))
+    is_weekend = weekend_day in WEEKEND_DAYS
+    header_top_offset = 88 if is_weekend else 50
+    title_font_size = 34 if is_weekend else 20
+
+    try:
+        font_name = 'Amiri'
+        bold_font_name = 'Amiri'
+        font_paths = [
+            '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
+            '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
+            'static/fonts/Amiri-Regular.ttf'
+        ]
+        bold_font_paths = [
+            'static/fonts/Amiri-Bold.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        ]
+        font_found = False
+        for path in font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arabic', path))
+                font_name = 'Arabic'
+                font_found = True
+                break
+        if not font_found:
+            pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+            font_name = 'Arabic'
+        bold_font_found = False
+        for path in bold_font_paths:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont('Arabic-Bold', path))
+                bold_font_name = 'Arabic-Bold'
+                bold_font_found = True
+                break
+        if not bold_font_found:
+            bold_font_name = font_name
+    except Exception as e:
+        print(f"Font registration error: {str(e)}")
+        font_name = 'Helvetica'
+        bold_font_name = 'Helvetica-Bold'
+
+    header_color = colors.HexColor('#ff0000')
+    table_header_color = colors.HexColor('#0a8231')
+    row_color = colors.HexColor('#ffffff')
+    text_color = colors.HexColor('#000000')
+
+    shift_headers = {
+        'shift_1': '7h à 15h',
+        'shift_2': '15h à 23h',
+        'shift_3': '23h à 7h',
+        'shift_4': '7h à 19h',
+        'shift_5': '19h à 7h',
+        'shift_6': '9h à 17h'
+    }
+
+    def get_week_dates(year_val, week_val):
+        jan_fourth = datetime(year_val, 1, 4)
+        monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
+        target_monday = monday_week1 + timedelta(weeks=week_val - 1)
+        target_sunday = target_monday + timedelta(days=6)
+        return target_monday, target_sunday
+
+    def add_page_header(canvas_obj, page_num, total_pages):
+        canvas_obj.setFont('Helvetica-Bold', 20)
+        canvas_obj.setFillColor(header_color)
+        week_start, week_end = get_week_dates(year, week)
+        week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
+        header_text = f"Programme {week_dates}"
+        canvas_obj.drawCentredString(page_width / 2, page_height - 40, header_text)
+
+    def add_weekend_page_header(canvas_obj):
+        margin = 40
+        day_date = _iso_week_to_weekend_date(week, year, weekend_day)
+        labels = WEEKEND_DAY_LABELS[weekend_day]
+        date_text = f"{day_date.day}/{day_date.month}/{day_date.year}"
+        header_y = page_height - 58
+
+        canvas_obj.setFillColor(header_color)
+
+        canvas_obj.setFont('Helvetica-Bold', title_font_size)
+        fr_text = labels['fr']
+        canvas_obj.drawString(margin, header_y, fr_text)
+        fr_width = canvas_obj.stringWidth(fr_text, 'Helvetica-Bold', title_font_size)
+
+        ar_text = get_display(arabic_reshaper.reshape(labels['ar']))
+        canvas_obj.setFont(bold_font_name, title_font_size)
+        ar_x = margin + fr_width + 18
+        canvas_obj.drawString(ar_x, header_y, ar_text)
+
+        canvas_obj.setFont('Helvetica-Bold', title_font_size)
+        date_width = canvas_obj.stringWidth(date_text, 'Helvetica-Bold', title_font_size)
+        canvas_obj.drawString(page_width - margin - date_width, header_y, date_text)
+
+    def process_text(text, is_header=False, is_machine=False):
+        if not text:
+            return ""
+        text = str(text)
+
+        if is_header:
+            return text
+
+        if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
+            if not is_machine:
+                operators = text.split(',')
+                if len(operators) > 1:
+                    processed_operators = []
+                    for operator in operators:
+                        operator = operator.strip()
+                        if len(operator) > 20:
+                            words = operator.split()
+                            if len(words) > 1:
+                                processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1])
+                            else:
+                                processed_operators.append(operator)
+                        else:
+                            processed_operators.append(operator)
+                    text = '\n+ '.join(processed_operators)
+                else:
+                    operator = text.strip()
+                    if len(operator) > 20:
+                        words = operator.split()
+                        if len(words) > 1:
+                            text = ' '.join(words[:-1]) + '\n' + words[-1]
+                        else:
+                            text = operator
+                    else:
+                        text = operator
+            reshaped_text = arabic_reshaper.reshape(text)
+            return get_display(reshaped_text)
+        elif is_machine:
+            return text.upper()
+        elif not is_header:
+            operators = text.split(',')
+            if len(operators) > 1:
+                processed_operators = []
+                for operator in operators:
+                    operator = operator.strip()
+                    operator_cap = operator.capitalize()
+                    if len(operator_cap) > 20:
+                        words = operator_cap.split()
+                        if len(words) > 1:
+                            processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1].capitalize())
+                        else:
+                            processed_operators.append(operator_cap)
+                    else:
+                        processed_operators.append(operator_cap)
+                return '\n+ '.join(processed_operators)
+            else:
+                operator = text.strip().capitalize()
+                if len(operator) > 20:
+                    words = operator.split()
+                    if len(words) > 1:
+                        return ' '.join(words[:-1]) + '\n' + words[-1].capitalize()
+                    else:
+                        return operator
+                else:
+                    return operator
+        return text
+
+    model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
+    model2_shift_keys = ['shift_4', 'shift_5']
+    model3_shift_keys = ['shift_6']
+    model1_rows = []
+    model2_rows = []
+    model3_rows = []
+    for row in schedule_data:
+        if any(row.get(k) for k in model1_shift_keys):
+            model1_rows.append(row)
+        elif any(row.get(k) for k in model2_shift_keys):
+            model2_rows.append(row)
+        elif any(row.get(k) for k in model3_shift_keys):
+            model3_rows.append(row)
+
+    def render_table(page_obj, rows, shift_keys, y_offset=0):
+        if not rows:
+            return 0
+        margin = 40
+        available_width = page_width - (2 * margin)
+        num_columns = len(shift_keys) + 1
+        col_width = available_width / num_columns
+        rows_per_page = 19
+        row_height = min((page_height - (header_top_offset + 65)) / (rows_per_page + 1), 60)
+        table_data = [['Machine'] + [shift_headers[k] for k in shift_keys]]
+        for row in rows:
+            machine_name = row['machine_name']
+            article_name = row.get('article_name')
+            article_abbr = row.get('article_abbreviation')
+            if article_name and row.get('machine_type'):
+                display_article = article_name
+                if len(article_name) > 17 and article_abbr:
+                    display_article = article_abbr
+                machine_name = f"{machine_name}\n({display_article})"
+            table_row = [process_text(machine_name, is_machine=True)]
+            for shift_key in shift_keys:
+                cell_text = row.get(shift_key) or ""
+                table_row.append(process_text(cell_text))
+            table_data.append(table_row)
+
+        header_font = 'Helvetica-Bold'
+        first_col_font = 'Helvetica-Bold'
+        table_header_font = 'Helvetica-Bold'
+        other_cells_font = bold_font_name
+
+        table = Table(
+            table_data,
+            colWidths=[col_width] * num_columns,
+            rowHeights=[row_height] * len(table_data)
+        )
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), table_header_font),
+            ('FONTNAME', (0, 1), (0, -1), first_col_font),
+            ('FONTNAME', (1, 1), (-1, -1), other_cells_font),
+            ('FONTSIZE', (0, 0), (-1, 0), 16),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 0),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
+            ('FONTSIZE', (0, 1), (0, -1), 14),
+            ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
+            ('FONTSIZE', (1, 1), (-1, -1), 12 if name_type == 'latin' else 16),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('WORDWRAP', (0, 0), (-1, -1), True),
+        ])
+        for i in range(len(table_data)):
+            if i % 2 == 1:
+                table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
+        table.setStyle(table_style)
+        table.wrapOn(page_obj, page_width, page_height)
+        table_y = page_height - header_top_offset - (len(table_data) * row_height) - y_offset
+        table.drawOn(page_obj, margin, table_y)
+        return (len(table_data) * row_height) + 30
+
+    def add_page_footer(canvas_obj, page_num, total_pages):
+        now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        canvas_obj.setFont('Helvetica', 10)
+        canvas_obj.setFillColor(colors.HexColor('#666666'))
+        canvas_obj.drawCentredString(page_width / 2, 20, now)
+
+    p.setFont('Helvetica-Bold', title_font_size)
+    if is_weekend:
+        add_weekend_page_header(p)
+    else:
+        add_page_header(p, 1, 1)
+    y_offset = 0
+    if model1_rows:
+        y_offset += render_table(p, model1_rows, model1_shift_keys, y_offset)
+    if model2_rows:
+        y_offset += render_table(p, model2_rows, model2_shift_keys, y_offset)
+    if model3_rows:
+        y_offset += render_table(p, model3_rows, model3_shift_keys, y_offset)
+    add_page_footer(p, 1, 1)
+    p.save()
+
+    buffer.seek(0)
+    response = make_response(buffer.getvalue())
+    buffer.close()
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/weekend-program/<day>')
+@login_required
+def weekend_program(day):
+    ensure_today_history()
+    if day not in WEEKEND_DAYS:
+        flash('Jour de week-end invalide', 'error')
+        return redirect(url_for('weekend_program', day='saturday'))
+    if not has_page_access('weekend_program'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
+
+    week = request.args.get('week', default=datetime.now().isocalendar()[1], type=int)
+    year = request.args.get('year', default=datetime.now().year, type=int)
+
+    try:
+        page_data = load_weekend_program_page_data(week, year, day)
+    except Exception as e:
+        flash(str(e), 'error')
+        return render_template(
+            'weekend_program.html',
+            day=day,
+            week=week,
+            year=year,
+            machines=[],
+            available_program_machines=[],
+            operators=[],
+            shifts=[],
+            assignments=[],
+            can_edit=False,
+            modified_machines=set(),
+            has_weekend_program=False,
+            has_day_modifications=False,
+            selected_day_date='',
+            articles=[],
+            all_machines=[],
+            all_operators=[],
+        )
+
+    return render_template(
+        'weekend_program.html',
+        day=day,
+        week=page_data['week'],
+        year=page_data['year'],
+        machines=page_data['machines'],
+        available_program_machines=page_data['available_program_machines'],
+        all_machines=page_data['all_machines'],
+        operators=page_data['operators'],
+        all_operators=page_data['all_operators'],
+        shifts=page_data['shifts'],
+        assignments=page_data['assignments'],
+        can_edit=page_data['can_edit'],
+        modified_machines=page_data['modified_machines'],
+        has_weekend_program=page_data['has_weekend_program'],
+        has_day_modifications=page_data['has_day_modifications'],
+        selected_day_date=page_data['selected_day_date'],
+        articles=page_data['articles'],
+    )
+
+@app.route('/api/weekend-schedule', methods=['GET'])
+@login_required
+def get_weekend_schedule_api():
+    if not has_page_access('weekend_program'):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    week = request.args.get('week', type=int)
+    year = request.args.get('year', type=int)
+    day = request.args.get('day', 'saturday')
+    if not week or not year or day not in WEEKEND_DAYS:
+        return jsonify({'success': False, 'message': 'Week, year and day are required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                production_assignments = get_production_schedule_assignments(cursor, week, year)
+                weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
+                cleared_keys = get_weekend_cleared_keys(cursor, week, year, day)
+                assignments, modified_machines = merge_weekend_with_production(
+                    production_assignments, weekend_assignments, cleared_keys
+                )
+                return jsonify({
+                    'success': True,
+                    'assignments': assignments,
+                    'modified_machines': [
+                        {'machine_id': k[0], 'production_id': k[1]} for k in modified_machines
+                    ],
+                })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/weekend-schedule/confirm', methods=['POST'])
+@login_required
+def confirm_weekend_assignments():
+    if not has_page_access('weekend_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json
+    assignments = data.get('assignments', [])
+    week_number = data.get('week_number')
+    year = data.get('year')
+    day = data.get('day', 'saturday')
+    if not week_number or not year or day not in WEEKEND_DAYS:
+        return jsonify({'success': False, 'message': 'Week, year and day are required'})
+    try:
+        save_weekend_assignments(week_number, year, day, assignments)
+        day_label = 'Samedi' if day == 'saturday' else 'Dimanche'
+        day_date = _iso_week_to_weekend_date(week_number, year, day)
+        date_display = _format_notification_date_value(day_date) if day_date else f'S{week_number}/{year}'
+        create_notification(
+            'weekend_confirmed',
+            f'Programme week-end confirmé — {day_label} {date_display}',
+            f'Le programme du {day_label.lower()} {date_display} a été confirmé par {current_user.username}.',
+        )
+        return jsonify({'success': True, 'message': 'Weekend assignments confirmed successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/weekend-schedule', methods=['DELETE'])
+@login_required
+def delete_weekend_program():
+    if not has_page_access('weekend_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    week = request.args.get('week', type=int)
+    year = request.args.get('year', type=int)
+    day = request.args.get('day')
+    if not week or not year:
+        return jsonify({'success': False, 'message': 'Week and year are required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if day and day in WEEKEND_DAYS:
+                    cursor.execute(
+                        "DELETE FROM weekend_schedule WHERE week_number = %s AND year = %s AND day = %s",
+                        (week, year, day)
+                    )
+                    cursor.execute(
+                        "DELETE FROM weekend_cleared_machines WHERE week_number = %s AND year = %s AND day = %s",
+                        (week, year, day)
+                    )
+                    cursor.execute(
+                        "DELETE FROM weekend_visible_machines WHERE week_number = %s AND year = %s AND day = %s",
+                        (week, year, day)
+                    )
+                else:
+                    cursor.execute(
+                        "DELETE FROM weekend_schedule WHERE week_number = %s AND year = %s",
+                        (week, year)
+                    )
+                    cursor.execute(
+                        "DELETE FROM weekend_cleared_machines WHERE week_number = %s AND year = %s",
+                        (week, year)
+                    )
+                    cursor.execute(
+                        "DELETE FROM weekend_visible_machines WHERE week_number = %s AND year = %s",
+                        (week, year)
+                    )
+                _cleanup_weekend_program_header(cursor, week, year)
+                conn.commit()
+        return jsonify({'success': True, 'message': 'Weekend program deleted successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/weekend-schedule/add-machine', methods=['POST'])
+@login_required
+def add_weekend_visible_machine():
+    if not has_page_access('weekend_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json
+    week_number = data.get('week_number')
+    year = data.get('year')
+    day = data.get('day', 'saturday')
+    machine_id = data.get('machine_id')
+    production_id = data.get('production_id')
+    if not all([week_number, year, machine_id, production_id]) or day not in WEEKEND_DAYS:
+        return jsonify({'success': False, 'message': 'Week, year, day, machine and production are required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT p.id
+                    FROM production p
+                    JOIN machines m ON p.machine_id = m.id
+                    WHERE p.id = %s AND p.machine_id = %s AND p.status = 'active'
+                """, (production_id, machine_id))
+                if not cursor.fetchone():
+                    return jsonify({'success': False, 'message': 'Production introuvable pour cette machine'})
+
+                assigned_keys = get_production_assigned_machine_keys(cursor, week_number, year)
+                if (int(machine_id), int(production_id)) in assigned_keys:
+                    return jsonify({'success': False, 'message': 'Cette machine est déjà visible dans le programme'})
+
+                cursor.execute("""
+                    INSERT IGNORE INTO weekend_visible_machines
+                        (week_number, year, day, machine_id, production_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (week_number, year, day, machine_id, production_id))
+                _ensure_weekend_program_header(cursor, week_number, year)
+                conn.commit()
+        return jsonify({'success': True, 'message': 'Machine ajoutée au programme week-end.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/weekend-schedule/random', methods=['POST'])
+@login_required
+def random_weekend_assignments():
+    if not has_page_access('weekend_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json
+    week = data.get('week_number')
+    year = data.get('year')
+    machine_ids = data.get('machine_ids', [])
+    if not week or not year:
+        return jsonify({'success': False, 'message': 'Week and year are required'})
+    return random_assignments()
+
+@app.route('/export_weekend_schedule', methods=['GET'])
+@login_required
+def export_weekend_schedule():
+    week = request.args.get('week', type=int)
+    year = request.args.get('year', type=int)
+    day = request.args.get('day', 'saturday')
+    name_type = request.args.get('name_type', 'latin')
+    if not week or not year or day not in WEEKEND_DAYS:
+        return jsonify({'error': 'Week, year and day parameters are required'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        name_field = 'o.arabic_name' if name_type == 'arabic' else 'o.name'
+        schedule_data = get_merged_weekend_export_rows(cursor, week, year, day, name_field)
+        conn.close()
+        if not schedule_data:
+            return jsonify({'error': 'No schedule data found'}), 404
+        name_suffix = 'ar' if name_type == 'arabic' else 'fr'
+        filename = f'emploi_weekend_{day}_{name_suffix}_semaine_{week}_{year}.pdf'
+        return generate_schedule_pdf_response(schedule_data, week, year, name_type, filename, weekend_day=day)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 #PDF - Schedule Export
 @app.route('/export_schedule', methods=['GET'])
 @login_required
@@ -1989,285 +3044,14 @@ def export_sch():
         ''', (week, year))
         schedule_data = cursor.fetchall()
         conn.close()
-        
-        # Create a BytesIO buffer for the PDF
-        buffer = BytesIO()
-        
-        # Create the PDF object, using BytesIO as its "file"
-        page_width, page_height = portrait(A4)
-        p = canvas.Canvas(buffer, pagesize=portrait(A4))
-        
-        # Register fonts for normal and bold
-        try:
-            if name_type == 'arabic' or (lang if 'lang' in locals() else None) == 'ar':
-                font_name = 'Amiri'
-                bold_font_name = 'Amiri'
-            else:
-                font_name = 'Amiri'
-                bold_font_name = 'Amiri'
-            font_paths = [
-                '/usr/share/fonts/truetype/kacst/KacstOne.ttf',
-                '/usr/share/fonts/truetype/arabeyes/ae_Arab.ttf',
-                'static/fonts/Amiri-Regular.ttf'
-            ]
-            bold_font_paths = [
-                'static/fonts/Amiri-Bold.ttf',
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-            ]
-            font_found = False
-            for path in font_paths:
-                if os.path.exists(path):
-                    pdfmetrics.registerFont(TTFont('Arabic', path))
-                    font_name = 'Arabic'
-                    font_found = True
-                    break
-            if not font_found:
-                pdfmetrics.registerFont(TTFont('Arabic', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-                font_name = 'Arabic'
-            bold_font_found = False
-            for path in bold_font_paths:
-                if os.path.exists(path):
-                    pdfmetrics.registerFont(TTFont('Arabic-Bold', path))
-                    bold_font_name = 'Arabic-Bold'
-                    bold_font_found = True
-                    break
-            if not bold_font_found:
-                bold_font_name = font_name
-        except Exception as e:
-            print(f"Font registration error: {str(e)}")
-            font_name = 'Helvetica'
-            bold_font_name = 'Helvetica-Bold'
 
-        def add_page_header(canvas, page_num, total_pages):
-            # Add title and week dates as a single string, centered
-            canvas.setFont('Helvetica-Bold', 20)  # Use Helvetica for page header
-            canvas.setFillColor(header_color)
-            title_text = "Programme"
-            
-            # Calculate week dates
-            def get_week_dates(year, week):
-                jan_fourth = datetime(year, 1, 4)
-                monday_week1 = jan_fourth - timedelta(days=jan_fourth.isocalendar()[2] - 1)
-                target_monday = monday_week1 + timedelta(weeks=week-1)
-                target_sunday = target_monday + timedelta(days=6)
-                return target_monday, target_sunday
+        if not schedule_data:
+            return jsonify({"error": "No schedule data found"}), 404
 
-            week_start, week_end = get_week_dates(year, week)
-            week_dates = f"Du {week_start.strftime('%d/%m/%Y')} à {week_end.strftime('%d/%m/%Y')}"
-
-            y = page_height - 40
-            header_text = f"{title_text} {week_dates}"
-            # Center the header text
-            canvas.drawCentredString(page_width / 2, y, header_text)
-
-        def process_text(text, is_header=False, is_machine=False):
-            if not text:
-                return ""
-            text = str(text)
-            
-            if is_header:
-                return text
-            
-            if name_type == 'arabic' and any(ord(char) in range(0x0600, 0x06FF) for char in text):
-                if not is_machine:
-                    operators = text.split(',')
-                    if len(operators) > 1:
-                        # Multiple operators case
-                        processed_operators = []
-                        for operator in operators:
-                            operator = operator.strip()
-                            # If operator name is longer than 20, break last word(s) into new line
-                            if len(operator) > 20:
-                                words = operator.split()
-                                if len(words) > 1:
-                                    # Move last word to new line
-                                    processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1])
-                                else:
-                                    processed_operators.append(operator)
-                            else:
-                                processed_operators.append(operator)
-                        text = '\n+ '.join(processed_operators)
-                    else:
-                        # Single operator case
-                        operator = text.strip()
-                        if len(operator) > 20:
-                            words = operator.split()
-                            if len(words) > 1:
-                                text = ' '.join(words[:-1]) + '\n' + words[-1]
-                            else:
-                                text = operator
-                        else:
-                            text = operator
-                reshaped_text = arabic_reshaper.reshape(text)
-                return get_display(reshaped_text)
-            elif is_machine:
-                return text.upper()
-            elif not is_header:
-                operators = text.split(',')
-                if len(operators) > 1:
-                    # Multiple operators case
-                    processed_operators = []
-                    for operator in operators:
-                        operator = operator.strip()
-                        operator_cap = operator.capitalize()
-                        # If operator name is longer than 20, break last word(s) into new line
-                        if len(operator_cap) > 20:
-                            words = operator_cap.split()
-                            if len(words) > 1:
-                                processed_operators.append(' '.join(words[:-1]) + '\n' + words[-1].capitalize())
-                            else:
-                                processed_operators.append(operator_cap)
-                        else:
-                            processed_operators.append(operator_cap)
-                    return '\n+ '.join(processed_operators)
-                else:
-                    # Single operator case
-                    operator = text.strip().capitalize()
-                    if len(operator) > 20:
-                        words = operator.split()
-                        if len(words) > 1:
-                            return ' '.join(words[:-1]) + '\n' + words[-1].capitalize()
-                        else:
-                            return operator
-                    else:
-                        return operator
-            return text
-        # Set colors
-        header_color = colors.HexColor('#ff0000')  # Blue
-        table_header_color = colors.HexColor('#0a8231')  # Green
-        row_color = colors.HexColor('#ffffff')  # Light Gray
-        text_color = colors.HexColor('#000000')  # Dark Blue
-
-        # Shifts (headers)
-        shift_headers = {
-            'shift_1': '7h à 15h',
-            'shift_2': '15h à 23h',
-            'shift_3': '23h à 7h',
-            'shift_4': '7h à 19h',
-            'shift_5': '19h à 7h',
-            'shift_6': '9h à 17h'
-        }
-        
-        # --- BEGIN: Separate tables for model shift 1 and model shift 2 ---
-        # Classify rows into model shift 1 (3 shifts) and model shift 2 (2 shifts)
-        model1_shift_keys = ['shift_1', 'shift_2', 'shift_3']
-        model2_shift_keys = ['shift_4', 'shift_5']
-        model3_shift_keys = ['shift_6']
-        model1_rows = []
-        model2_rows = []
-        model3_rows = []
-        for row in schedule_data:
-            if any(row[k] for k in model1_shift_keys):
-                model1_rows.append(row)
-            elif any(row[k] for k in model2_shift_keys):
-                model2_rows.append(row)
-            elif any(row[k] for k in model3_shift_keys):
-                model3_rows.append(row)
-
-        # Helper to render a table for a given set of rows and shift keys
-        def render_table(page_obj, rows, shift_keys, shift_headers, y_offset=0):
-            if not rows:
-                return 0
-            # Calculate dimensions for the table
-            margin = 40
-            available_width = page_width - (2 * margin)
-            num_columns = len(shift_keys) + 1
-            col_width = available_width / num_columns
-            rows_per_page = 19
-            row_height = min((page_height - 115) / (rows_per_page + 1), 60)
-            # Prepare table data
-            table_data = [['Machine'] + [shift_headers[k] for k in shift_keys]]
-            for row in rows:
-                machine_name = row['machine_name']
-                article_name = row.get('article_name')
-                article_abbr = row.get('article_abbreviation')
-                if article_name and row.get('machine_type'):
-                    display_article = article_name
-                    if len(article_name) > 17 and article_abbr:
-                        display_article = article_abbr
-                    machine_name = f"{machine_name}\n({display_article})"
-                table_row = [process_text(machine_name, is_machine=True)]
-                for shift_key in shift_keys:
-                    cell_text = row[shift_key] if row[shift_key] else ""
-                    table_row.append(process_text(cell_text))
-                table_data.append(table_row)
-            # Choose fonts: Use Arial or Helvetica for header, table header, and first column
-            # Fallback to Helvetica if Arial is not available in your ReportLab setup
-            header_font = 'Helvetica-Bold'
-            first_col_font = 'Helvetica-Bold'
-            table_header_font = 'Helvetica-Bold'
-            other_cells_font = bold_font_name  # Use your default for other cells, or set to 'Helvetica' if desired
-
-            table = Table(
-                table_data,
-                colWidths=[col_width] * num_columns,
-                rowHeights=[row_height] * len(table_data)
-            )
-            table_style = TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), table_header_color),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), table_header_font),  # Table header row: Helvetica-Bold
-                ('FONTNAME', (0, 1), (0, -1), first_col_font),     # First column (machines): Helvetica-Bold
-                ('FONTNAME', (1, 1), (-1, -1), other_cells_font),  # Other cells: your default or Helvetica
-                ('FONTSIZE', (0, 0), (-1, 0), 16),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('TOPPADDING', (0, 1), (-1, -1), 0),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-                ('TEXTCOLOR', (0, 1), (-1, -1), text_color),
-                ('FONTSIZE', (0, 1), (0, -1), 14),
-                ('FONTSTYLE', (0, 1), (0, -1), 'UPPERCASE'),
-                ('FONTSIZE', (1, 1), (-1, -1), 12 if name_type == 'latin' else 16),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('WORDWRAP', (0, 0), (-1, -1), True),
-            ])
-            for i in range(len(table_data)):
-                if i % 2 == 1:
-                    table_style.add('BACKGROUND', (0, i), (-1, i), row_color)
-            table.setStyle(table_style)
-            # Draw table
-            table.wrapOn(page_obj, page_width, page_height)
-            table_y = page_height - 50 - (len(table_data) * row_height) - y_offset
-            table.drawOn(page_obj, margin, table_y)
-            return (len(table_data) * row_height) + 30
-
-        # --- END: Separate tables for model shift 1 and model shift 2 ---
-
-        def add_page_footer(canvas, page_num, total_pages):
-            # Add current date and time at the bottom center
-            now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-            canvas.setFont('Helvetica', 10)
-            canvas.setFillColor(colors.HexColor('#666666'))
-            canvas.drawCentredString(page_width / 2, 20, now)
-
-        # Generate the page(s)
-        p.setFont('Helvetica-Bold', 20)
-        add_page_header(p, 1, 1)
-        y_offset = 0
-        if model1_rows:
-            y_offset += render_table(p, model1_rows, model1_shift_keys, shift_headers, y_offset)
-        if model2_rows:
-            y_offset += render_table(p, model2_rows, model2_shift_keys, shift_headers, y_offset)
-        if model3_rows:
-            y_offset += render_table(p, model3_rows, model3_shift_keys, shift_headers, y_offset)
-        add_page_footer(p, 1, 1)
-        # Save the PDF
-        p.save()
-        # FileResponse
-        buffer.seek(0)
-        response = make_response(buffer.getvalue())
-        buffer.close()
-        response.headers['Content-Type'] = 'application/pdf'
         name_suffix = 'ar' if name_type == 'arabic' else 'fr'
-        response.headers['Content-Disposition'] = f'attachment; filename=emploi_{name_suffix}_semaine_{week}_{year}.pdf'
+        filename = f'emploi_{name_suffix}_semaine_{week}_{year}.pdf'
+        return generate_schedule_pdf_response(schedule_data, week, year, name_type, filename)
 
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-
-        return response
-        
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
@@ -2644,6 +3428,24 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 ''')
             
             dates = cursor.fetchall()
+
+            # Include Saturday/Sunday dates that have weekend modifications in the range
+            if start_date and end_date:
+                cursor.execute("""
+                    SELECT DISTINCT week_number, year, day FROM (
+                        SELECT week_number, year, day FROM weekend_schedule
+                        UNION
+                        SELECT week_number, year, day FROM weekend_cleared_machines
+                    ) w
+                """)
+                existing_dates = {d['date_recorded'] for d in dates}
+                for row in cursor.fetchall():
+                    weekend_date = _iso_week_to_weekend_date(row['week_number'], row['year'], row['day'])
+                    if weekend_date and start_date <= weekend_date <= end_date and weekend_date not in existing_dates:
+                        dates.append({'date_recorded': weekend_date})
+                        existing_dates.add(weekend_date)
+                dates.sort(key=lambda d: d['date_recorded'], reverse=True)
+
             history = {}
             
             for date_record in dates:
@@ -2799,6 +3601,11 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 emballages_combined = [a for a in assignments if a.get('machine_name') == 'EMBALLAGES']
                 print(f"{date_recorded}: Combined assignments - EMBALLAGES count: {len(emballages_combined)}")
                 # ===== END DEBUG 5 =====
+
+                # Weekend program overrides production/history for Saturday and Sunday
+                assignments = apply_weekend_overrides_to_history_assignments(
+                    cursor, assignments, date_recorded
+                )
                 
                 # Get non-functioning machines for this date
                 week = date_recorded.isocalendar()[1]
@@ -3337,6 +4144,7 @@ def export_history():
                 SELECT 
                     d.machine_id,
                     d.machine_name,
+                    d.production_id,
                     m.type as machine_type,
                     d.article_name,
                     d.article_abbreviation,
@@ -3357,6 +4165,7 @@ def export_history():
                 SELECT 
                     d.machine_id,
                     d.machine_name,
+                    d.production_id,
                     m.type as machine_type,
                     d.article_name,
                     d.article_abbreviation,
@@ -3372,6 +4181,34 @@ def export_history():
                 ORDER BY d.machine_name, d.article_name, d.shift_id
             ''', (date_obj,))
         assignments = [row for row in cursor.fetchall() if row['machine_id'] not in all_non_functioning_ids]
+
+        if not assignments and _date_to_weekend_day(date_obj):
+            week = date_obj.isocalendar()[1]
+            year = date_obj.year
+            op_field = 'o.arabic_name' if name_type == 'arabic' else 'o.name'
+            cursor.execute(f'''
+                SELECT
+                    sch.machine_id, m.name as machine_name, sch.production_id,
+                    m.type as machine_type, a.name as article_name, a.abbreviation as article_abbreviation,
+                    sch.shift_id, {op_field} as operator_name
+                FROM schedule sch
+                JOIN machines m ON sch.machine_id = m.id
+                JOIN production p ON sch.production_id = p.id
+                LEFT JOIN articles a ON p.article_id = a.id
+                JOIN operators o ON sch.operator_id = o.id
+                WHERE sch.week_number = %s AND sch.year = %s
+                AND p.status = 'active'
+                AND m.status != 'broken'
+                ORDER BY m.name, sch.shift_id
+            ''', (week, year))
+            assignments = [row for row in cursor.fetchall() if row['machine_id'] not in all_non_functioning_ids]
+
+        assignments = apply_weekend_overrides_to_history_assignments(
+            cursor,
+            assignments,
+            date_obj,
+            operator_name_field='o.arabic_name' if name_type == 'arabic' else 'o.name',
+        )
         conn.close()
         # Collect all unique (machine_name, article_name, article_abbreviation, machine_type)
         machine_article_keys = []
@@ -3923,6 +4760,13 @@ def api_rest_days():
             connection.commit()
         finally:
             connection.close()
+
+        create_notification(
+            'rest_days_updated',
+            f'Jours de repos mis à jour — semaine du {week_start.strftime("%d/%m/%Y")}',
+            f'Les jours de repos du {week_start.strftime("%d/%m/%Y")} au {week_end.strftime("%d/%m/%Y")} ont été mis à jour par {current_user.username}.',
+        )
+
         return jsonify({'success': True})
 
 @app.route('/export_rest_days', methods=['GET'])
@@ -4193,6 +5037,1348 @@ font_name = 'Amiri'
 bold_font_name = 'Amiri'
 # Use font_name and bold_font_name in all TableStyle, ParagraphStyle, and canvas.setFont calls for all output.
 # Remove any logic that sets Arial or other fonts as the default for non-Arabic output.
+
+# --- Reports Module ---
+
+def parse_report_date(name, default=None):
+    value = request.args.get(name)
+    if value:
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    return default
+
+def format_report_time(value):
+    """Format a time/timedelta value as HH:MM for display."""
+    if value is None:
+        return ''
+    if isinstance(value, timedelta):
+        total = int(value.total_seconds())
+        hours, remainder = divmod(total, 3600)
+        minutes = remainder // 60
+        return f'{hours:02d}:{minutes:02d}'
+    if isinstance(value, str):
+        parts = value.split(':')
+        return f'{int(parts[0]):02d}:{int(parts[1]):02d}'
+    return value.strftime('%H:%M')
+
+def _time_to_hour(value):
+    """Convert a time, timedelta, or string value to an hour integer."""
+    if value is None:
+        return 0
+    if isinstance(value, timedelta):
+        return int(value.total_seconds() // 3600)
+    if isinstance(value, str):
+        return int(value.split(':')[0])
+    return value.hour
+
+def calculate_shift_hours(start_time, end_time):
+    """Calculate hours between two time values, handling overnight shifts."""
+    if start_time is None or end_time is None:
+        return 0.0
+    if isinstance(start_time, timedelta):
+        start_seconds = start_time.total_seconds()
+    elif isinstance(start_time, str):
+        parts = start_time.split(':')
+        start_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60
+    else:
+        start_seconds = start_time.hour * 3600 + start_time.minute * 60 + start_time.second
+    if isinstance(end_time, timedelta):
+        end_seconds = end_time.total_seconds()
+    elif isinstance(end_time, str):
+        parts = end_time.split(':')
+        end_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60
+    else:
+        end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
+    if end_seconds <= start_seconds:
+        end_seconds += 24 * 3600
+    return round((end_seconds - start_seconds) / 3600, 2)
+
+def categorize_shift_period(start_time, shift_name=None):
+    """Categorize a shift as matin, apres_midi, or nuit based on start time or name."""
+    name = (shift_name or '').lower()
+    if 'matin' in name or 'morning' in name:
+        return 'matin'
+    if 'apr' in name or 'midi' in name or 'afternoon' in name:
+        return 'apres_midi'
+    if 'nuit' in name or 'night' in name:
+        return 'nuit'
+    if start_time is None:
+        return 'autre'
+    hour = _time_to_hour(start_time)
+    if 5 <= hour < 14:
+        return 'matin'
+    if 14 <= hour < 22:
+        return 'apres_midi'
+    return 'nuit'
+
+PERIOD_LABELS = {
+    'matin': 'Matin',
+    'apres_midi': 'Après-midi',
+    'nuit': 'Nuit',
+    'autre': 'Autre'
+}
+
+def months_in_date_range(start_date, end_date):
+    """Return the number of calendar months spanned by a date range (minimum 1)."""
+    if not start_date or not end_date:
+        return 1
+    months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month) + 1
+    return max(months, 1)
+
+def get_report_assignments(operator_id=None, machine_id=None, start_date=None, end_date=None, search=None):
+    """Fetch shift assignments from daily_schedule_history and weekend_schedule."""
+    connection = get_db_connection()
+    assignments = []
+    try:
+        with connection.cursor() as cursor:
+            sql = '''
+                SELECT
+                    dsh.date_recorded as assignment_date,
+                    dsh.machine_id, dsh.machine_name,
+                    dsh.operator_id, dsh.operator_name,
+                    dsh.shift_id, dsh.shift_name,
+                    dsh.shift_start_time, dsh.shift_end_time,
+                    'history' as source
+                FROM daily_schedule_history dsh
+                WHERE dsh.date_recorded BETWEEN %s AND %s
+                AND dsh.operator_id IS NOT NULL
+            '''
+            params = [start_date, end_date]
+            if operator_id:
+                sql += ' AND dsh.operator_id = %s'
+                params.append(operator_id)
+            if machine_id:
+                sql += ' AND dsh.machine_id = %s'
+                params.append(machine_id)
+            if search:
+                sql += ' AND (dsh.operator_name LIKE %s OR dsh.machine_name LIKE %s OR dsh.shift_name LIKE %s)'
+                like = f'%{search}%'
+                params.extend([like, like, like])
+            sql += ' ORDER BY dsh.date_recorded DESC, dsh.machine_name, dsh.shift_start_time'
+            cursor.execute(sql, params)
+            assignments.extend(cursor.fetchall())
+
+            weekend_sql = '''
+                SELECT
+                    ws.week_number, ws.year, ws.day,
+                    ws.machine_id, m.name as machine_name,
+                    ws.operator_id, o.name as operator_name,
+                    ws.shift_id, s.name as shift_name,
+                    s.start_time as shift_start_time, s.end_time as shift_end_time
+                FROM weekend_schedule ws
+                JOIN machines m ON ws.machine_id = m.id
+                JOIN operators o ON ws.operator_id = o.id
+                JOIN shifts s ON ws.shift_id = s.id
+            '''
+            weekend_params = []
+            weekend_conditions = []
+            if operator_id:
+                weekend_conditions.append('ws.operator_id = %s')
+                weekend_params.append(operator_id)
+            if machine_id:
+                weekend_conditions.append('ws.machine_id = %s')
+                weekend_params.append(machine_id)
+            if search:
+                weekend_conditions.append('(o.name LIKE %s OR m.name LIKE %s OR s.name LIKE %s)')
+                like = f'%{search}%'
+                weekend_params.extend([like, like, like])
+            if weekend_conditions:
+                weekend_sql += ' WHERE ' + ' AND '.join(weekend_conditions)
+            cursor.execute(weekend_sql, weekend_params)
+            for row in cursor.fetchall():
+                weekend_date = _iso_week_to_weekend_date(row['week_number'], row['year'], row['day'])
+                if weekend_date and start_date <= weekend_date <= end_date:
+                    assignments.append({
+                        'assignment_date': weekend_date,
+                        'machine_id': row['machine_id'],
+                        'machine_name': row['machine_name'],
+                        'operator_id': row['operator_id'],
+                        'operator_name': row['operator_name'],
+                        'shift_id': row['shift_id'],
+                        'shift_name': row['shift_name'],
+                        'shift_start_time': row['shift_start_time'],
+                        'shift_end_time': row['shift_end_time'],
+                        'source': 'weekend'
+                    })
+            assignments.sort(key=lambda a: (a['assignment_date'], a.get('machine_name', '')), reverse=True)
+
+            seen = set()
+            deduped = []
+            for a in assignments:
+                key = (
+                    str(a['assignment_date']),
+                    a.get('machine_id'),
+                    a.get('operator_id'),
+                    a.get('shift_id'),
+                    str(a.get('shift_start_time', ''))
+                )
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(a)
+            assignments = deduped
+    finally:
+        connection.close()
+    return assignments
+
+def build_rest_history_report(operator_id, start_date, end_date):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('''
+                SELECT ord.date, o.id as operator_id, o.name as operator_name, o.arabic_name
+                FROM operator_rest_days ord
+                JOIN operators o ON ord.operator_id = o.id
+                WHERE ord.date BETWEEN %s AND %s AND ord.operator_id = %s
+                ORDER BY ord.date
+            ''', (start_date, end_date, operator_id))
+            rest_days = cursor.fetchall()
+            cursor.execute('SELECT name, arabic_name FROM operators WHERE id = %s', (operator_id,))
+            operator = cursor.fetchone()
+    finally:
+        connection.close()
+
+    total = len(rest_days)
+    months = months_in_date_range(start_date, end_date)
+    monthly_avg = round(total / months, 2)
+
+    by_month = defaultdict(int)
+    for rd in rest_days:
+        d = rd['date']
+        key = f"{d.year}-{d.month:02d}"
+        by_month[key] += 1
+
+    return {
+        'operator': operator,
+        'rest_days': [{'date': str(rd['date'])} for rd in rest_days],
+        'statistics': {
+            'total_rest_days': total,
+            'monthly_average': monthly_avg,
+            'months_in_period': months
+        },
+        'chart': {
+            'labels': list(by_month.keys()),
+            'values': list(by_month.values())
+        }
+    }
+
+def build_shift_summary_report(operator_id, start_date, end_date):
+    assignments = get_report_assignments(operator_id=operator_id, start_date=start_date, end_date=end_date)
+    shift_counts = {'matin': 0, 'apres_midi': 0, 'nuit': 0}
+    total_hours = 0.0
+    rows = []
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT name FROM operators WHERE id = %s', (operator_id,))
+            operator = cursor.fetchone()
+    finally:
+        connection.close()
+
+    for a in assignments:
+        period = categorize_shift_period(a['shift_start_time'], a['shift_name'])
+        if period in shift_counts:
+            shift_counts[period] += 1
+        hours = calculate_shift_hours(a['shift_start_time'], a['shift_end_time'])
+        total_hours += hours
+        rows.append({
+            'date': str(a['assignment_date']),
+            'machine_name': a['machine_name'],
+            'shift_name': a['shift_name'],
+            'shift_period': period,
+            'start_time': format_report_time(a['shift_start_time']),
+            'end_time': format_report_time(a['shift_end_time']),
+            'hours': hours
+        })
+
+    return {
+        'operator': operator,
+        'assignments': rows,
+        'statistics': {
+            'total_shifts': len(rows),
+            'total_hours': round(total_hours, 2),
+            'matin': shift_counts['matin'],
+            'apres_midi': shift_counts['apres_midi'],
+            'nuit': shift_counts['nuit']
+        },
+        'chart': {
+            'labels': ['Matin', 'Après-midi', 'Nuit'],
+            'values': [shift_counts['matin'], shift_counts['apres_midi'], shift_counts['nuit']]
+        }
+    }
+
+def build_machine_history_report(machine_id, start_date, end_date, search=None):
+    assignments = get_report_assignments(
+        machine_id=machine_id, start_date=start_date, end_date=end_date, search=search
+    )
+    operator_stats = defaultdict(lambda: {'count': 0, 'hours': 0.0, 'dates': set()})
+    rows = []
+
+    for a in assignments:
+        op_name = a['operator_name']
+        hours = calculate_shift_hours(a['shift_start_time'], a['shift_end_time'])
+        operator_stats[op_name]['count'] += 1
+        operator_stats[op_name]['hours'] = round(operator_stats[op_name]['hours'] + hours, 2)
+        operator_stats[op_name]['dates'].add(str(a['assignment_date']))
+        rows.append({
+            'date': str(a['assignment_date']),
+            'operator_name': op_name,
+            'shift_name': a['shift_name'],
+            'start_time': format_report_time(a['shift_start_time']),
+            'end_time': format_report_time(a['shift_end_time']),
+            'hours': hours
+        })
+
+    op_summary = [
+        {
+            'operator_name': name,
+            'assignments': stats['count'],
+            'total_hours': stats['hours'],
+            'days_worked': len(stats['dates'])
+        }
+        for name, stats in sorted(operator_stats.items(), key=lambda x: x[1]['count'], reverse=True)
+    ]
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT name FROM machines WHERE id = %s', (machine_id,))
+            machine = cursor.fetchone()
+    finally:
+        connection.close()
+
+    return {
+        'machine': machine,
+        'assignments': rows,
+        'operator_statistics': op_summary,
+        'statistics': {
+            'total_assignments': len(rows),
+            'unique_operators': len(operator_stats),
+            'total_hours': round(sum(s['hours'] for s in operator_stats.values()), 2)
+        },
+        'chart': {
+            'labels': [s['operator_name'] for s in op_summary[:10]],
+            'values': [s['assignments'] for s in op_summary[:10]]
+        }
+    }
+
+def build_operator_complete_report(operator_id, start_date, end_date):
+    assignments = get_report_assignments(operator_id=operator_id, start_date=start_date, end_date=end_date)
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT * FROM operators WHERE id = %s', (operator_id,))
+            operator = cursor.fetchone()
+            cursor.execute('''
+                SELECT ord.date FROM operator_rest_days ord
+                WHERE ord.operator_id = %s AND ord.date BETWEEN %s AND %s
+                ORDER BY ord.date
+            ''', (operator_id, start_date, end_date))
+            rest_days = cursor.fetchall()
+            cursor.execute('''
+                SELECT start_date, end_date, reason FROM absences
+                WHERE operator_id = %s
+                AND start_date <= %s AND end_date >= %s
+                AND (reason IS NULL OR reason != 'Repos')
+                ORDER BY start_date
+            ''', (operator_id, end_date, start_date))
+            absences = cursor.fetchall()
+    finally:
+        connection.close()
+
+    machine_stats = defaultdict(lambda: {'count': 0, 'hours': 0.0})
+    shift_counts = {'matin': 0, 'apres_midi': 0, 'nuit': 0}
+    total_hours = 0.0
+    shift_rows = []
+
+    for a in assignments:
+        period = categorize_shift_period(a['shift_start_time'], a['shift_name'])
+        if period in shift_counts:
+            shift_counts[period] += 1
+        hours = calculate_shift_hours(a['shift_start_time'], a['shift_end_time'])
+        total_hours += hours
+        machine_stats[a['machine_name']]['count'] += 1
+        machine_stats[a['machine_name']]['hours'] = round(
+            machine_stats[a['machine_name']]['hours'] + hours, 2
+        )
+        shift_rows.append({
+            'date': str(a['assignment_date']),
+            'machine_name': a['machine_name'],
+            'shift_name': a['shift_name'],
+            'shift_period': period,
+            'hours': hours
+        })
+
+    machine_summary = [
+        {'machine_name': name, 'assignments': s['count'], 'total_hours': s['hours']}
+        for name, s in sorted(machine_stats.items(), key=lambda x: x[1]['count'], reverse=True)
+    ]
+
+    total_rest = len(rest_days)
+    months = months_in_date_range(start_date, end_date)
+
+    return {
+        'operator': operator,
+        'shifts': shift_rows,
+        'rest_days': [{'date': str(r['date'])} for r in rest_days],
+        'absences': [
+            {'start_date': str(a['start_date']), 'end_date': str(a['end_date']), 'reason': a['reason'] or ''}
+            for a in absences
+        ],
+        'machine_statistics': machine_summary,
+        'statistics': {
+            'total_shifts': len(shift_rows),
+            'total_hours': round(total_hours, 2),
+            'total_rest_days': total_rest,
+            'monthly_average_rest': round(total_rest / months, 2),
+            'total_absences': len(absences),
+            'unique_machines': len(machine_stats),
+            'matin': shift_counts['matin'],
+            'apres_midi': shift_counts['apres_midi'],
+            'nuit': shift_counts['nuit']
+        },
+        'charts': {
+            'shifts': {
+                'labels': ['Matin', 'Après-midi', 'Nuit'],
+                'values': [shift_counts['matin'], shift_counts['apres_midi'], shift_counts['nuit']]
+            },
+            'machines': {
+                'labels': [m['machine_name'] for m in machine_summary[:8]],
+                'values': [m['assignments'] for m in machine_summary[:8]]
+            }
+        }
+    }
+
+def format_report_date_display(date_val):
+    """Format a date value as DD/MM/YYYY."""
+    if isinstance(date_val, str):
+        parts = date_val.split('-')
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    elif hasattr(date_val, 'strftime'):
+        return date_val.strftime('%d/%m/%Y')
+    return str(date_val)
+
+def get_report_date_params():
+    end_date = parse_report_date('end_date', datetime.now().date())
+    start_date = parse_report_date('start_date', end_date - timedelta(days=30))
+    return start_date, end_date
+
+def get_report_pdf_fonts():
+    """Return (regular_font, bold_font) for report PDF generation."""
+    return 'Helvetica', 'Helvetica-Bold'
+
+def build_report_pdf_styles(font_name, bold_font_name):
+    styles = getSampleStyleSheet()
+    return {
+        'title': ParagraphStyle(
+            'ReportTitle', parent=styles['Title'], fontName=bold_font_name,
+            fontSize=16, textColor=colors.HexColor('#ff0000'), alignment=TA_CENTER, spaceAfter=8
+        ),
+        'subtitle': ParagraphStyle(
+            'ReportSubtitle', parent=styles['Normal'], fontName=font_name,
+            fontSize=9, textColor=colors.grey, alignment=TA_CENTER, spaceAfter=12
+        ),
+        'section': ParagraphStyle(
+            'ReportSection', parent=styles['Heading2'], fontName=bold_font_name,
+            fontSize=12, textColor=colors.HexColor('#1461d4'), spaceBefore=10, spaceAfter=6
+        ),
+        'normal': ParagraphStyle(
+            'ReportNormal', parent=styles['Normal'], fontName=font_name, fontSize=10, spaceAfter=4
+        ),
+    }
+
+def make_report_data_table(headers, rows, font_name, bold_font_name, col_widths=None):
+    if rows:
+        data = [headers] + rows
+    else:
+        empty_row = ['Aucune donnée'] + [''] * (len(headers) - 1)
+        data = [headers, empty_row]
+    if not col_widths:
+        col_widths = [max(60, int(480 / len(headers)))] * len(headers)
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e3e6ed')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#222222')),
+        ('FONTNAME', (0, 0), (-1, 0), bold_font_name),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 1), (-1, -1), font_name),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    return table
+
+REPORT_CHART_COLORS = [
+    colors.HexColor('#1461d4'), colors.HexColor('#ffc107'), colors.HexColor('#28a745'),
+    colors.HexColor('#17a2b8'), colors.HexColor('#dc3545'), colors.HexColor('#6f42c1'),
+    colors.HexColor('#fd7e14'), colors.HexColor('#20c997'),
+]
+
+def create_report_bar_chart(labels, values, width=480, height=220):
+    drawing = Drawing(width, height)
+    if not labels or not any(values):
+        return drawing
+    chart = VerticalBarChart()
+    chart.x = max(30, int(width * 0.12))
+    chart.y = 35
+    chart.height = height - 70
+    chart.width = width - chart.x - 20
+    chart.data = [values]
+    chart.categoryAxis.categoryNames = [str(l)[:10] for l in labels]
+    chart.valueAxis.valueMin = 0
+    chart.barWidth = max(6, min(12, int(chart.width / max(len(labels), 1) / 2)))
+    chart.bars[0].fillColor = colors.HexColor('#1461d4')
+    chart.bars.strokeColor = colors.white
+    drawing.add(chart)
+    return drawing
+
+def create_report_pie_chart(labels, values, width=420, height=240):
+    drawing = Drawing(width, height)
+    if not labels or not any(values):
+        return drawing
+    pie_size = min(170, int(min(width, height - 50) * 0.75))
+    pie = Pie()
+    pie.x = (width - pie_size) / 2
+    pie.y = 35
+    pie.width = pie_size
+    pie.height = pie_size
+    pie.data = values
+    pie.labels = [f"{str(l)[:10]} ({v})" for l, v in zip(labels, values)]
+    pie.sideLabels = width >= 300
+    for i, _ in enumerate(values):
+        pie.slices[i].fillColor = REPORT_CHART_COLORS[i % len(REPORT_CHART_COLORS)]
+        pie.slices[i].strokeWidth = 0.5
+        pie.slices[i].strokeColor = colors.white
+    drawing.add(pie)
+    return drawing
+
+def create_chart_drawing(chart, width, height=220):
+    """Create a bar or pie chart drawing from a chart config dict."""
+    if chart['type'] == 'bar':
+        return create_report_bar_chart(chart['labels'], chart['values'], width=width, height=height)
+    if chart['type'] == 'pie':
+        return create_report_pie_chart(chart['labels'], chart['values'], width=width, height=height)
+    return Drawing(width, height)
+
+def build_report_charts_row(charts, pdf_styles):
+    """Lay out one or more charts on the same horizontal row."""
+    if not charts:
+        return None
+    page_width = portrait(A4)[0] - 72
+    chart_height = 220
+
+    if len(charts) == 1:
+        chart = charts[0]
+        rows = []
+        if chart.get('title'):
+            rows.append([Paragraph(chart['title'], pdf_styles['normal'])])
+        rows.append([create_chart_drawing(chart, int(page_width), chart_height)])
+        table = Table(rows, colWidths=[page_width])
+        table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        return table
+
+    col_width = int((page_width - 8 * (len(charts) - 1)) / len(charts))
+    title_row = [
+        Paragraph(c.get('title') or '', pdf_styles['normal']) for c in charts
+    ]
+    chart_row = [create_chart_drawing(c, col_width, chart_height) for c in charts]
+    table = Table([title_row, chart_row], colWidths=[col_width] * len(charts))
+    table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 2),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 4),
+    ]))
+    return table
+
+def generate_report_pdf_response(title, criteria_lines, statistics, detail_sections, charts, filename):
+    """Build a report PDF with criteria, statistics, charts and detail tables."""
+    buffer = BytesIO()
+    font_name, bold_font_name = get_report_pdf_fonts()
+    pdf_styles = build_report_pdf_styles(font_name, bold_font_name)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=portrait(A4),
+        rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36
+    )
+    elements = [
+        Paragraph(title, pdf_styles['title']),
+        Paragraph(f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", pdf_styles['subtitle']),
+    ]
+
+    elements.append(Paragraph('Critères de recherche', pdf_styles['section']))
+    for line in criteria_lines:
+        elements.append(Paragraph(line, pdf_styles['normal']))
+    elements.append(Spacer(1, 8))
+
+    elements.append(Paragraph('Statistiques', pdf_styles['section']))
+    stats_rows = [[label, str(value)] for label, value in statistics]
+    elements.append(make_report_data_table(['Indicateur', 'Valeur'], stats_rows, font_name, bold_font_name, [280, 180]))
+    elements.append(Spacer(1, 10))
+
+    if charts:
+        elements.append(Paragraph('Graphiques', pdf_styles['section']))
+        elements.append(build_report_charts_row(charts, pdf_styles))
+        elements.append(Spacer(1, 12))
+
+    for section in detail_sections:
+        elements.append(Paragraph(section['title'], pdf_styles['section']))
+        elements.append(make_report_data_table(
+            section['headers'], section['rows'], font_name, bold_font_name, section.get('col_widths')
+        ))
+        elements.append(Spacer(1, 10))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+def format_report_pdf_title(base_title, operator_name=None, machine_name=None):
+    """Build PDF title with optional operator and/or machine name."""
+    title = base_title
+    if operator_name:
+        title = f"{title} — {operator_name}"
+    if machine_name:
+        title = f"{title} — {machine_name}"
+    return title
+
+def build_rest_history_pdf_data(data, start_date, end_date):
+    op_name = data['operator']['name'] if data.get('operator') else '-'
+    criteria = [
+        f"Période : du {format_report_date_display(start_date)} au {format_report_date_display(end_date)}",
+    ]
+    stats = data['statistics']
+    statistics = [
+        ('Total jours de repos', stats['total_rest_days']),
+        ('Moyenne mensuelle', stats['monthly_average']),
+        ('Mois dans la période', stats['months_in_period']),
+    ]
+    charts = []
+    if data['chart']['labels']:
+        charts.append({'type': 'bar', 'title': 'Jours de repos par mois', **data['chart']})
+    detail_sections = [{
+        'title': 'Détail des jours de repos',
+        'headers': ['Date'],
+        'rows': [[format_report_date_display(r['date'])] for r in data['rest_days']],
+        'col_widths': [460],
+    }]
+    filename = f"rapport_repos_{op_name.replace(' ', '_')}_{start_date}_{end_date}.pdf"
+    return generate_report_pdf_response(
+        format_report_pdf_title('Historique des repos', operator_name=op_name),
+        criteria, statistics, detail_sections, charts, filename
+    )
+
+def build_shift_summary_pdf_data(data, start_date, end_date):
+    op_name = data['operator']['name'] if data.get('operator') else '-'
+    criteria = [
+        f"Période : du {format_report_date_display(start_date)} au {format_report_date_display(end_date)}",
+    ]
+    stats = data['statistics']
+    statistics = [
+        ('Total shifts', stats['total_shifts']),
+        ('Heures travaillées', f"{stats['total_hours']} h"),
+        ('Matin', stats['matin']),
+        ('Après-midi', stats['apres_midi']),
+        ('Nuit', stats['nuit']),
+    ]
+    charts = [{'type': 'pie', 'title': 'Répartition des shifts', **data['chart']}]
+    detail_sections = [{
+        'title': 'Détail des shifts',
+        'headers': ['Date', 'Machine', 'Période', 'Horaire', 'Heures'],
+        'rows': [
+            [
+                format_report_date_display(a['date']), a['machine_name'],
+                PERIOD_LABELS.get(a['shift_period'], a['shift_period']),
+                f"{a['start_time']} - {a['end_time']}", f"{a['hours']} h"
+            ]
+            for a in data['assignments']
+        ],
+        'col_widths': [70, 100, 75, 100, 55],
+    }]
+    filename = f"rapport_shifts_{op_name.replace(' ', '_')}_{start_date}_{end_date}.pdf"
+    return generate_report_pdf_response(
+        format_report_pdf_title('Cumul des shifts', operator_name=op_name),
+        criteria, statistics, detail_sections, charts, filename
+    )
+
+def build_machine_history_pdf_data(data, start_date, end_date, search=None):
+    machine_name = data['machine']['name'] if data.get('machine') else '-'
+    criteria = [
+        f"Période : du {format_report_date_display(start_date)} au {format_report_date_display(end_date)}",
+    ]
+    if search:
+        criteria.append(f"Recherche : {search}")
+    stats = data['statistics']
+    statistics = [
+        ('Total affectations', stats['total_assignments']),
+        ('Opérateurs distincts', stats['unique_operators']),
+        ('Heures totales', f"{stats['total_hours']} h"),
+    ]
+    charts = []
+    if data['chart']['labels']:
+        charts.append({'type': 'bar', 'title': 'Affectations par opérateur', **data['chart']})
+    detail_sections = [
+        {
+            'title': 'Statistiques par opérateur',
+            'headers': ['Opérateur', 'Affectations', 'Jours travaillés', 'Heures'],
+            'rows': [
+                [s['operator_name'], s['assignments'], s['days_worked'], f"{s['total_hours']} h"]
+                for s in data['operator_statistics']
+            ],
+            'col_widths': [160, 90, 90, 80],
+        },
+        {
+            'title': 'Détail des affectations',
+            'headers': ['Date', 'Opérateur', 'Horaire', 'Heures'],
+            'rows': [
+                [
+                    format_report_date_display(a['date']), a['operator_name'],
+                    f"{a['start_time']} - {a['end_time']}", f"{a['hours']} h"
+                ]
+                for a in data['assignments']
+            ],
+            'col_widths': [80, 180, 120, 60],
+        },
+    ]
+    filename = f"rapport_machine_{machine_name.replace(' ', '_')}_{start_date}_{end_date}.pdf"
+    return generate_report_pdf_response(
+        format_report_pdf_title('Historique par machine', machine_name=machine_name),
+        criteria, statistics, detail_sections, charts, filename
+    )
+
+def build_operator_complete_pdf_data(data, start_date, end_date):
+    op_name = data['operator']['name'] if data.get('operator') else '-'
+    criteria = [
+        f"Période : du {format_report_date_display(start_date)} au {format_report_date_display(end_date)}",
+    ]
+    stats = data['statistics']
+    statistics = [
+        ('Total shifts', stats['total_shifts']),
+        ('Heures travaillées', f"{stats['total_hours']} h"),
+        ('Jours de repos', stats['total_rest_days']),
+        ('Moyenne repos/mois', stats['monthly_average_rest']),
+        ('Absences', stats['total_absences']),
+        ('Machines distinctes', stats['unique_machines']),
+        ('Matin', stats['matin']),
+        ('Après-midi', stats['apres_midi']),
+        ('Nuit', stats['nuit']),
+    ]
+    charts = [
+        {'type': 'pie', 'title': 'Répartition des shifts', **data['charts']['shifts']},
+    ]
+    if data['charts']['machines']['labels']:
+        charts.append({'type': 'bar', 'title': 'Affectations par machine', **data['charts']['machines']})
+    detail_sections = [
+        {
+            'title': 'Statistiques par machine',
+            'headers': ['Machine', 'Affectations', 'Heures'],
+            'rows': [[m['machine_name'], m['assignments'], f"{m['total_hours']} h"] for m in data['machine_statistics']],
+            'col_widths': [200, 100, 100],
+        },
+        {
+            'title': 'Shifts',
+            'headers': ['Date', 'Machine', 'Période', 'Heures'],
+            'rows': [
+                [
+                    format_report_date_display(s['date']), s['machine_name'],
+                    PERIOD_LABELS.get(s['shift_period'], s['shift_period']), f"{s['hours']} h"
+                ]
+                for s in data['shifts']
+            ],
+            'col_widths': [80, 140, 90, 60],
+        },
+        {
+            'title': 'Jours de repos',
+            'headers': ['Date'],
+            'rows': [[format_report_date_display(r['date'])] for r in data['rest_days']],
+            'col_widths': [460],
+        },
+        {
+            'title': 'Absences',
+            'headers': ['Début', 'Fin', 'Motif'],
+            'rows': [
+                [format_report_date_display(a['start_date']), format_report_date_display(a['end_date']), a['reason'] or '-']
+                for a in data['absences']
+            ],
+            'col_widths': [100, 100, 260],
+        },
+    ]
+    filename = f"rapport_operateur_{op_name.replace(' ', '_')}_{start_date}_{end_date}.pdf"
+    return generate_report_pdf_response(
+        format_report_pdf_title('Historique complet opérateur', operator_name=op_name),
+        criteria, statistics, detail_sections, charts, filename
+    )
+
+REPORT_EXPORT_HANDLERS = {
+    'rest_history': (build_rest_history_report, build_rest_history_pdf_data, 'operator_id'),
+    'shift_summary': (build_shift_summary_report, build_shift_summary_pdf_data, 'operator_id'),
+    'machine_history': (build_machine_history_report, build_machine_history_pdf_data, 'machine_id'),
+    'operator_complete': (build_operator_complete_report, build_operator_complete_pdf_data, 'operator_id'),
+}
+
+@app.route('/reports')
+@login_required
+def reports():
+    if not has_page_access('reports'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
+    ensure_today_history()
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id, name, arabic_name FROM operators ORDER BY name")
+            operators = cursor.fetchall()
+            cursor.execute("SELECT id, name FROM machines ORDER BY name")
+            machines = cursor.fetchall()
+    finally:
+        connection.close()
+    current_access = get_user_accessible_pages(current_user.id)
+    can_edit = current_access.get('reports', True) if current_user.role != 'admin' else True
+    return render_template(
+        'reports.html',
+        operators=operators,
+        machines=machines,
+        start_date=start_date,
+        end_date=end_date,
+        can_edit=can_edit
+    )
+
+@app.route('/api/reports/rest_history')
+@login_required
+def api_report_rest_history():
+    if not has_page_access('reports'):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+    operator_id = request.args.get('operator_id', type=int)
+    start_date, end_date = get_report_date_params()
+    if not operator_id:
+        return jsonify({'success': False, 'message': 'Opérateur requis'})
+    data = build_rest_history_report(operator_id, start_date, end_date)
+    return jsonify({'success': True, 'data': data, 'start_date': str(start_date), 'end_date': str(end_date)})
+
+@app.route('/api/reports/shift_summary')
+@login_required
+def api_report_shift_summary():
+    if not has_page_access('reports'):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+    operator_id = request.args.get('operator_id', type=int)
+    start_date, end_date = get_report_date_params()
+    if not operator_id:
+        return jsonify({'success': False, 'message': 'Opérateur requis'})
+    data = build_shift_summary_report(operator_id, start_date, end_date)
+    return jsonify({'success': True, 'data': data, 'start_date': str(start_date), 'end_date': str(end_date)})
+
+@app.route('/api/reports/machine_history')
+@login_required
+def api_report_machine_history():
+    if not has_page_access('reports'):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+    machine_id = request.args.get('machine_id', type=int)
+    search = request.args.get('search', '').strip()
+    start_date, end_date = get_report_date_params()
+    if not machine_id:
+        return jsonify({'success': False, 'message': 'Machine requise'})
+    data = build_machine_history_report(machine_id, start_date, end_date, search=search or None)
+    return jsonify({'success': True, 'data': data, 'start_date': str(start_date), 'end_date': str(end_date)})
+
+@app.route('/api/reports/operator_complete')
+@login_required
+def api_report_operator_complete():
+    if not has_page_access('reports'):
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+    operator_id = request.args.get('operator_id', type=int)
+    start_date, end_date = get_report_date_params()
+    if not operator_id:
+        return jsonify({'success': False, 'message': 'Opérateur requis'})
+    data = build_operator_complete_report(operator_id, start_date, end_date)
+    return jsonify({'success': True, 'data': data, 'start_date': str(start_date), 'end_date': str(end_date)})
+
+@app.route('/export_report/<report_type>')
+@login_required
+def export_report(report_type):
+    if not has_page_access('reports'):
+        flash('Access denied')
+        return redirect(url_for('reports'))
+    if report_type not in REPORT_EXPORT_HANDLERS:
+        flash('Type de rapport inconnu')
+        return redirect(url_for('reports'))
+
+    build_fn, pdf_fn, id_field = REPORT_EXPORT_HANDLERS[report_type]
+    start_date, end_date = get_report_date_params()
+    entity_id = request.args.get(id_field, type=int)
+    if not entity_id:
+        flash('Paramètres de filtre manquants')
+        return redirect(url_for('reports'))
+
+    try:
+        if report_type == 'machine_history':
+            search = request.args.get('search', '').strip()
+            data = build_fn(entity_id, start_date, end_date, search=search or None)
+            return pdf_fn(data, start_date, end_date, search=search or None)
+        data = build_fn(entity_id, start_date, end_date)
+        return pdf_fn(data, start_date, end_date)
+    except Exception as e:
+        flash(f'Erreur lors de la génération du PDF : {str(e)}')
+        return redirect(url_for('reports'))
+
+# Notifications
+NOTIFICATION_EMAIL_STATUSES = ('pending', 'sent', 'failed', 'skipped')
+
+
+def _parse_notification_datetime(value):
+    if isinstance(value, datetime):
+        return value.date(), value.time().replace(microsecond=0)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value, datetime.now().time().replace(microsecond=0)
+    if isinstance(value, str):
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                parsed = datetime.strptime(value, fmt)
+                return parsed.date(), parsed.time().replace(microsecond=0)
+            except ValueError:
+                continue
+    now = datetime.now()
+    return now.date(), now.time().replace(microsecond=0)
+
+
+def get_admin_emails():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT email FROM users WHERE role = 'admin'")
+            return [row['email'] for row in cursor.fetchall() if row.get('email')]
+    finally:
+        connection.close()
+
+
+def send_notification_emails_to_admins(title, description, notification_date, notification_time):
+    admin_emails = get_admin_emails()
+    if not admin_emails:
+        return 'skipped'
+
+    if not is_smtp_configured():
+        return 'skipped'
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+
+        body = (
+            f"{description}\n\n"
+            f"Date: {notification_date} {notification_time}\n"
+        )
+        message = MIMEText(body, 'plain', 'utf-8')
+        message['Subject'] = title
+        message['From'] = smtp_config['from_addr']
+        message['To'] = ', '.join(admin_emails)
+
+        with smtplib.SMTP(smtp_config['host'], smtp_config['port'], timeout=15) as server:
+            if smtp_config['use_tls']:
+                server.starttls()
+            if smtp_config['user'] and smtp_config['password']:
+                server.login(smtp_config['user'], smtp_config['password'])
+            code, response = server.noop()
+            if code != 250:
+                raise smtplib.SMTPException(
+                    f'SMTP connection test failed: {code} {response.decode() if isinstance(response, bytes) else response}'
+                )
+            server.sendmail(smtp_config['from_addr'], admin_emails, message.as_string())
+        return 'sent'
+    except Exception:
+        return 'failed'
+
+
+def retry_notification_email(notification_id):
+    row = _get_notification(notification_id)
+    if not row:
+        return None, 'Notification introuvable'
+    if row.get('email_status') == 'sent':
+        return row, 'already_sent'
+
+    final_email_status = send_notification_emails_to_admins(
+        row['title'],
+        row.get('description') or '',
+        row['notification_date'],
+        row['notification_time'],
+    )
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE notifications SET email_status = %s WHERE id = %s",
+                (final_email_status, notification_id)
+            )
+        connection.commit()
+    finally:
+        connection.close()
+    updated = _get_notification(notification_id)
+    return updated, final_email_status
+
+
+def get_notification_display_title(notification_type, title):
+    title = title or ''
+    prefixes = {
+        'absence_created': r'^Absence enregistrée\s*:\s*',
+        'schedule_confirmed': r'^Planning confirmé\s*[—\-]\s*',
+        'nfm_reported': r'^Machine en panne\s*:\s*',
+        'nfm_fixed': r'^Machine réparée\s*:\s*',
+        'weekend_confirmed': r'^Programme week-end confirmé\s*[—\-]\s*',
+        'rest_days_updated': r'^Jours de repos mis à jour\s*[—\-]\s*',
+    }
+
+    if notification_type == 'schedule_confirmed':
+        week_match = re.search(r'semaine\s+(\d+)\s*/\s*(\d+)', title, re.I)
+        if week_match:
+            week_number, year = int(week_match.group(1)), int(week_match.group(2))
+            week_start, week_end = get_iso_week_date_range(week_number, year)
+            return format_date_range_display(week_start, week_end)
+        stripped = re.sub(prefixes['schedule_confirmed'], '', title, flags=re.I).strip()
+        if re.search(r'\d{2}/\d{2}/\d{4}', stripped):
+            return stripped
+
+    if notification_type == 'weekend_confirmed':
+        stripped = re.sub(prefixes['weekend_confirmed'], '', title, flags=re.I).strip()
+        week_match = re.search(r'(Samedi|Dimanche)\s+S?(\d+)\s*/\s*(\d+)', stripped, re.I)
+        if week_match:
+            day_label = week_match.group(1).capitalize()
+            week_number, year = int(week_match.group(2)), int(week_match.group(3))
+            day_key = 'saturday' if day_label.lower() == 'samedi' else 'sunday'
+            day_date = _iso_week_to_weekend_date(week_number, year, day_key)
+            if day_date:
+                return f"{day_label} {_format_notification_date_value(day_date)}"
+        if re.search(r'\d{2}/\d{2}/\d{4}', stripped):
+            return stripped
+
+    if notification_type in prefixes:
+        return re.sub(prefixes[notification_type], '', title, flags=re.I).strip() or title
+    return title
+
+
+def _serialize_notification(row):
+    if not row:
+        return None
+    notification_date = row.get('notification_date')
+    notification_time = row.get('notification_time')
+    created_at = row.get('created_at')
+    raw_title = row.get('title') or ''
+    return {
+        'id': row['id'],
+        'type': row['type'],
+        'title': raw_title,
+        'display_title': get_notification_display_title(row['type'], raw_title),
+        'description': row.get('description') or '',
+        'date': notification_date.isoformat() if hasattr(notification_date, 'isoformat') else str(notification_date),
+        'time': str(notification_time)[:8] if notification_time is not None else '',
+        'is_read': bool(row.get('is_read')),
+        'email_status': row.get('email_status', 'pending'),
+        'created_at': created_at.isoformat(sep=' ', timespec='seconds') if hasattr(created_at, 'isoformat') else str(created_at),
+    }
+
+
+def create_notification(notification_type, title, description, notification_date=None, notification_time=None,
+                        email_status='pending'):
+    if notification_date is None:
+        now = datetime.now()
+        notification_date = now.date()
+        notification_time = now.time().replace(microsecond=0)
+    elif isinstance(notification_date, datetime):
+        notification_time = notification_date.time().replace(microsecond=0)
+        notification_date = notification_date.date()
+    elif isinstance(notification_date, str):
+        notification_date, notification_time = _parse_notification_datetime(notification_date)
+    elif isinstance(notification_date, date):
+        if notification_time is None:
+            notification_time = datetime.now().time().replace(microsecond=0)
+        elif isinstance(notification_time, str):
+            for fmt in ('%H:%M:%S', '%H:%M'):
+                try:
+                    notification_time = datetime.strptime(notification_time, fmt).time()
+                    break
+                except ValueError:
+                    continue
+
+    if email_status not in NOTIFICATION_EMAIL_STATUSES:
+        email_status = 'pending'
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO notifications
+                    (type, title, description, notification_date, notification_time, email_status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (notification_type, title, description, notification_date, notification_time, email_status))
+            notification_id = cursor.lastrowid
+        connection.commit()
+    finally:
+        connection.close()
+
+    final_email_status = send_notification_emails_to_admins(
+        title, description or '', notification_date, notification_time
+    )
+    if final_email_status != email_status:
+        connection = get_db_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE notifications SET email_status = %s WHERE id = %s",
+                    (final_email_status, notification_id)
+                )
+            connection.commit()
+        finally:
+            connection.close()
+
+    return notification_id
+
+
+def _get_notification(notification_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM notifications WHERE id = %s", (notification_id,))
+            return cursor.fetchone()
+    finally:
+        connection.close()
+
+
+@app.route('/notifications')
+@login_required
+@admin_required
+def notifications():
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)
+    return render_template('notifications.html', start_date=start_date, end_date=end_date)
+
+
+@app.route('/api/notifications')
+@login_required
+@admin_required
+def api_notifications_list():
+    unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+    notification_type = request.args.get('type', '').strip()
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT * FROM notifications WHERE 1=1"
+            params = []
+            if unread_only:
+                sql += " AND is_read = FALSE"
+            if notification_type:
+                sql += " AND type = %s"
+                params.append(notification_type)
+            sql += " ORDER BY notification_date DESC, notification_time DESC, created_at DESC"
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            cursor.execute("SELECT COUNT(*) AS count FROM notifications WHERE is_read = FALSE")
+            unread_count = cursor.fetchone()['count']
+    finally:
+        connection.close()
+    return jsonify({
+        'success': True,
+        'notifications': [_serialize_notification(row) for row in rows],
+        'unread_count': unread_count,
+    })
+
+
+@app.route('/api/notifications/unread-count')
+@login_required
+@admin_required
+def api_notifications_unread_count():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS count FROM notifications WHERE is_read = FALSE")
+            unread_count = cursor.fetchone()['count']
+    finally:
+        connection.close()
+    return jsonify({'success': True, 'unread_count': unread_count})
+
+
+@app.route('/api/notifications/<int:notification_id>')
+@login_required
+@admin_required
+def api_notification_detail(notification_id):
+    row = _get_notification(notification_id)
+    if not row:
+        return jsonify({'success': False, 'message': 'Notification introuvable'}), 404
+    return jsonify({'success': True, 'notification': _serialize_notification(row)})
+
+
+@app.route('/api/notifications', methods=['POST'])
+@login_required
+@admin_required
+def api_create_notification():
+    data = request.get_json() or {}
+    required = ['type', 'title', 'date', 'time']
+    if not all(data.get(key) for key in required):
+        return jsonify({'success': False, 'message': 'Champs requis manquants'}), 400
+
+    email_status = data.get('email_status', 'pending')
+    if email_status not in NOTIFICATION_EMAIL_STATUSES:
+        return jsonify({'success': False, 'message': 'Statut email invalide'}), 400
+
+    try:
+        notification_id = create_notification(
+            notification_type=data['type'],
+            title=data['title'],
+            description=data.get('description', ''),
+            notification_date=data['date'],
+            notification_time=data['time'],
+            email_status=email_status,
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+    row = _get_notification(notification_id)
+    return jsonify({
+        'success': True,
+        'message': 'Notification créée',
+        'notification': _serialize_notification(row),
+    }), 201
+
+
+@app.route('/api/notifications/<int:notification_id>/read', methods=['PUT'])
+@login_required
+@admin_required
+def api_mark_notification_read(notification_id):
+    row = _get_notification(notification_id)
+    if not row:
+        return jsonify({'success': False, 'message': 'Notification introuvable'}), 404
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE id = %s", (notification_id,))
+        connection.commit()
+    finally:
+        connection.close()
+    return jsonify({'success': True, 'message': 'Notification marquée comme lue'})
+
+
+@app.route('/api/notifications/read-all', methods=['PUT'])
+@login_required
+@admin_required
+def api_mark_all_notifications_read():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE is_read = FALSE")
+            updated = cursor.rowcount
+        connection.commit()
+    finally:
+        connection.close()
+    return jsonify({'success': True, 'message': 'Toutes les notifications ont été marquées comme lues', 'updated': updated})
+
+
+@app.route('/api/notifications/<int:notification_id>/email-status', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_notification_email_status(notification_id):
+    data = request.get_json() or {}
+    email_status = data.get('email_status')
+    if email_status not in NOTIFICATION_EMAIL_STATUSES:
+        return jsonify({'success': False, 'message': 'Statut email invalide'}), 400
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id FROM notifications WHERE id = %s", (notification_id,))
+            if not cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Notification introuvable'}), 404
+            cursor.execute(
+                "UPDATE notifications SET email_status = %s WHERE id = %s",
+                (email_status, notification_id)
+            )
+        connection.commit()
+    finally:
+        connection.close()
+    return jsonify({'success': True, 'message': 'Statut email mis à jour'})
+
+
+@app.route('/api/notifications/<int:notification_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_notification(notification_id):
+    row = _get_notification(notification_id)
+    if not row:
+        return jsonify({'success': False, 'message': 'Notification introuvable'}), 404
+
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM notifications WHERE id = %s", (notification_id,))
+        connection.commit()
+    finally:
+        connection.close()
+    return jsonify({'success': True, 'message': 'Notification supprimée'})
+
+
+@app.route('/api/notifications/<int:notification_id>/retry-email', methods=['POST'])
+@login_required
+@admin_required
+def api_retry_notification_email(notification_id):
+    row, result = retry_notification_email(notification_id)
+    if not row:
+        return jsonify({'success': False, 'message': result}), 404
+    if result == 'already_sent':
+        return jsonify({'success': True, 'message': 'Email déjà envoyé', 'notification': _serialize_notification(row)})
+    if result == 'skipped':
+        return jsonify({
+            'success': False,
+            'message': 'Email ignoré : configurez SMTP dans le fichier .env puis redémarrez le serveur.',
+            'notification': _serialize_notification(row),
+        }), 400
+    if result == 'failed':
+        return jsonify({
+            'success': False,
+            'message': 'Échec de l\'envoi email. Vérifiez la configuration SMTP avec test_smtp_email.py.',
+            'notification': _serialize_notification(row),
+        }), 500
+    return jsonify({
+        'success': True,
+        'message': 'Email envoyé',
+        'notification': _serialize_notification(row),
+    })
+
+
+@app.route('/api/notifications/retry-skipped', methods=['POST'])
+@login_required
+@admin_required
+def api_retry_skipped_notification_emails():
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id FROM notifications WHERE email_status IN ('skipped', 'failed') ORDER BY id"
+            )
+            notification_ids = [row['id'] for row in cursor.fetchall()]
+    finally:
+        connection.close()
+
+    results = {'sent': 0, 'skipped': 0, 'failed': 0, 'already_sent': 0}
+    for notification_id in notification_ids:
+        row, result = retry_notification_email(notification_id)
+        if result in results:
+            results[result] += 1
+
+    return jsonify({
+        'success': True,
+        'message': 'Nouvelle tentative terminée',
+        'results': results,
+        'total': len(notification_ids),
+    })
+
 
 @app.route('/debug_history')
 @login_required

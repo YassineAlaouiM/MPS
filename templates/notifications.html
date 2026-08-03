@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+{% endblock %}
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card notifications-card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h3 class="mb-0">
+                <i class="fas fa-bell me-2"></i>
+                Notifications
+                <span class="badge bg-danger ms-2" id="unreadBadge" style="display: none;">0</span>
+            </h3>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-light" id="markAllReadBtn" title="Tout marquer comme lu">
+                    <i class="bx bx-check-double"></i>
+                </button>
+                <button type="button" class="btn btn-light" id="refreshNotificationsBtn" title="Actualiser">
+                    <i class="bx bx-refresh"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="notifications-toolbar">
+                <div class="notifications-toolbar-grid">
+                    <div class="toolbar-field toolbar-search">
+                        <label for="notificationSearch" class="form-label">Rechercher</label>
+                        <input type="text" class="form-control" id="notificationSearch" placeholder="Rechercher une notification...">
+                    </div>
+                    <div class="toolbar-field toolbar-dates">
+                        <div class="toolbar-dates-row">
+                            <div class="toolbar-date-field">
+                                <label for="notificationStartDate" class="form-label">Date de début</label>
+                                <input type="date" id="notificationStartDate" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') if start_date else '' }}">
+                            </div>
+                            <div class="toolbar-date-field">
+                                <label for="notificationEndDate" class="form-label">Date de fin</label>
+                                <input type="date" id="notificationEndDate" class="form-control" value="{{ end_date.strftime('%Y-%m-%d') if end_date else '' }}">
+                            </div>
+                            <button type="button" class="btn btn-light toolbar-icon-btn" id="filterDateBtn" title="Filtrer">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="toolbar-field toolbar-btn-field">
+                        <button type="button" class="btn btn-light toolbar-icon-btn" id="groupByCategoryBtn" title="Regrouper par catégorie">
+                            <i class="bx bx-category"></i>
+                        </button>
+                    </div>
+                    <div class="toolbar-field toolbar-btn-field">
+                        <button type="button" class="btn btn-light toolbar-icon-btn" id="unreadOnlyBtn" title="Non lues uniquement">
+                            <i class="bx bx-bell"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="notificationsList" class="notifications-list">
+                <div class="empty-notifications-state text-center py-5">
+                    <i class="fas fa-bell-slash fa-2x mb-3 text-muted"></i>
+                    <p class="text-muted mb-0">Chargement des notifications...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

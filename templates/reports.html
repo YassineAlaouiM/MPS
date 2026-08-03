@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}
+{% block title %}Rapports{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card reports-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="fas fa-chart-bar me-2"></i>
+                Rapports
+            </h3>
+            <button type="button" class="export-btn btn-export-pdf" id="reportExportBtn">
+                Exporter PDF
+            </button>
+        </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs reports-tabs mb-4" id="reportTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="rest-tab" data-bs-toggle="tab" data-bs-target="#rest-report" type="button" role="tab">
+                        <i class="fas fa-bed me-1"></i> Historique des repos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="shift-tab" data-bs-toggle="tab" data-bs-target="#shift-report" type="button" role="tab">
+                        <i class="fas fa-clock me-1"></i> Cumul des shifts
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="machine-tab" data-bs-toggle="tab" data-bs-target="#machine-report" type="button" role="tab">
+                        <i class="fas fa-cogs me-1"></i> Historique par machine
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="operator-tab" data-bs-toggle="tab" data-bs-target="#operator-report" type="button" role="tab">
+                        <i class="fas fa-user me-1"></i> Historique complet opérateur
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="reportTabContent">
+                <!-- Rest History -->
+                <div class="tab-pane fade show active" id="rest-report" role="tabpanel">
+                    <div class="report-filters" data-report="rest">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label">Opérateur</label>
+                                <select class="form-select report-operator" required>
+                                    <option value="">Sélectionner un opérateur</option>
+                                    {% for op in operators %}
+                                    <option value="{{ op.id }}">{{ op.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de début</label>
+                                <input type="date" class="form-control report-start" value="{{ start_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de fin</label>
+                                <input type="date" class="form-control report-end" value="{{ end_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end gap-2 report-filter-actions">
+                                <button type="button" class="inline-button btn btn-light btn-filter">
+                                    <i class="fas fa-filter me-2"></i> Filtrer
+                                </button>
+                                <button type="button" class="report-reset-btn btn-reset" title="Réinitialiser">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-results mt-4" id="rest-results">
+                        <div class="empty-report-state">
+                            <i class="fas fa-bed fa-2x mb-3"></i>
+                            <p>Sélectionnez un opérateur et une période pour afficher l'historique des repos.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shift Summary -->
+                <div class="tab-pane fade" id="shift-report" role="tabpanel">
+                    <div class="report-filters" data-report="shift">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label">Opérateur</label>
+                                <select class="form-select report-operator" required>
+                                    <option value="">Sélectionner un opérateur</option>
+                                    {% for op in operators %}
+                                    <option value="{{ op.id }}">{{ op.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de début</label>
+                                <input type="date" class="form-control report-start" value="{{ start_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de fin</label>
+                                <input type="date" class="form-control report-end" value="{{ end_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end gap-2 report-filter-actions">
+                                <button type="button" class="inline-button btn btn-light btn-filter">
+                                    <i class="fas fa-filter me-2"></i> Filtrer
+                                </button>
+                                <button type="button" class="report-reset-btn btn-reset" title="Réinitialiser">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-results mt-4" id="shift-results">
+                        <div class="empty-report-state">
+                            <i class="fas fa-clock fa-2x mb-3"></i>
+                            <p>Sélectionnez un opérateur et une période pour afficher le cumul des shifts.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Machine History -->
+                <div class="tab-pane fade" id="machine-report" role="tabpanel">
+                    <div class="report-filters" data-report="machine">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label">Machine</label>
+                                <select class="form-select report-machine" required>
+                                    <option value="">Sélectionner une machine</option>
+                                    {% for m in machines %}
+                                    <option value="{{ m.id }}">{{ m.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Date de début</label>
+                                <input type="date" class="form-control report-start" value="{{ start_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Date de fin</label>
+                                <input type="date" class="form-control report-end" value="{{ end_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Recherche</label>
+                                <input type="text" class="form-control report-search" placeholder="Opérateur, shift...">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end gap-2 report-filter-actions">
+                                <button type="button" class="inline-button btn btn-light btn-filter">
+                                    <i class="fas fa-filter me-2"></i> Filtrer
+                                </button>
+                                <button type="button" class="report-reset-btn btn-reset" title="Réinitialiser">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-results mt-4" id="machine-results">
+                        <div class="empty-report-state">
+                            <i class="fas fa-cogs fa-2x mb-3"></i>
+                            <p>Sélectionnez une machine et une période pour afficher l'historique.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complete Operator History -->
+                <div class="tab-pane fade" id="operator-report" role="tabpanel">
+                    <div class="report-filters" data-report="operator">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label">Opérateur</label>
+                                <select class="form-select report-operator" required>
+                                    <option value="">Sélectionner un opérateur</option>
+                                    {% for op in operators %}
+                                    <option value="{{ op.id }}">{{ op.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de début</label>
+                                <input type="date" class="form-control report-start" value="{{ start_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date de fin</label>
+                                <input type="date" class="form-control report-end" value="{{ end_date.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end gap-2 report-filter-actions">
+                                <button type="button" class="inline-button btn btn-light btn-filter">
+                                    <i class="fas fa-filter me-2"></i> Filtrer
+                                </button>
+                                <button type="button" class="report-reset-btn btn-reset" title="Réinitialiser">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-results mt-4" id="operator-results">
+                        <div class="empty-report-state">
+                            <i class="fas fa-user fa-2x mb-3"></i>
+                            <p>Sélectionnez un opérateur et une période pour afficher l'historique complet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.REPORT_DEFAULTS = {
+        startDate: '{{ start_date.strftime("%Y-%m-%d") }}',
+        endDate: '{{ end_date.strftime("%Y-%m-%d") }}'
+    };
+</script>
+{% endblock %}

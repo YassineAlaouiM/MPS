@@ -37,13 +37,25 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root with the following content:
+4. Create a `.env` file in the project root (copy from `.env.example`):
 ```
 DB_HOST=localhost
 DB_USER=your_mysql_username
 DB_PASSWORD=your_mysql_password
 DB_NAME=schedule_management
 SECRET_KEY=your_secret_key
+
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=notifications@example.com
+SMTP_USE_TLS=true
+```
+
+   Verify SMTP settings before running the app:
+```bash
+python test_smtp_email.py
 ```
 
 5. Create the database and tables:

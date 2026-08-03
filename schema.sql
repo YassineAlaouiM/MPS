@@ -225,6 +225,75 @@ CREATE TABLE IF NOT EXISTS completed_productions (
     FOREIGN KEY (shift_id) REFERENCES shifts(id)
 );
 
+-- Weekend Program tables (extends production schedule, stores only modified machines)
+CREATE TABLE IF NOT EXISTS weekend_program (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_weekend_week (week_number, year)
+);
+
+CREATE TABLE IF NOT EXISTS weekend_schedule (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    day ENUM('saturday', 'sunday') NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    operator_id INT NOT NULL,
+    shift_id INT NOT NULL,
+    position INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE,
+    FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE CASCADE,
+    FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE CASCADE,
+    INDEX idx_weekend_lookup (week_number, year, day),
+    INDEX idx_weekend_machine (week_number, year, day, machine_id, production_id)
+);
+
+CREATE TABLE IF NOT EXISTS weekend_cleared_machines (
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    day ENUM('saturday', 'sunday') NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (week_number, year, day, machine_id, production_id),
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS weekend_visible_machines (
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    day ENUM('saturday', 'sunday') NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (week_number, year, day, machine_id, production_id),
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE
+);
+
+-- Notifications Table (admin-wide, one row per event)
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    notification_date DATE NOT NULL,
+    notification_time TIME NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    email_status ENUM('pending', 'sent', 'failed', 'skipped') NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_unread (is_read),
+    INDEX idx_created (created_at),
+    INDEX idx_type (type)
+);
+
 -- Insert default postes data
 -- INSERT INTO postes (name, type) VALUES
 --     ('machine', 'machine'),
