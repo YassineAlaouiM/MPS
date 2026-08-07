@@ -297,52 +297,6 @@ table td:first-child {
     margin: 0;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-    .week-navigation {
-        padding: 6px;
-        margin: 6px 0;
-    }
-    
-    .calendar-preview {
-        padding: 6px;
-    }
-    
-    .current-value {
-        width: 60px;
-        font-size: 14px;
-        padding: 2px 4px;
-    }
-
-    .week-dates {
-        font-size: 12px;
-        padding: 4px 6px;
-    }
-    
-    .nav-btn {
-        padding: 3px 6px;
-    }
-    
-    .button-group {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .export-buttons {
-        flex-direction: column;
-    }
-    
-    .button-pair {
-        flex-direction: column;
-    }
-
-    .add-production-btn {
-        width: 100%;
-        height: 100%;
-    }
-}
-
-
 .schedule-cell {
     position: relative;
 }
@@ -458,6 +412,17 @@ table td:first-child {
     display: none !important;
 }
 
+.week-controls,
+.year-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.schedule-program-page {
+    max-width: 100%;
+}
+
 /* NFM Machine Styling */
 tr.nfm-machine {
     border-left: 4px solid #d51837;
@@ -469,4 +434,248 @@ tr.nfm-machine td:first-child + td {
 }
 tr.nfm-machine:hover td:first-child + td {
     color: #d51837;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+    .schedule-assignments-table {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .schedule-assignments-table table {
+        min-width: 860px;
+    }
+}
+
+/* Phone */
+@media (max-width: 768px) {
+    .schedule-program-page {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .schedule-program-page .week-navigation {
+        padding: 6px;
+        margin: 0 0 12px;
+    }
+
+    .schedule-program-page .calendar-preview {
+        padding: 6px;
+    }
+
+    .schedule-program-page .navigation-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .schedule-program-page .separator {
+        display: none;
+    }
+
+    .schedule-program-page .week-controls,
+    .schedule-program-page .year-controls {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .schedule-program-page .nav-btn {
+        width: 44px;
+        min-width: 44px;
+        margin: 4px;
+        padding: 4px 8px;
+    }
+
+    .schedule-program-page .current-value {
+        width: 72px;
+        height: 32px;
+        font-size: 14px;
+        padding: 2px 4px;
+    }
+
+    .schedule-program-page .week-label,
+    .schedule-program-page .year-label {
+        font-size: 13px;
+        width: 100%;
+        text-align: center;
+        margin-bottom: 2px;
+    }
+
+    .schedule-program-page .week-dates {
+        width: 100%;
+        font-size: 13px;
+        padding: 4px 6px;
+        margin: 0;
+    }
+
+    /* Card layout for schedule grid */
+    .schedule-assignments-table {
+        overflow-x: visible;
+        margin-bottom: 20px;
+    }
+
+    .schedule-assignments-table table {
+        min-width: 0;
+        display: block;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        overflow: visible;
+    }
+
+    .schedule-assignments-table thead {
+        display: none;
+    }
+
+    .schedule-assignments-table tbody {
+        display: block;
+        overflow: visible;
+    }
+
+    .schedule-assignments-table tbody tr {
+        display: grid;
+        grid-template-columns: 36px 1fr;
+        gap: 0 8px;
+        margin-bottom: 14px;
+        padding: 12px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+        border-bottom: none;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .schedule-assignments-table tr.nfm-machine {
+        border-left: none;
+    }
+
+    .schedule-assignments-table tr.nfm-machine td:first-child + td {
+        border-left: none;
+    }
+
+    .schedule-assignments-table tbody tr.nfm-machine::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background-color: #d51837;
+    }
+
+    .schedule-assignments-table tbody tr td {
+        display: block;
+        border-bottom: none;
+        padding: 0;
+    }
+
+    .schedule-assignments-table tbody tr td:first-child {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: start;
+        padding-top: 4px;
+        width: auto;
+        text-align: center;
+    }
+
+    .schedule-assignments-table tbody tr td:nth-child(2) {
+        grid-column: 2;
+        grid-row: 1;
+        font-weight: 600;
+        font-size: 15px;
+        padding: 2px 0 10px 16px;
+        line-height: 1.3;
+    }
+
+    .schedule-assignments-table .schedule-cell {
+        grid-column: 1 / -1;
+        padding: 10px 0;
+        border-top: 1px solid #eee;
+        cursor: default;
+    }
+
+    .schedule-assignments-table .schedule-cell::before {
+        content: attr(data-shift-label);
+        display: block;
+        font-weight: 600;
+        font-size: 12px;
+        color: #1461d4;
+        letter-spacing: 0.3px;
+        margin-bottom: 8px;
+    }
+
+    .schedule-assignments-table .operators-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .schedule-assignments-table .operators-container .add-operator-btn {
+        order: 0;
+        align-self: flex-start;
+        min-height: 32px;
+        min-width: 32px;
+    }
+
+    .schedule-assignments-table .operator-select {
+        font-size: 14px;
+        padding: 10px 32px 10px 10px;
+        min-height: 42px;
+    }
+
+    .schedule-assignments-table .deselect-operator {
+        right: 8px;
+        width: 32px;
+        height: 32px;
+    }
+
+    /* Actions */
+    .schedule-program-page .actions-container {
+        margin-top: 12px !important;
+    }
+
+    .schedule-program-page .button-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .schedule-program-page .button-pair,
+    .schedule-program-page .export-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+    }
+
+    .schedule-program-page .button-pair button,
+    .schedule-program-page .export-buttons button,
+    .schedule-program-page #random-assignment-button {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .schedule-program-page .button-pair .add-production-btn {
+        width: 100%;
+        height: 44px;
+    }
+
+    .schedule-program-page .alert-success,
+    .schedule-program-page .alert-error {
+        font-size: 14px;
+        padding: 10px 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .schedule-assignments-table tbody tr {
+        padding: 10px;
+    }
+
+    .schedule-assignments-table tbody tr td:nth-child(2) {
+        font-size: 14px;
+    }
 }

@@ -10,39 +10,51 @@
 {% block title %}Programme{% endblock %}
 
 {% block content %}
-<div class="container">
+{% set shift_labels = {
+    1: '7h→15h',
+    2: '15h→23h',
+    3: '23h→7h',
+    4: '7h→19h',
+    5: '19h→7h',
+    6: '9h→17h'
+} %}
+<div class="container schedule-program-page">
     <!-- Week Navigation -->
     <div class="week-navigation">
         <div class="week-selector-container">
             <div class="calendar-preview">
                 <div class="navigation-row">
-                    <span class="week-label">Semaine</span>
-                    <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <div class="week-info">
-                        <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                    <div class="week-controls">
+                        <span class="week-label">Semaine</span>
+                        <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div class="week-info">
+                            <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
+                        </div>
+                        <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
                     </div>
-                    <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
 
                     <div class="separator"></div>
 
                     <div class="week-dates" id="weekDatesDisplay"></div>
-                    
+
                     <div class="separator"></div>
 
-                    <span class="year-label">Année</span>
-                    <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <div class="year-display">
-                        <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
+                    <div class="year-controls">
+                        <span class="year-label">Année</span>
+                        <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div class="year-display">
+                            <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
+                        </div>
+                        <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
                     </div>
-                    <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
                 </div>
                 
             </div>
@@ -50,7 +62,7 @@
     </div>
 
     <!-- Schedule Grid -->
-    <div class="assignments-table">
+    <div class="assignments-table schedule-assignments-table">
         <table>
             <thead>
                 <tr>
@@ -86,6 +98,7 @@
                         data-machine-id="{{ machine.id }}"
                         data-production-id="{{ machine.production_id }}"
                         data-shift-id="{{ shift_id }}"
+                        data-shift-label="{{ shift_labels[shift_id] }}"
                         draggable="true"
                         ondragstart="handleDragStart(event)"
                         ondragover="handleDragOver(event)"

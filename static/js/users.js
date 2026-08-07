@@ -66,13 +66,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Utility to handle enabling/disabling permission dropdowns
             function setupPagePermissionHandlers(prefix = '') {
-                const pages = ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'rest_days', 'history', 'reports'];
+                const pages = ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'holiday_program', 'rest_days', 'history', 'reports'];
                 pages.forEach(page => {
                     const checkbox = document.getElementById(`${prefix}page_${page}`);
                     const select = document.getElementById(`${prefix}perm_${page}`);
                     if (!checkbox || !select) return;
                     checkbox.addEventListener('change', function() {
                         select.disabled = !checkbox.checked;
+                        if (checkbox.checked) {
+                            // Default newly granted access to read-only
+                            select.value = 'read';
+                        }
                     });
                 });
             }
@@ -83,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Collect accessible_pages array for backend
             function collectAccessiblePages(prefix = '') {
-                const pages = ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'rest_days', 'history', 'reports'];
+                const pages = ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'holiday_program', 'rest_days', 'history', 'reports'];
                 const result = [];
                 pages.forEach(page => {
                     const checkbox = document.getElementById(`${prefix}page_${page}`);
@@ -151,12 +155,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.getElementById('editEmail').value = user.email;
                         document.getElementById('editRole').value = user.role;
                         // Reset checkboxes and dropdowns
-                        ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'rest_days', 'history', 'reports'].forEach(page => {
+                        ['machines', 'operators', 'production', 'schedule', 'weekend_program', 'holiday_program', 'rest_days', 'history', 'reports'].forEach(page => {
                             const cb = document.getElementById(`edit_page_${page}`);
                             const sel = document.getElementById(`edit_perm_${page}`);
                             cb.checked = false;
                             sel.disabled = true;
-                            sel.value = 'edit';
+                            sel.value = 'read';
                         });
                         // Set accessible pages
                         if (user.accessible_pages) {

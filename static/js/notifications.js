@@ -9,12 +9,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const unreadOnlyBtn = document.getElementById('unreadOnlyBtn');
     const markAllReadBtn = document.getElementById('markAllReadBtn');
     const refreshBtn = document.getElementById('refreshNotificationsBtn');
+    const typeSettingsBtn = document.getElementById('notificationTypeSettingsBtn');
+    const typeSettingsListEl = document.getElementById('notificationTypeSettingsList');
+    const typeSettingsModalEl = document.getElementById('notificationTypeSettingsModal');
+    const typeSettingsModal = typeSettingsModalEl
+        ? new bootstrap.Modal(typeSettingsModalEl)
+        : null;
 
     let allNotifications = [];
+    let notificationTypeSettings = [];
     let unreadOnly = false;
     let groupByCategory = false;
     let appliedStartDate = '';
     let appliedEndDate = '';
+    const expandedCategories = new Set();
 
     const TYPE_ORDER = [
         'nfm_reported',
@@ -22,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'absence_created',
         'schedule_confirmed',
         'weekend_confirmed',
+        'holiday_confirmed',
         'rest_days_updated',
     ];
 
@@ -31,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         absence_created: { label: 'Absences', icon: 'fa-user-clock' },
         schedule_confirmed: { label: 'Planning confirmé', icon: 'fa-calendar-check' },
         weekend_confirmed: { label: 'Programme week-end', icon: 'fa-calendar-week' },
+        holiday_confirmed: { label: 'Programme jour férié', icon: 'fa-calendar-day' },
         rest_days_updated: { label: 'Jours de repos', icon: 'fa-bed' },
     };
 
@@ -248,8 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    function renderNotificationItem(notification) {
+    function renderNotificationItem(notification, options = {}) {
+        const showIcon = options.showIcon !== false;
         const unreadClass = notification.is_read ? '' : ' unread';
+        const noIconClass = showIcon ? '' : ' no-icon';
         const typeConfig = getTypeConfig(notification.type);
         const emailConfig = EMAIL_STATUS_CONFIG[notification.email_status] || {
             label: notification.email_status,
@@ -264,11 +276,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<span class="notif-slot notif-slot-read" title="${escapeHtml(readLabel)}" aria-label="${escapeHtml(readLabel)}"><i class="bx bx-check"></i></span>`
             : `<button type="button" class="notif-slot notif-slot-mark" data-action="mark-read" data-id="${notification.id}" title="${escapeHtml(readLabel)}" aria-label="${escapeHtml(readLabel)}"><i class="bx bx-check"></i></button>`;
 
-        return `
-            <article class="notification-item${unreadClass}" data-id="${notification.id}">
-                <div class="notification-type-icon notif-type-blue" title="${escapeHtml(typeConfig.label)}" aria-label="${escapeHtml(typeConfig.label)}">
+        const iconBlock = showIcon
+            ? `<div class="notification-type-icon notif-type-blue" title="${escapeHtml(typeConfig.label)}" aria-label="${escapeHtml(typeConfig.label)}">
                     <i class="fas ${typeConfig.icon}"></i>
-                </div>
+                </div>`
+            : '';
+
+        return `
+            <article class="notification-item${unreadClass}${noIconClass}" data-id="${notification.id}">
+                ${iconBlock}
                 <div class="notification-content">
                     <h5 class="notification-title">${escapeHtml(displayTitle)}</h5>
                     <p class="notification-description">${escapeHtml(notification.description || '—')}</p>
@@ -294,6 +310,85 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
+    function renderNotificationTypeSettingsList() {
+        if (!typeSettingsListEl) {
+            return;
+        }
+        if (!notificationTypeSettings.length) {
+            typeSettingsListEl.innerHTML = `
+                <div class="text-muted text-center py-3">Aucun type configuré.</div>
+            `;
+            return;
+        }
+
+        typeSettingsListEl.innerHTML = notificationTypeSettings.map((item) => `
+            <div class="notification-type-setting-item${item.enabled ? '' : ' disabled'}">
+                <span class="notification-type-setting-icon">
+                    <i class="fas ${escapeHtml(item.icon || 'fa-bell')}"></i>
+                </span>
+                <p class="notification-type-setting-label">${escapeHtml(item.label || item.type)}</p>
+                <div class="form-check form-switch m-0">
+                    <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="notif-type-${escapeHtml(item.type)}"
+                        data-type="${escapeHtml(item.type)}"
+                        ${item.enabled ? 'checked' : ''}
+                    >
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function loadNotificationTypeSettings() {
+        if (!typeSettingsListEl) {
+            return Promise.resolve();
+        }
+        return fetch('/api/notifications/type-settings')
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Erreur lors du chargement des types');
+                }
+                notificationTypeSettings = data.types || [];
+                renderNotificationTypeSettingsList();
+            })
+            .catch((err) => {
+                typeSettingsListEl.innerHTML = `
+                    <div class="settings-error text-center py-3">${escapeHtml(err.message)}</div>
+                `;
+            });
+    }
+
+    function updateNotificationTypeSetting(notificationType, enabled, inputEl) {
+        if (inputEl) {
+            inputEl.disabled = true;
+        }
+        return fetch('/api/notifications/type-settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: notificationType, enabled }),
+        })
+            .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    throw new Error(data.message || 'Erreur lors de la mise à jour');
+                }
+                notificationTypeSettings = data.types || notificationTypeSettings;
+                renderNotificationTypeSettingsList();
+            })
+            .catch((err) => {
+                alert(err.message);
+                renderNotificationTypeSettingsList();
+            })
+            .finally(() => {
+                if (inputEl) {
+                    inputEl.disabled = false;
+                }
+            });
+    }
+
     function renderNotificationsList(notifications) {
         const filtered = applyFilters(notifications);
 
@@ -310,17 +405,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const groups = groupNotificationsByType(filtered);
             listEl.innerHTML = groups.map(({ type, items }) => {
                 const typeConfig = getTypeConfig(type);
+                const isExpanded = expandedCategories.has(type);
                 return `
-                    <section class="notification-category-section">
-                        <div class="notification-category-header">
-                            <div class="notification-category-icon notif-type-blue">
+                    <section class="notification-category-section${isExpanded ? ' expanded' : ' collapsed'}" data-category-type="${escapeHtml(type)}">
+                        <button type="button" class="notification-category-header" data-action="toggle-category" data-type="${escapeHtml(type)}" aria-expanded="${isExpanded}">
+                            <span class="notification-category-chevron" aria-hidden="true">
+                                <i class="bx bx-chevron-right"></i>
+                            </span>
+                            <span class="notification-category-icon notif-type-blue">
                                 <i class="fas ${typeConfig.icon}"></i>
-                            </div>
-                            <h4 class="notification-category-title">${escapeHtml(typeConfig.label)}</h4>
+                            </span>
+                            <span class="notification-category-title">${escapeHtml(typeConfig.label)}</span>
                             <span class="notification-category-count">${items.length}</span>
-                        </div>
+                        </button>
                         <div class="notification-category-items">
-                            ${items.map(renderNotificationItem).join('')}
+                            ${items.map((item) => renderNotificationItem(item, { showIcon: false })).join('')}
                         </div>
                     </section>
                 `;
@@ -328,7 +427,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        listEl.innerHTML = sortNotifications(filtered).map(renderNotificationItem).join('');
+        listEl.innerHTML = sortNotifications(filtered)
+            .map((item) => renderNotificationItem(item, { showIcon: true }))
+            .join('');
     }
 
     function loadNotifications() {
@@ -377,6 +478,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     listEl.addEventListener('click', (event) => {
+        const categoryToggle = event.target.closest('[data-action="toggle-category"]');
+        if (categoryToggle) {
+            const type = categoryToggle.dataset.type;
+            if (expandedCategories.has(type)) {
+                expandedCategories.delete(type);
+            } else {
+                expandedCategories.add(type);
+            }
+            renderNotificationsList(allNotifications);
+            return;
+        }
+
         const button = event.target.closest('[data-action]');
         if (!button) {
             return;
@@ -395,6 +508,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (filterDateBtn) {
         filterDateBtn.addEventListener('click', applyDateFilter);
+    }
+
+    if (typeSettingsBtn && typeSettingsModal) {
+        typeSettingsBtn.addEventListener('click', () => {
+            loadNotificationTypeSettings().then(() => {
+                typeSettingsModal.show();
+            });
+        });
+    }
+
+    if (typeSettingsListEl) {
+        typeSettingsListEl.addEventListener('change', (event) => {
+            const input = event.target.closest('input[data-type]');
+            if (!input) {
+                return;
+            }
+            updateNotificationTypeSetting(input.dataset.type, input.checked, input);
+        });
     }
 
     initializeDateRange();

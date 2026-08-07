@@ -204,12 +204,11 @@
         const rows = data.assignments.map(a => [
             formatDate(a.date),
             a.machine_name,
-            a.shift_name,
             periodBadge(a.shift_period),
             `${a.start_time} - ${a.end_time}`,
             a.hours + ' h'
         ]);
-        container.innerHTML += renderTable('Détail des shifts', ['Date', 'Machine', 'Shift', 'Période', 'Horaire', 'Heures'], rows);
+        container.innerHTML += renderTable('Détail des shifts', ['Date', 'Machine', 'Période', 'Horaire', 'Heures'], rows);
 
         createDoughnutChart('shift', 'shift-chart', 'Répartition des shifts', data.chart.labels, data.chart.values);
     }
@@ -236,11 +235,10 @@
         const rows = data.assignments.map(a => [
             formatDate(a.date),
             a.operator_name,
-            a.shift_name,
             `${a.start_time} - ${a.end_time}`,
             a.hours + ' h'
         ]);
-        container.innerHTML += renderTable('Détail des affectations', ['Date', 'Opérateur', 'Shift', 'Horaire', 'Heures'], rows);
+        container.innerHTML += renderTable('Détail des affectations', ['Date', 'Opérateur', 'Horaire', 'Heures'], rows);
 
         if (data.chart.labels.length) {
             createBarChart('machine', 'machine-chart', 'Affectations par opérateur', data.chart.labels, data.chart.values, '#17a2b8');
@@ -273,11 +271,10 @@
         const shiftRows = data.shifts.map(s => [
             formatDate(s.date),
             s.machine_name,
-            s.shift_name,
             periodBadge(s.shift_period),
             s.hours + ' h'
         ]);
-        container.innerHTML += renderTable('Shifts', ['Date', 'Machine', 'Shift', 'Période', 'Heures'], shiftRows);
+        container.innerHTML += renderTable('Shifts', ['Date', 'Machine', 'Période', 'Heures'], shiftRows);
 
         const restRows = data.rest_days.map(r => [formatDate(r.date)]);
         container.innerHTML += renderTable('Jours de repos', ['Date'], restRows);

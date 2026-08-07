@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {%block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/weekend_program.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/holiday_program.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/production.js') }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
 {% endblock %}
-{% block title %}Programme Week-end{% if day == 'saturday' %} - Samedi{% else %} - Dimanche{% endif %}{% endblock %}
+{% block title %}Programme Jour férié{% if day_label_fr %} - {{ day_label_fr }}{% endif %}{% endblock %}
 
 {% block content %}
 {% set shift_labels = {
@@ -18,49 +18,49 @@
     5: '19h→7h',
     6: '9h→17h'
 } %}
-<div class="container weekend-program-page">
-    <!-- Week Navigation -->
+<div class="container holiday-program-page">
+    <!-- Holiday Date Navigation -->
     <div class="week-navigation">
         <div class="week-selector-container">
             <div class="calendar-preview">
                 <div class="navigation-row">
                     <div class="week-controls">
-                        <span class="week-label">Semaine</span>
-                        <button type="button" class="nav-btn" onclick="changeWeek(-1)" title="Semaine précédente">
+                        <span class="week-label">Précédent</span>
+                        <button type="button" class="nav-btn" id="prevHolidayBtn" onclick="goToPreviousHoliday()" title="Jour férié précédent" {% if not prev_holiday_date %}disabled{% endif %}>
                             <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <div class="week-info">
-                            <input type="number" id="weekInput" class="current-value" value="{{ week }}" min="1" max="53" onchange="updateWeekFromInput(this.value)">
-                        </div>
-                        <button type="button" class="nav-btn" onclick="changeWeek(1)" title="Semaine suivante">
-                            <i class="fas fa-chevron-right"></i>
                         </button>
                     </div>
 
                     <div class="separator"></div>
 
-                    <div class="weekend-nav-center">
-                        <div class="weekend-selected-date" id="selectedDayDateDisplay">{{ selected_day_date }}</div>
-                        <div class="weekend-day-tabs">
-                            <a href="{{ url_for('weekend_program', day='saturday', week=week, year=year) }}"
-                               class="weekend-day-tab{% if day == 'saturday' %} active{% endif %}">Samedi</a>
-                            <a href="{{ url_for('weekend_program', day='sunday', week=week, year=year) }}"
-                               class="weekend-day-tab{% if day == 'sunday' %} active{% endif %}">Dimanche</a>
+                    <div class="holiday-nav-center">
+                        <div class="holiday-selected-date" id="selectedDayDateDisplay">
+                            {% if selected_day_date %}{{ selected_day_date }}{% else %}Choisir une date{% endif %}
                         </div>
-                        <div class="week-dates" id="weekDatesDisplay"></div>
+                        <div class="holiday-day-tabs">
+                            {% if can_edit and holiday_date_iso and has_day_modifications %}
+                            <button type="button" class="holiday-day-tab active" data-bs-toggle="modal" data-bs-target="#changeHolidayDateModal" title="Changer la date" aria-label="Changer la date">
+                                {% if day_label_fr %}{{ day_label_fr }}{% else %}Jour férié{% endif %}
+                            </button>
+                            {% else %}
+                            <span class="holiday-day-tab active">{% if day_label_fr %}{{ day_label_fr }}{% else %}Jour férié{% endif %}</span>
+                            {% endif %}
+                            {% if can_edit and holiday_date_iso %}
+                            <button type="button" class="holiday-copy-btn" data-bs-toggle="modal" data-bs-target="#copyHolidayProgramModal" title="Copier" aria-label="Copier">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div class="holiday-date-picker-row">
+                            <input type="date" id="holidayDateInput" class="holiday-date-input" value="{{ holiday_date_iso }}" onchange="selectHolidayDate(this.value)">
+                        </div>
                     </div>
 
                     <div class="separator"></div>
 
                     <div class="year-controls">
-                        <span class="year-label">Année</span>
-                        <button type="button" class="nav-btn" onclick="changeYear(-1)" title="Année précédente">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <div class="year-display">
-                            <input type="number" id="yearInput" class="current-value" value="{{ year }}" min="1900" max="2100" onchange="updateYearFromInput(this.value)">
-                        </div>
-                        <button type="button" class="nav-btn" onclick="changeYear(1)" title="Année suivante">
+                        <span class="year-label">Suivant</span>
+                        <button type="button" class="nav-btn" id="nextHolidayBtn" onclick="goToNextHoliday()" title="Jour férié suivant" {% if not next_holiday_date %}disabled{% endif %}>
                             <i class="fas fa-chevron-right"></i>
                         </button>
                     </div>
@@ -70,7 +70,7 @@
     </div>
 
     <!-- Schedule Grid -->
-    <div class="assignments-table weekend-assignments-table">
+    <div class="assignments-table holiday-assignments-table">
         <table>
             <thead>
                 <tr>
@@ -85,15 +85,21 @@
                 </tr>
             </thead>
             <tbody>
-                {% if not machines %}
-                <tr class="weekend-empty-row">
+                {% if needs_date_selection %}
+                <tr class="holiday-empty-row">
+                    <td colspan="8" class="text-center text-muted py-4">
+                        Sélectionnez une date de jour férié pour commencer.
+                    </td>
+                </tr>
+                {% elif not machines %}
+                <tr class="holiday-empty-row">
                     <td colspan="8" class="text-center text-muted py-4">
                         Aucune machine affichée. Utilisez <i class='bx bx-list-plus'></i> pour ajouter des machines du programme.
                     </td>
                 </tr>
                 {% endif %}
                 {% for machine in machines %}
-                <tr {% if machine.is_nfm %}class="nfm-machine"{% elif (machine.id, machine.production_id) in modified_machines %}class="weekend-modified-machine"{% endif %}>
+                <tr {% if machine.is_nfm %}class="nfm-machine"{% elif (machine.id, machine.production_id) in modified_machines %}class="holiday-modified-machine"{% endif %}>
                     <td><input type="checkbox" class="machine-checkbox" data-machine-id="{{ machine.id }}" data-production-id="{{ machine.production_id }}"></td>
                     <td 
                         {% if machine.production_id %}
@@ -210,7 +216,7 @@
                     <button id="remove-display-button" onclick="removeFromDisplay()">Réinitialiser</button>
                     <button id="confirm-button" onclick="confirmAssignments()">Confirmer</button>
                     {% if has_day_modifications %}
-                    <button id="remove-display-button" onclick="deleteWeekendProgram()">Supprimer le week-end</button>
+                    <button id="remove-display-button" onclick="deleteHolidayProgram()">Supprimer le jour férié</button>
                     {% endif %}
                 </div>
                 {% else %}    
@@ -225,6 +231,71 @@
 </div>
 
 {% if can_edit %}
+<!-- Change Holiday Date Modal -->
+<div class="modal fade" id="changeHolidayDateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Changer la date du jour férié</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Déplace tout le programme de
+                    <strong>{{ selected_day_date or '—' }}</strong>
+                    vers une nouvelle date.
+                </p>
+                <div class="mb-3">
+                    <label for="changeHolidayDateInput" class="form-label">Nouvelle date</label>
+                    <input type="date" class="form-control" id="changeHolidayDateInput" value="{{ holiday_date_iso }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="submitChangeHolidayDate()">Déplacer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy Holiday Program Modal -->
+<div class="modal fade" id="copyHolidayProgramModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Copier un programme jour férié</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Copie machines et affectations depuis un jour férié existant vers
+                    <strong>{{ selected_day_date or 'cette date' }}</strong>.
+                    Le programme actuel de cette date sera remplacé.
+                </p>
+                {% if copy_source_dates %}
+                <div class="mb-3">
+                    <label for="copyHolidaySourceSelect" class="form-label">Copier depuis</label>
+                    <select class="form-select" id="copyHolidaySourceSelect">
+                        <option value="">Sélectionner une date</option>
+                        {% for source in copy_source_dates %}
+                        <option value="{{ source.iso }}">{{ source.display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Aucun autre jour férié enregistré pour l’instant.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                {% if copy_source_dates %}
+                <button type="button" class="btn btn-primary" onclick="submitCopyHolidayProgram()">Copier</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Add Machine From Program Modal -->
 <div class="modal fade" id="addProgramMachineModal" tabindex="-1">
     <div class="modal-dialog">
@@ -387,19 +458,23 @@
 {% endif %}
 
 <script>
-const WEEKEND_DAY = '{{ day }}';
-const WEEKEND_STORAGE_PREFIX = `weekend_${WEEKEND_DAY}_week_{{ week }}_year_{{ year }}`;
+const HOLIDAY_DATE = '{{ holiday_date_iso }}';
+const HOLIDAY_STORAGE_PREFIX = HOLIDAY_DATE ? `holiday_${HOLIDAY_DATE}` : '';
+const PREV_HOLIDAY_DATE = '{{ prev_holiday_date }}';
+const NEXT_HOLIDAY_DATE = '{{ next_holiday_date }}';
+const HAS_DAY_MODIFICATIONS = {{ 'true' if has_day_modifications else 'false' }};
 
 function exportToPDF(nameType) {
-    const week = {{ week }};
-    const year = {{ year }};
-    
+    if (!HOLIDAY_DATE) {
+        alert("Veuillez d'abord sélectionner une date de jour férié.");
+        return;
+    }
     const button = document.getElementById(`export-${nameType}-pdf-button`);
     const originalText = button.textContent;
     button.disabled = true;
     button.textContent = nameType === 'latin' ? 'Génération du PDF...' : 'جاري التصدير...';
     
-    window.open(`/export_weekend_schedule?week=${week}&year=${year}&day=${WEEKEND_DAY}&name_type=${nameType}`, '_blank');
+    window.open(`/export_holiday_schedule?date=${HOLIDAY_DATE}&name_type=${nameType}`, '_blank');
     
     // Restore button state after a short delay
     setTimeout(() => {
@@ -502,6 +577,10 @@ function updateOperatorDropdowns() {
 }
 
 function confirmAssignments() {
+    if (!HOLIDAY_DATE) {
+        alert("Veuillez d'abord sélectionner une date de jour férié.");
+        return;
+    }
     const assignments = [];
     const allOperatorSelects = document.querySelectorAll('.operator-select');
     
@@ -522,22 +601,20 @@ function confirmAssignments() {
         return;
     }
 
-    fetch('/api/weekend-schedule/confirm', {
+    fetch('/api/holiday-schedule/confirm', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
             assignments: assignments,
-            week_number: {{ week }},
-            year: {{ year }},
-            day: WEEKEND_DAY
+            date: HOLIDAY_DATE
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            const weekKey = WEEKEND_STORAGE_PREFIX;
+            const weekKey = HOLIDAY_STORAGE_PREFIX;
             sessionStorage.setItem(weekKey, JSON.stringify(assignments));
             sessionStorage.setItem(`${weekKey}_confirmed`, 'true');
             
@@ -574,7 +651,7 @@ function confirmAssignments() {
 }
 
 function loadStoredAssignments() {
-    const weekKey = WEEKEND_STORAGE_PREFIX;
+    const weekKey = HOLIDAY_STORAGE_PREFIX;
     const storedAssignments = sessionStorage.getItem(weekKey);
     const isConfirmed = sessionStorage.getItem(`${weekKey}_confirmed`);
     
@@ -720,7 +797,7 @@ function removeFromDisplay() {
         }));
     
     // Clear session storage for current week
-    const weekKey = WEEKEND_STORAGE_PREFIX;
+    const weekKey = HOLIDAY_STORAGE_PREFIX;
     sessionStorage.removeItem(weekKey);
     sessionStorage.removeItem(`${weekKey}_confirmed`);
     
@@ -777,7 +854,7 @@ function randomAssignment() {
         }
         
         // Make API call to backend
-        fetch('/api/weekend-schedule/random', {
+        fetch('/api/holiday-schedule/random', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -999,42 +1076,7 @@ function handleDrop(event) {
     updateOperatorDropdowns();
 }
 
-function updateWeekDatesDisplay() {
-    const year = parseInt(document.getElementById('yearInput').value);
-    const week = parseInt(document.getElementById('weekInput').value);
-    
-    const jan4 = new Date(year, 0, 4);
-    const mondayWeek1 = new Date(jan4);
-    mondayWeek1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
-    
-    const targetMonday = new Date(mondayWeek1);
-    targetMonday.setDate(mondayWeek1.getDate() + (week - 1) * 7);
-    
-    const targetSunday = new Date(targetMonday);
-    targetSunday.setDate(targetMonday.getDate() + 6);
-    
-    const formatDate = (date) => {
-        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-    };
-    
-    const dateDisplay = `${formatDate(targetMonday)} - ${formatDate(targetSunday)}`;
-    const weekDatesElement = document.getElementById('weekDatesDisplay');
-    if (weekDatesElement) {
-        weekDatesElement.textContent = dateDisplay;
-    }
-
-    const selectedDayElement = document.getElementById('selectedDayDateDisplay');
-    if (selectedDayElement) {
-        const selectedDayOffset = WEEKEND_DAY === 'saturday' ? 5 : 6;
-        const selectedDate = new Date(targetMonday);
-        selectedDate.setDate(targetMonday.getDate() + selectedDayOffset);
-        selectedDayElement.textContent = selectedDate.toLocaleDateString('fr-FR', {
-            day: 'numeric',
-            month: 'numeric',
-            year: 'numeric'
-        });
-    }
-}
+function updateWeekDatesDisplay() { /* holiday page uses date picker */ }
 
 function updateYearFromInput(value) {
     const year = parseInt(value);
@@ -1094,43 +1136,148 @@ function changeYear(delta) {
     updateNavigation(year, parseInt(weekElement.value));
 }
 
-function changeWeek(delta) {
-    const yearElement = document.getElementById('yearInput');
-    const weekElement = document.getElementById('weekInput');
-    let year = parseInt(yearElement.value);
-    let week = parseInt(weekElement.value);
-    
-    week += delta;
-    const lastWeek = getLastWeekOfYear(year);
-    
-    if (week > lastWeek) {
-        year++;
-        week = 1;
-    } else if (week < 1) {
-        year--;
-        week = getLastWeekOfYear(year);
-    }
-    
-    yearElement.value = year;
-    weekElement.value = week;
-    updateNavigation(year, week);
-}
-
-function updateNavigation(year, week) {
-    if (!isValidWeek(week, year)) {
-        console.error('Invalid week calculation', { week, year });
+function navigateToHolidayDate(dateValue) {
+    if (!dateValue) {
         return;
     }
-    
-    updateWeekDatesDisplay();
-    
     const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('year', year);
-    currentUrl.searchParams.set('week', week);
+    currentUrl.searchParams.set('date', dateValue);
     window.location.href = currentUrl.toString();
 }
 
+function selectHolidayDate(dateValue) {
+    if (!dateValue) {
+        return;
+    }
+    if (HOLIDAY_DATE && dateValue !== HOLIDAY_DATE && HAS_DAY_MODIFICATIONS) {
+        const move = confirm(
+            'Ce jour férié a déjà un programme.\n\n' +
+            'OK = déplacer le programme vers la nouvelle date\n' +
+            'Annuler = ouvrir la nouvelle date sans déplacer'
+        );
+        if (move) {
+            changeHolidayDateTo(dateValue);
+            return;
+        }
+        const dateInput = document.getElementById('holidayDateInput');
+        if (dateInput) {
+            dateInput.value = dateValue;
+        }
+    }
+    navigateToHolidayDate(dateValue);
+}
+
+function changeHolidayDateTo(toDate) {
+    if (!HOLIDAY_DATE || !toDate) {
+        alert("Veuillez d'abord sélectionner une date de jour férié.");
+        return;
+    }
+    if (toDate === HOLIDAY_DATE) {
+        alert('La nouvelle date doit être différente.');
+        return;
+    }
+    fetch('/api/holiday-schedule/change-date', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from_date: HOLIDAY_DATE,
+            to_date: toDate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (HOLIDAY_STORAGE_PREFIX) {
+                sessionStorage.removeItem(HOLIDAY_STORAGE_PREFIX);
+                sessionStorage.removeItem(`${HOLIDAY_STORAGE_PREFIX}_confirmed`);
+            }
+            navigateToHolidayDate(data.date || toDate);
+        } else {
+            alert(data.message || 'Erreur lors du changement de date.');
+            const dateInput = document.getElementById('holidayDateInput');
+            if (dateInput && HOLIDAY_DATE) {
+                dateInput.value = HOLIDAY_DATE;
+            }
+        }
+    })
+    .catch(() => {
+        alert('Erreur lors du changement de date.');
+        const dateInput = document.getElementById('holidayDateInput');
+        if (dateInput && HOLIDAY_DATE) {
+            dateInput.value = HOLIDAY_DATE;
+        }
+    });
+}
+
+function submitChangeHolidayDate() {
+    const input = document.getElementById('changeHolidayDateInput');
+    const toDate = input ? input.value : '';
+    if (!toDate) {
+        alert('Veuillez choisir une nouvelle date.');
+        return;
+    }
+    if (!confirm('Déplacer ce programme jour férié vers la nouvelle date ?')) {
+        return;
+    }
+    changeHolidayDateTo(toDate);
+}
+
+function submitCopyHolidayProgram() {
+    if (!HOLIDAY_DATE) {
+        alert("Veuillez d'abord sélectionner une date de jour férié.");
+        return;
+    }
+    const select = document.getElementById('copyHolidaySourceSelect');
+    const fromDate = select ? select.value : '';
+    if (!fromDate) {
+        alert('Veuillez sélectionner une date source.');
+        return;
+    }
+    if (!confirm('Remplacer le programme de cette date par une copie du jour férié sélectionné ?')) {
+        return;
+    }
+    fetch('/api/holiday-schedule/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from_date: fromDate,
+            to_date: HOLIDAY_DATE
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (HOLIDAY_STORAGE_PREFIX) {
+                sessionStorage.removeItem(HOLIDAY_STORAGE_PREFIX);
+                sessionStorage.removeItem(`${HOLIDAY_STORAGE_PREFIX}_confirmed`);
+            }
+            window.location.reload();
+        } else {
+            alert(data.message || 'Erreur lors de la copie.');
+        }
+    })
+    .catch(() => alert('Erreur lors de la copie.'));
+}
+
+function goToPreviousHoliday() {
+    if (!PREV_HOLIDAY_DATE) {
+        return;
+    }
+    navigateToHolidayDate(PREV_HOLIDAY_DATE);
+}
+
+function goToNextHoliday() {
+    if (!NEXT_HOLIDAY_DATE) {
+        return;
+    }
+    navigateToHolidayDate(NEXT_HOLIDAY_DATE);
+}
+
 function addMachineFromProgram() {
+    if (!HOLIDAY_DATE) {
+        alert("Veuillez d'abord sélectionner une date de jour férié.");
+        return;
+    }
     const select = document.getElementById('programMachineSelect');
     if (!select || !select.value) {
         alert('Veuillez sélectionner une machine.');
@@ -1138,13 +1285,11 @@ function addMachineFromProgram() {
     }
     const machineId = select.value;
     const productionId = select.options[select.selectedIndex].dataset.productionId;
-    fetch('/api/weekend-schedule/add-machine', {
+    fetch('/api/holiday-schedule/add-machine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            week_number: {{ week }},
-            year: {{ year }},
-            day: WEEKEND_DAY,
+            date: HOLIDAY_DATE,
             machine_id: machineId,
             production_id: productionId
         })
@@ -1160,18 +1305,22 @@ function addMachineFromProgram() {
     .catch(() => alert('Erreur lors de l\'ajout de la machine.'));
 }
 
-function deleteWeekendProgram() {
-    if (!confirm('Supprimer toutes les modifications du week-end pour ce jour ?')) {
+function deleteHolidayProgram() {
+    if (!HOLIDAY_DATE) {
+        alert("Veuillez d'abord sélectionner une date.");
         return;
     }
-    fetch(`/api/weekend-schedule?week={{ week }}&year={{ year }}&day=${WEEKEND_DAY}`, {
+    if (!confirm('Supprimer toutes les modifications du jour férié pour cette date ?')) {
+        return;
+    }
+    fetch(`/api/holiday-schedule?date=${HOLIDAY_DATE}`, {
         method: 'DELETE'
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            sessionStorage.removeItem(WEEKEND_STORAGE_PREFIX);
-            sessionStorage.removeItem(`${WEEKEND_STORAGE_PREFIX}_confirmed`);
+            sessionStorage.removeItem(HOLIDAY_STORAGE_PREFIX);
+            sessionStorage.removeItem(`${HOLIDAY_STORAGE_PREFIX}_confirmed`);
             window.location.reload();
         } else {
             alert(data.message || 'Erreur lors de la suppression.');
@@ -1185,16 +1334,10 @@ document.addEventListener('keydown', function(event) {
     if (event.altKey) {
         switch(event.key) {
             case 'ArrowLeft':
-                changeWeek(-1);
+                goToPreviousHoliday();
                 break;
             case 'ArrowRight':
-                changeWeek(1);
-                break;
-            case 'ArrowUp':
-                changeYear(1);
-                break;
-            case 'ArrowDown':
-                changeYear(-1);
+                goToNextHoliday();
                 break;
         }
     }

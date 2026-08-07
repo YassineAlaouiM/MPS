@@ -1,4 +1,4 @@
-.weekend-nav-center {
+.holiday-nav-center {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -7,32 +7,98 @@
     min-width: 220px;
 }
 
-.weekend-nav-center .week-dates {
+.holiday-nav-center .week-dates {
     width: auto;
     margin: 0;
     padding: 0;
 }
 
-.weekend-selected-date {
+.holiday-selected-date {
     font-size: 18px;
     font-weight: 600;
     color: #1461d4;
     line-height: 1.2;
 }
 
-.weekend-day-tabs {
+.holiday-date-picker-row {
     display: flex;
+    align-items: center;
     gap: 8px;
     justify-content: center;
 }
 
-.weekend-day-tab {
-    padding: 8px 16px;
+.holiday-date-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    margin: 0;
+}
+
+.holiday-date-input {
+    border: 2px solid #1461d4;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: #333;
+    background: #fff;
+}
+
+.holiday-date-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(20, 97, 212, 0.2);
+}
+
+.nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.holiday-day-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.holiday-day-tab {
+    height: 40px;
+    padding: 0 16px;
     border-radius: 10px;
     border: 2px solid #1461d4;
     font-weight: 600;
     font-size: 14px;
+    line-height: 1;
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1461d4;
+    color: #fff;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    cursor: default;
+}
+
+button.holiday-day-tab {
+    cursor: pointer;
+}
+
+button.holiday-day-tab:hover {
+    color: #fff;
+    transform: translateY(-3px);
+}
+
+.holiday-copy-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 10px;
+    border: 2px solid #1461d4;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background-color: transparent;
     color: #1461d4;
     transition: all 0.2s ease;
@@ -40,18 +106,7 @@
     cursor: pointer;
 }
 
-.weekend-day-tab:hover {
-    background-color: #1461d4;
-    color: #fff;
-    transform: translateY(-3px);
-}
-
-.weekend-day-tab.active {
-    background-color: #1461d4;
-    color: #fff;
-}
-
-.weekend-day-tab.active:hover {
+.holiday-copy-btn:hover {
     background-color: #1461d4;
     color: #fff;
     transform: translateY(-3px);
@@ -64,7 +119,7 @@
     gap: 8px;
 }
 
-.weekend-modified-machine td:first-child + td {
+.holiday-modified-machine td:first-child + td {
     border-left: 3px solid #1461d4;
 }
 
@@ -82,121 +137,125 @@
     color: #fff;
 }
 
-.weekend-program-page {
+.holiday-program-page {
     max-width: 100%;
 }
 
-.weekend-empty-row td {
+.holiday-empty-row td {
     text-align: center;
 }
 
 /* Tablet */
 @media (max-width: 900px) {
-    .weekend-nav-center {
+    .holiday-nav-center {
         min-width: 160px;
     }
 
-    .weekend-day-tab {
-        padding: 8px 14px;
+    .holiday-day-tab {
         font-size: 13px;
     }
 
-    .weekend-assignments-table {
+    .holiday-assignments-table {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
 
-    .weekend-assignments-table table {
+    .holiday-assignments-table table {
         min-width: 860px;
     }
 }
 
 /* Phone */
 @media (max-width: 768px) {
-    .weekend-program-page {
+    .holiday-program-page {
         padding-left: 12px;
         padding-right: 12px;
     }
 
-    .weekend-program-page .week-navigation {
+    .holiday-program-page .week-navigation {
         margin: 0 0 12px;
         padding: 0;
     }
 
-    .weekend-program-page .navigation-row {
+    .holiday-program-page .navigation-row {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
     }
 
-    .weekend-program-page .separator {
+    .holiday-program-page .separator {
         display: none;
     }
 
-    .weekend-program-page .week-controls,
-    .weekend-program-page .year-controls {
+    .holiday-program-page .week-controls,
+    .holiday-program-page .year-controls {
         width: 100%;
         justify-content: center;
         flex-wrap: wrap;
         gap: 4px;
     }
 
-    .weekend-program-page .nav-btn {
+    .holiday-program-page .nav-btn {
         width: 44px;
         min-width: 44px;
         margin: 4px;
         padding: 4px 8px;
     }
 
-    .weekend-program-page .current-value {
+    .holiday-program-page .current-value {
         width: 72px;
         height: 32px;
         font-size: 14px;
     }
 
-    .weekend-program-page .week-label,
-    .weekend-program-page .year-label {
+    .holiday-program-page .week-label,
+    .holiday-program-page .year-label {
         font-size: 13px;
         width: 100%;
         text-align: center;
         margin-bottom: 2px;
     }
 
-    .weekend-nav-center {
+    .holiday-nav-center {
         min-width: unset;
         width: 100%;
         padding: 8px 0;
     }
 
-    .weekend-selected-date {
+    .holiday-selected-date {
         font-size: 16px;
     }
 
-    .weekend-day-tabs {
+    .holiday-day-tabs {
         width: 100%;
         gap: 6px;
+        justify-content: center;
     }
 
-    .weekend-day-tab {
-        flex: 1;
-        text-align: center;
-        padding: 10px 8px;
+    .holiday-day-tab {
+        height: 40px;
         font-size: 14px;
     }
 
-    .weekend-program-page .week-dates {
+    .holiday-copy-btn {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+    }
+
+    .holiday-program-page .week-dates {
         width: 100%;
         font-size: 13px;
         margin-top: 4px;
     }
 
     /* Card layout for schedule grid */
-    .weekend-assignments-table {
+    .holiday-assignments-table {
         overflow-x: visible;
         margin-bottom: 20px;
     }
 
-    .weekend-assignments-table table {
+    .holiday-assignments-table table {
         min-width: 0;
         display: block;
         background: transparent;
@@ -205,16 +264,16 @@
         overflow: visible;
     }
 
-    .weekend-assignments-table thead {
+    .holiday-assignments-table thead {
         display: none;
     }
 
-    .weekend-assignments-table tbody {
+    .holiday-assignments-table tbody {
         display: block;
         overflow: visible;
     }
 
-    .weekend-assignments-table tbody tr.weekend-empty-row {
+    .holiday-assignments-table tbody tr.holiday-empty-row {
         display: block;
         background: #fff;
         border-radius: 12px;
@@ -222,13 +281,13 @@
         margin-bottom: 12px;
     }
 
-    .weekend-assignments-table tbody tr.weekend-empty-row td {
+    .holiday-assignments-table tbody tr.holiday-empty-row td {
         display: block;
         border: none;
         padding: 24px 16px;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) {
         display: grid;
         grid-template-columns: 36px 1fr;
         gap: 0 8px;
@@ -242,12 +301,12 @@
         overflow: hidden;
     }
 
-    .weekend-assignments-table tr.weekend-modified-machine td:first-child + td,
-    .weekend-assignments-table tr.nfm-machine td:first-child + td {
+    .holiday-assignments-table tr.holiday-modified-machine td:first-child + td,
+    .holiday-assignments-table tr.nfm-machine td:first-child + td {
         border-left: none;
     }
 
-    .weekend-assignments-table tbody tr.weekend-modified-machine::before {
+    .holiday-assignments-table tbody tr.holiday-modified-machine::before {
         content: '';
         position: absolute;
         left: 0;
@@ -257,7 +316,7 @@
         background-color: #1461d4;
     }
 
-    .weekend-assignments-table tbody tr.nfm-machine::before {
+    .holiday-assignments-table tbody tr.nfm-machine::before {
         content: '';
         position: absolute;
         left: 0;
@@ -267,13 +326,13 @@
         background-color: #d51837;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) td {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) td {
         display: block;
         border-bottom: none;
         padding: 0;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) td:first-child {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) td:first-child {
         grid-column: 1;
         grid-row: 1;
         align-self: start;
@@ -282,7 +341,7 @@
         text-align: center;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) td:nth-child(2) {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) td:nth-child(2) {
         grid-column: 2;
         grid-row: 1;
         font-weight: 600;
@@ -291,14 +350,14 @@
         line-height: 1.3;
     }
 
-    .weekend-assignments-table .schedule-cell {
+    .holiday-assignments-table .schedule-cell {
         grid-column: 1 / -1;
         padding: 10px 0;
         border-top: 1px solid #eee;
         cursor: default;
     }
 
-    .weekend-assignments-table .schedule-cell::before {
+    .holiday-assignments-table .schedule-cell::before {
         content: attr(data-shift-label);
         display: block;
         font-weight: 600;
@@ -308,83 +367,82 @@
         margin-bottom: 8px;
     }
 
-    .weekend-assignments-table .operators-container {
+    .holiday-assignments-table .operators-container {
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
     }
 
-    .weekend-assignments-table .operators-container .add-operator-btn {
+    .holiday-assignments-table .operators-container .add-operator-btn {
         order: 0;
         align-self: flex-start;
         min-height: 32px;
         min-width: 32px;
     }
 
-    .weekend-assignments-table .operator-select {
+    .holiday-assignments-table .operator-select {
         font-size: 14px;
         padding: 10px 32px 10px 10px;
         min-height: 42px;
     }
 
-    .weekend-assignments-table .deselect-operator {
+    .holiday-assignments-table .deselect-operator {
         right: 8px;
         width: 32px;
         height: 32px;
     }
 
     /* Actions */
-    .weekend-program-page .actions-container {
+    .holiday-program-page .actions-container {
         margin-top: 12px !important;
     }
 
-    .weekend-program-page .button-group {
+    .holiday-program-page .button-group {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
     }
 
-    .weekend-program-page .button-pair,
-    .weekend-program-page .export-buttons {
+    .holiday-program-page .button-pair,
+    .holiday-program-page .export-buttons {
         flex-direction: column;
         width: 100%;
         gap: 10px;
     }
 
-    .weekend-program-page .button-pair button,
-    .weekend-program-page .export-buttons button,
-    .weekend-program-page #random-assignment-button {
+    .holiday-program-page .button-pair button,
+    .holiday-program-page .export-buttons button,
+    .holiday-program-page #random-assignment-button {
         width: 100%;
         min-height: 44px;
     }
 
-    .weekend-program-page .button-pair .add-production-btn {
+    .holiday-program-page .button-pair .add-production-btn {
         width: 100%;
         height: 44px;
     }
 
-    .weekend-program-page .alert-success,
-    .weekend-program-page .alert-error {
+    .holiday-program-page .alert-success,
+    .holiday-program-page .alert-error {
         font-size: 14px;
         padding: 10px 14px;
     }
 }
 
 @media (max-width: 480px) {
-    .weekend-selected-date {
+    .holiday-selected-date {
         font-size: 15px;
     }
 
-    .weekend-day-tab {
-        padding: 9px 6px;
+    .holiday-day-tab {
         font-size: 13px;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) {
         padding: 10px;
     }
 
-    .weekend-assignments-table tbody tr:not(.weekend-empty-row) td:nth-child(2) {
+    .holiday-assignments-table tbody tr:not(.holiday-empty-row) td:nth-child(2) {
         font-size: 14px;
     }
 }

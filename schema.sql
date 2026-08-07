@@ -278,6 +278,52 @@ CREATE TABLE IF NOT EXISTS weekend_visible_machines (
     FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE
 );
 
+-- Holiday Program tables (jours fériés — highest priority over weekend/weekday)
+CREATE TABLE IF NOT EXISTS holiday_program (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    holiday_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_holiday_date (holiday_date)
+);
+
+CREATE TABLE IF NOT EXISTS holiday_schedule (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    holiday_date DATE NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    operator_id INT NOT NULL,
+    shift_id INT NOT NULL,
+    position INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE,
+    FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE CASCADE,
+    FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE CASCADE,
+    INDEX idx_holiday_lookup (holiday_date),
+    INDEX idx_holiday_machine (holiday_date, machine_id, production_id)
+);
+
+CREATE TABLE IF NOT EXISTS holiday_cleared_machines (
+    holiday_date DATE NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (holiday_date, machine_id, production_id),
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS holiday_visible_machines (
+    holiday_date DATE NOT NULL,
+    machine_id INT NOT NULL,
+    production_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (holiday_date, machine_id, production_id),
+    FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_id) REFERENCES production(id) ON DELETE CASCADE
+);
+
 -- Notifications Table (admin-wide, one row per event)
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -292,6 +338,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_unread (is_read),
     INDEX idx_created (created_at),
     INDEX idx_type (type)
+);
+
+-- Per-admin notification email preferences (in-app notifications are always created)
+CREATE TABLE IF NOT EXISTS user_notification_email_preferences (
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    email_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, type),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Insert default postes data

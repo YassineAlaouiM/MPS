@@ -752,11 +752,12 @@ def create_absence():
             
             connection.commit()
 
-            create_notification(
-                'absence_created',
-                f'Absence enregistrée : {operator_name}',
-                f"Période : {start_date} → {end_date}. Motif : {reason}",
-            )
+            if not _is_repos_absence_reason(reason):
+                create_notification(
+                    'absence_created',
+                    f'Absence enregistrée : {operator_name}',
+                    f"Période : {start_date} → {end_date}. Motif : {reason}",
+                )
 
             return jsonify({'success': True, 'message': 'Absence added successfully'})
     except pymysql.Error as e:
@@ -1946,6 +1947,15 @@ WEEKEND_DAY_LABELS = {
     'saturday': {'fr': 'Samedi', 'ar': 'السبت'},
     'sunday': {'fr': 'Dimanche', 'ar': 'الأحد'},
 }
+HOLIDAY_DAY_LABELS = {
+    0: {'fr': 'Lundi', 'ar': 'الإثنين'},
+    1: {'fr': 'Mardi', 'ar': 'الثلاثاء'},
+    2: {'fr': 'Mercredi', 'ar': 'الأربعاء'},
+    3: {'fr': 'Jeudi', 'ar': 'الخميس'},
+    4: {'fr': 'Vendredi', 'ar': 'الجمعة'},
+    5: {'fr': 'Samedi', 'ar': 'السبت'},
+    6: {'fr': 'Dimanche', 'ar': 'الأحد'},
+}
 
 def _normalize_assignment_key(assignment):
     return (
@@ -2040,6 +2050,14 @@ def filter_weekend_visible_machines(all_program_machines, visible_keys):
         machine for machine in all_program_machines
         if (int(machine['id']), int(machine['production_id'])) in visible_keys
     ]
+
+def _persist_weekend_visible_machines(cursor, week, year, day, visible_keys):
+    for machine_id, production_id in visible_keys:
+        cursor.execute("""
+            INSERT IGNORE INTO weekend_visible_machines
+                (week_number, year, day, machine_id, production_id)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (week, year, day, machine_id, production_id))
 
 def _operator_ids_from_assignments(assignments):
     return {int(a['operator_id']) for a in assignments if a.get('operator_id')}
@@ -2151,6 +2169,25 @@ def apply_weekend_overrides_to_history_assignments(cursor, assignments, date_rec
     merged, _ = merge_weekend_with_production(assignments, weekend_assignments, cleared_keys)
     return merged
 
+def apply_holiday_overrides_to_history_assignments(cursor, assignments, date_recorded, operator_name_field='o.name'):
+    """Holiday schedule has highest priority over weekend and weekday programs."""
+    holiday_date = date_recorded if hasattr(date_recorded, 'year') else datetime.strptime(str(date_recorded), '%Y-%m-%d').date()
+    holiday_assignments = get_holiday_history_assignments(cursor, holiday_date, operator_name_field)
+    cleared_keys = get_holiday_cleared_keys(cursor, holiday_date)
+    if not holiday_assignments and not cleared_keys:
+        return assignments
+    merged, _ = merge_weekend_with_production(assignments, holiday_assignments, cleared_keys)
+    return merged
+
+def apply_day_program_overrides(cursor, assignments, date_recorded, operator_name_field='o.name'):
+    """Priority: holiday > weekend > weekday/history."""
+    assignments = apply_weekend_overrides_to_history_assignments(
+        cursor, assignments, date_recorded, operator_name_field
+    )
+    return apply_holiday_overrides_to_history_assignments(
+        cursor, assignments, date_recorded, operator_name_field
+    )
+
 def load_weekend_program_page_data(week, year, day):
     if day not in WEEKEND_DAYS:
         raise ValueError('Invalid weekend day')
@@ -2228,13 +2265,16 @@ def load_weekend_program_page_data(week, year, day):
             production_assignments = get_production_schedule_assignments(cursor, week, year)
             weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
             cleared_keys = get_weekend_cleared_keys(cursor, week, year, day)
+            extra_visible_keys = get_weekend_visible_keys(cursor, week, year, day)
             assignments, modified_machines = merge_weekend_with_production(
                 production_assignments, weekend_assignments, cleared_keys
             )
+            visible_keys = extra_visible_keys | modified_machines | cleared_keys
+            assignments = [
+                assignment for assignment in assignments
+                if (int(assignment['machine_id']), int(assignment['production_id'])) in visible_keys
+            ]
 
-            assigned_keys = get_production_assigned_machine_keys(cursor, week, year)
-            extra_visible_keys = get_weekend_visible_keys(cursor, week, year, day)
-            visible_keys = assigned_keys | extra_visible_keys | modified_machines | cleared_keys
             machines = filter_weekend_visible_machines(all_program_machines, visible_keys)
             available_program_machines = [
                 machine for machine in all_program_machines
@@ -2252,8 +2292,10 @@ def load_weekend_program_page_data(week, year, day):
                     (SELECT COUNT(*) FROM weekend_schedule
                      WHERE week_number = %s AND year = %s AND day = %s)
                   + (SELECT COUNT(*) FROM weekend_cleared_machines
+                     WHERE week_number = %s AND year = %s AND day = %s)
+                  + (SELECT COUNT(*) FROM weekend_visible_machines
                      WHERE week_number = %s AND year = %s AND day = %s) AS cnt
-            """, (week, year, day, week, year, day))
+            """, (week, year, day, week, year, day, week, year, day))
             has_day_modifications = cursor.fetchone()['cnt'] > 0
 
             current_access = get_user_accessible_pages(current_user.id)
@@ -2317,7 +2359,13 @@ def save_weekend_assignments(week, year, day, submitted_assignments):
                 key = (int(item['machine_id']), int(item['production_id']))
                 submitted_by_machine[key].append(item)
 
-            all_machine_keys = set(production_by_machine.keys()) | set(submitted_by_machine.keys())
+            visible_keys = get_weekend_visible_keys(cursor, week, year, day)
+            visible_keys |= set(submitted_by_machine.keys())
+            for assignment in get_weekend_schedule_assignments(cursor, week, year, day):
+                visible_keys.add((int(assignment['machine_id']), int(assignment['production_id'])))
+            visible_keys |= get_weekend_cleared_keys(cursor, week, year, day)
+
+            all_machine_keys = visible_keys
             has_modifications = False
 
             for machine_key in all_machine_keys:
@@ -2367,19 +2415,15 @@ def save_weekend_assignments(week, year, day, submitted_assignments):
                         VALUES (%s, %s, %s, %s, %s)
                     """, (week, year, day, machine_id, production_id))
 
-            if has_modifications:
+            if visible_keys:
+                _persist_weekend_visible_machines(cursor, week, year, day, visible_keys)
+            if has_modifications or visible_keys:
                 _ensure_weekend_program_header(cursor, week, year)
             _cleanup_weekend_program_header(cursor, week, year)
             conn.commit()
 
 def get_merged_weekend_export_rows(cursor, week, year, day, name_field='o.name'):
-    production_assignments = get_production_schedule_assignments(cursor, week, year)
-    weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
-    merged_assignments, _ = merge_weekend_with_production(production_assignments, weekend_assignments)
-
-    if not merged_assignments:
-        return []
-
+    """Export only machines with weekend modifications (not inherited production)."""
     cursor.execute(f"""
         SELECT
             m.name AS machine_name,
@@ -2387,47 +2431,19 @@ def get_merged_weekend_export_rows(cursor, week, year, day, name_field='o.name')
             p.id as production_id,
             a.name as article_name,
             a.abbreviation as article_abbreviation,
-            sc.machine_id,
-            sc.shift_id,
-            sc.position,
+            ws.machine_id,
+            ws.shift_id,
+            ws.position,
             {name_field} as operator_name
-        FROM (
-            SELECT machine_id, production_id, operator_id, shift_id, position
-            FROM weekend_schedule
-            WHERE week_number = %s AND year = %s AND day = %s
-            UNION ALL
-            SELECT s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position
-            FROM schedule s
-            WHERE s.week_number = %s AND s.year = %s
-            AND NOT EXISTS (
-                SELECT 1 FROM weekend_schedule ws
-                WHERE ws.week_number = s.week_number AND ws.year = s.year
-                  AND ws.day = %s
-                  AND ws.machine_id = s.machine_id
-                  AND ws.production_id = s.production_id
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM weekend_schedule ws2
-                WHERE ws2.week_number = s.week_number AND ws2.year = s.year
-                  AND ws2.day = %s
-                  AND ws2.operator_id = s.operator_id
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM weekend_cleared_machines wc
-                WHERE wc.week_number = s.week_number AND wc.year = s.year
-                  AND wc.day = %s
-                  AND wc.machine_id = s.machine_id
-                  AND wc.production_id = s.production_id
-            )
-        ) sc
-        INNER JOIN machines m ON sc.machine_id = m.id
-        INNER JOIN production p ON sc.production_id = p.id
+        FROM weekend_schedule ws
+        INNER JOIN machines m ON ws.machine_id = m.id
+        INNER JOIN production p ON ws.production_id = p.id
         LEFT JOIN articles a ON p.article_id = a.id
-        LEFT JOIN shifts s ON sc.shift_id = s.id
-        LEFT JOIN operators o ON sc.operator_id = o.id
-        WHERE m.status != 'broken'
-        ORDER BY m.type, m.name, p.start_date, sc.shift_id, sc.position
-    """, (week, year, day, week, year, day, day, day))
+        LEFT JOIN operators o ON ws.operator_id = o.id
+        WHERE ws.week_number = %s AND ws.year = %s AND ws.day = %s
+          AND m.status != 'broken'
+        ORDER BY m.type, m.name, p.start_date, ws.shift_id, ws.position
+    """, (week, year, day))
     rows = cursor.fetchall()
 
     grouped = {}
@@ -2451,16 +2467,41 @@ def get_merged_weekend_export_rows(cursor, week, year, day, name_field='o.name')
             elif row['operator_name']:
                 grouped[key][shift_col] = row['operator_name']
 
+    cursor.execute("""
+        SELECT wc.machine_id, wc.production_id,
+               m.name AS machine_name, m.type AS machine_type,
+               a.name as article_name, a.abbreviation as article_abbreviation
+        FROM weekend_cleared_machines wc
+        INNER JOIN machines m ON wc.machine_id = m.id
+        INNER JOIN production p ON wc.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        WHERE wc.week_number = %s AND wc.year = %s AND wc.day = %s
+          AND m.status != 'broken'
+    """, (week, year, day))
+    for row in cursor.fetchall():
+        key = (row['machine_name'], row['production_id'], row.get('article_name'), row.get('article_abbreviation'), row.get('machine_type'))
+        if key not in grouped:
+            grouped[key] = {
+                'machine_name': row['machine_name'],
+                'machine_type': row['machine_type'],
+                'production_id': row['production_id'],
+                'article_name': row.get('article_name'),
+                'article_abbreviation': row.get('article_abbreviation'),
+                'shift_1': None, 'shift_2': None, 'shift_3': None,
+                'shift_4': None, 'shift_5': None, 'shift_6': None,
+            }
+
     return list(grouped.values())
 
-def generate_schedule_pdf_response(schedule_data, week, year, name_type, filename, weekend_day=None):
+def generate_schedule_pdf_response(schedule_data, week, year, name_type, filename, weekend_day=None, holiday_date=None):
     """Generate schedule PDF using the same layout as the production programme export."""
     buffer = BytesIO()
     page_width, page_height = portrait(A4)
     p = canvas.Canvas(buffer, pagesize=portrait(A4))
     is_weekend = weekend_day in WEEKEND_DAYS
-    header_top_offset = 88 if is_weekend else 50
-    title_font_size = 34 if is_weekend else 20
+    is_holiday = holiday_date is not None
+    header_top_offset = 88 if (is_weekend or is_holiday) else 50
+    title_font_size = 34 if (is_weekend or is_holiday) else 20
 
     try:
         font_name = 'Amiri'
@@ -2538,6 +2579,28 @@ def generate_schedule_pdf_response(schedule_data, week, year, name_type, filenam
 
         canvas_obj.setFont('Helvetica-Bold', title_font_size)
         fr_text = labels['fr']
+        canvas_obj.drawString(margin, header_y, fr_text)
+        fr_width = canvas_obj.stringWidth(fr_text, 'Helvetica-Bold', title_font_size)
+
+        ar_text = get_display(arabic_reshaper.reshape(labels['ar']))
+        canvas_obj.setFont(bold_font_name, title_font_size)
+        ar_x = margin + fr_width + 18
+        canvas_obj.drawString(ar_x, header_y, ar_text)
+
+        canvas_obj.setFont('Helvetica-Bold', title_font_size)
+        date_width = canvas_obj.stringWidth(date_text, 'Helvetica-Bold', title_font_size)
+        canvas_obj.drawString(page_width - margin - date_width, header_y, date_text)
+
+    def add_holiday_page_header(canvas_obj):
+        margin = 40
+        labels = HOLIDAY_DAY_LABELS[holiday_date.weekday()]
+        date_text = f"{holiday_date.day}/{holiday_date.month}/{holiday_date.year}"
+        header_y = page_height - 58
+
+        canvas_obj.setFillColor(header_color)
+
+        canvas_obj.setFont('Helvetica-Bold', title_font_size)
+        fr_text = 'Jour férié'
         canvas_obj.drawString(margin, header_y, fr_text)
         fr_width = canvas_obj.stringWidth(fr_text, 'Helvetica-Bold', title_font_size)
 
@@ -2700,7 +2763,9 @@ def generate_schedule_pdf_response(schedule_data, week, year, name_type, filenam
         canvas_obj.drawCentredString(page_width / 2, 20, now)
 
     p.setFont('Helvetica-Bold', title_font_size)
-    if is_weekend:
+    if is_holiday:
+        add_holiday_page_header(p)
+    elif is_weekend:
         add_weekend_page_header(p)
     else:
         add_page_header(p, 1, 1)
@@ -2798,9 +2863,15 @@ def get_weekend_schedule_api():
                 production_assignments = get_production_schedule_assignments(cursor, week, year)
                 weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, day)
                 cleared_keys = get_weekend_cleared_keys(cursor, week, year, day)
+                extra_visible_keys = get_weekend_visible_keys(cursor, week, year, day)
                 assignments, modified_machines = merge_weekend_with_production(
                     production_assignments, weekend_assignments, cleared_keys
                 )
+                visible_keys = extra_visible_keys | modified_machines | cleared_keys
+                assignments = [
+                    assignment for assignment in assignments
+                    if (int(assignment['machine_id']), int(assignment['production_id'])) in visible_keys
+                ]
                 return jsonify({
                     'success': True,
                     'assignments': assignments,
@@ -2907,9 +2978,9 @@ def add_weekend_visible_machine():
                 if not cursor.fetchone():
                     return jsonify({'success': False, 'message': 'Production introuvable pour cette machine'})
 
-                assigned_keys = get_production_assigned_machine_keys(cursor, week_number, year)
-                if (int(machine_id), int(production_id)) in assigned_keys:
-                    return jsonify({'success': False, 'message': 'Cette machine est déjà visible dans le programme'})
+                already_visible = get_weekend_visible_keys(cursor, week_number, year, day)
+                if (int(machine_id), int(production_id)) in already_visible:
+                    return jsonify({'success': False, 'message': 'Cette machine est déjà affichée'})
 
                 cursor.execute("""
                     INSERT IGNORE INTO weekend_visible_machines
@@ -2958,6 +3029,825 @@ def export_weekend_schedule():
         return generate_schedule_pdf_response(schedule_data, week, year, name_type, filename, weekend_day=day)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# --- Holiday Program (Jours fériés — highest priority overlay) ---
+
+def _parse_holiday_date(value):
+    if value is None:
+        return None
+    if hasattr(value, 'year') and hasattr(value, 'month') and hasattr(value, 'day') and not isinstance(value, str):
+        return value if not hasattr(value, 'hour') else value.date()
+    text = str(value).strip()
+    if not text:
+        return None
+    return datetime.strptime(text[:10], '%Y-%m-%d').date()
+
+def _holiday_iso_week_year(holiday_date):
+    iso = holiday_date.isocalendar()
+    return iso[1], iso[0]
+
+def get_holiday_schedule_assignments(cursor, holiday_date):
+    cursor.execute("""
+        SELECT hs.id, hs.machine_id, hs.production_id, hs.operator_id, hs.shift_id, hs.position,
+               hs.holiday_date,
+               m.name as machine_name, o.name as operator_name, sh.name as shift_name,
+               p.article_id, a.name as article_name
+        FROM holiday_schedule hs
+        JOIN machines m ON hs.machine_id = m.id
+        JOIN production p ON hs.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        JOIN operators o ON hs.operator_id = o.id
+        JOIN shifts sh ON hs.shift_id = sh.id
+        WHERE hs.holiday_date = %s
+        ORDER BY m.name, sh.id, hs.position
+    """, (holiday_date,))
+    return cursor.fetchall()
+
+def get_holiday_cleared_keys(cursor, holiday_date):
+    cursor.execute("""
+        SELECT machine_id, production_id
+        FROM holiday_cleared_machines
+        WHERE holiday_date = %s
+    """, (holiday_date,))
+    return {(int(r['machine_id']), int(r['production_id'])) for r in cursor.fetchall()}
+
+def get_holiday_visible_keys(cursor, holiday_date):
+    cursor.execute("""
+        SELECT machine_id, production_id
+        FROM holiday_visible_machines
+        WHERE holiday_date = %s
+    """, (holiday_date,))
+    return {(int(r['machine_id']), int(r['production_id'])) for r in cursor.fetchall()}
+
+def get_holiday_history_assignments(cursor, holiday_date, operator_name_field='o.name'):
+    cursor.execute(f"""
+        SELECT
+            m.name as machine_name, {operator_name_field} as operator_name, sh.name as shift_name,
+            sh.start_time as shift_start_time, sh.end_time as shift_end_time,
+            a.name as article_name, a.abbreviation as article_abbreviation,
+            hs.machine_id, hs.production_id, hs.operator_id, hs.shift_id, hs.position,
+            m.type as machine_type
+        FROM holiday_schedule hs
+        JOIN machines m ON hs.machine_id = m.id
+        JOIN production p ON hs.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        JOIN operators o ON hs.operator_id = o.id
+        JOIN shifts sh ON hs.shift_id = sh.id
+        WHERE hs.holiday_date = %s
+        ORDER BY m.name, sh.start_time, hs.position
+    """, (holiday_date,))
+    return cursor.fetchall()
+
+def _persist_holiday_visible_machines(cursor, holiday_date, visible_keys):
+    for machine_id, production_id in visible_keys:
+        cursor.execute("""
+            INSERT IGNORE INTO holiday_visible_machines
+                (holiday_date, machine_id, production_id)
+            VALUES (%s, %s, %s)
+        """, (holiday_date, machine_id, production_id))
+
+def _ensure_holiday_program_header(cursor, holiday_date):
+    cursor.execute(
+        "INSERT IGNORE INTO holiday_program (holiday_date) VALUES (%s)",
+        (holiday_date,)
+    )
+
+def _cleanup_holiday_program_header(cursor, holiday_date):
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM holiday_schedule WHERE holiday_date = %s)
+          + (SELECT COUNT(*) FROM holiday_cleared_machines WHERE holiday_date = %s)
+          + (SELECT COUNT(*) FROM holiday_visible_machines WHERE holiday_date = %s)
+        AS cnt
+    """, (holiday_date, holiday_date, holiday_date))
+    if cursor.fetchone()['cnt'] == 0:
+        cursor.execute(
+            "DELETE FROM holiday_program WHERE holiday_date = %s",
+            (holiday_date,)
+        )
+
+def get_holiday_dates(cursor):
+    cursor.execute("""
+        SELECT DISTINCT holiday_date FROM (
+            SELECT holiday_date FROM holiday_program
+            UNION
+            SELECT holiday_date FROM holiday_schedule
+            UNION
+            SELECT holiday_date FROM holiday_cleared_machines
+            UNION
+            SELECT holiday_date FROM holiday_visible_machines
+        ) h
+        ORDER BY holiday_date
+    """)
+    return [row['holiday_date'] for row in cursor.fetchall()]
+
+def get_holiday_nav_dates(cursor, holiday_date):
+    dates = get_holiday_dates(cursor)
+    prev_date = None
+    next_date = None
+    for d in dates:
+        if d < holiday_date:
+            prev_date = d
+        elif d > holiday_date:
+            next_date = d
+            break
+    return prev_date, next_date
+
+def _clear_holiday_date_data(cursor, holiday_date):
+    cursor.execute("DELETE FROM holiday_schedule WHERE holiday_date = %s", (holiday_date,))
+    cursor.execute("DELETE FROM holiday_cleared_machines WHERE holiday_date = %s", (holiday_date,))
+    cursor.execute("DELETE FROM holiday_visible_machines WHERE holiday_date = %s", (holiday_date,))
+    cursor.execute("DELETE FROM holiday_program WHERE holiday_date = %s", (holiday_date,))
+
+def _holiday_date_has_data(cursor, holiday_date):
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM holiday_schedule WHERE holiday_date = %s)
+          + (SELECT COUNT(*) FROM holiday_cleared_machines WHERE holiday_date = %s)
+          + (SELECT COUNT(*) FROM holiday_visible_machines WHERE holiday_date = %s)
+          + (SELECT COUNT(*) FROM holiday_program WHERE holiday_date = %s) AS cnt
+    """, (holiday_date, holiday_date, holiday_date, holiday_date))
+    return cursor.fetchone()['cnt'] > 0
+
+def copy_holiday_program_data(from_date, to_date):
+    """Copy holiday overlays from one date onto another (replaces target)."""
+    if from_date == to_date:
+        raise ValueError('La date source et la date cible doivent être différentes')
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            if not _holiday_date_has_data(cursor, from_date):
+                raise ValueError('Aucun programme jour férié à copier pour cette date')
+            _clear_holiday_date_data(cursor, to_date)
+            cursor.execute("""
+                INSERT INTO holiday_schedule
+                    (holiday_date, machine_id, production_id, operator_id, shift_id, position)
+                SELECT %s, machine_id, production_id, operator_id, shift_id, position
+                FROM holiday_schedule
+                WHERE holiday_date = %s
+            """, (to_date, from_date))
+            cursor.execute("""
+                INSERT INTO holiday_cleared_machines
+                    (holiday_date, machine_id, production_id)
+                SELECT %s, machine_id, production_id
+                FROM holiday_cleared_machines
+                WHERE holiday_date = %s
+            """, (to_date, from_date))
+            cursor.execute("""
+                INSERT INTO holiday_visible_machines
+                    (holiday_date, machine_id, production_id)
+                SELECT %s, machine_id, production_id
+                FROM holiday_visible_machines
+                WHERE holiday_date = %s
+            """, (to_date, from_date))
+            _ensure_holiday_program_header(cursor, to_date)
+            conn.commit()
+
+def move_holiday_program_data(from_date, to_date):
+    """Move all holiday program data from one date to another."""
+    if from_date == to_date:
+        raise ValueError('La nouvelle date doit être différente')
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            if not _holiday_date_has_data(cursor, from_date):
+                raise ValueError('Aucun programme à déplacer pour cette date')
+            if _holiday_date_has_data(cursor, to_date):
+                raise ValueError('Un programme jour férié existe déjà pour la nouvelle date')
+            cursor.execute(
+                "UPDATE holiday_schedule SET holiday_date = %s WHERE holiday_date = %s",
+                (to_date, from_date)
+            )
+            cursor.execute(
+                "UPDATE holiday_cleared_machines SET holiday_date = %s WHERE holiday_date = %s",
+                (to_date, from_date)
+            )
+            cursor.execute(
+                "UPDATE holiday_visible_machines SET holiday_date = %s WHERE holiday_date = %s",
+                (to_date, from_date)
+            )
+            cursor.execute(
+                "UPDATE holiday_program SET holiday_date = %s WHERE holiday_date = %s",
+                (to_date, from_date)
+            )
+            conn.commit()
+
+def get_base_assignments_for_date(cursor, holiday_date):
+    """Underlying program for a calendar date before holiday overlay: weekend > weekday."""
+    week, year = _holiday_iso_week_year(holiday_date)
+    production_assignments = get_production_schedule_assignments(cursor, week, year)
+    weekend_day = _date_to_weekend_day(holiday_date)
+    if not weekend_day:
+        return production_assignments
+    weekend_assignments = get_weekend_schedule_assignments(cursor, week, year, weekend_day)
+    cleared_keys = get_weekend_cleared_keys(cursor, week, year, weekend_day)
+    if not weekend_assignments and not cleared_keys:
+        return production_assignments
+    merged, _ = merge_weekend_with_production(production_assignments, weekend_assignments, cleared_keys)
+    return merged
+
+def load_holiday_program_page_data(holiday_date):
+    week, year = _holiday_iso_week_year(holiday_date)
+    day_labels = HOLIDAY_DAY_LABELS[holiday_date.weekday()]
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    STR_TO_DATE(CONCAT(%s, ' ', %s, ' Monday'), '%%Y %%u %%W') as week_start,
+                    STR_TO_DATE(CONCAT(%s, ' ', %s, ' Sunday'), '%%Y %%u %%W') as week_end
+            """, (year, week, year, week))
+            week_dates = cursor.fetchone()
+            if not week_dates or not week_dates['week_start'] or not week_dates['week_end']:
+                raise ValueError(f'Error calculating week dates for week {week} of {year}')
+
+            cursor.execute("""
+                SELECT m.*, p.id as production_id, p.article_id, a.name as article_name,
+                       CASE WHEN nfm.id IS NOT NULL THEN 1 ELSE 0 END as is_nfm
+                FROM machines m
+                JOIN production p ON m.id = p.machine_id
+                LEFT JOIN articles a ON p.article_id = a.id
+                LEFT JOIN non_functioning_machines nfm ON m.id = nfm.machine_id
+                    AND (nfm.fixed_date IS NULL OR DATE(nfm.fixed_date) > CURDATE())
+                WHERE p.status = 'active'
+                AND (
+                    (p.start_date <= %s AND (p.end_date IS NULL OR p.end_date >= %s))
+                    OR (p.start_date BETWEEN %s AND %s)
+                    OR ((p.end_date IS NOT NULL) AND p.end_date BETWEEN %s AND %s)
+                )
+                ORDER BY m.type, m.name, p.start_date
+            """, (week_dates['week_end'], week_dates['week_start'],
+                  week_dates['week_start'], week_dates['week_end'],
+                  week_dates['week_start'], week_dates['week_end']))
+            all_program_machines = cursor.fetchall()
+
+            cursor.execute("SELECT * FROM articles ORDER BY name")
+            articles = cursor.fetchall()
+            cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
+            all_machines = cursor.fetchall()
+
+            operators = get_operators(week, year)
+
+            cursor.execute("""
+                SELECT o.*,
+                       MAX(a.start_date) as start_date,
+                       MAX(a.end_date) as end_date,
+                       CASE
+                           WHEN MAX(a.start_date) IS NOT NULL AND MAX(a.end_date) IS NOT NULL THEN
+                               CASE
+                                   WHEN DATEDIFF(MAX(a.end_date), MAX(a.start_date)) > 7
+                                       AND %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                   THEN 'long_absence'
+                                   WHEN %s BETWEEN MAX(a.start_date) AND MAX(a.end_date)
+                                   THEN 'current_absence'
+                                   WHEN MAX(a.start_date) BETWEEN %s AND %s
+                                   THEN 'upcoming_absence'
+                                   ELSE 'no_absence'
+                               END
+                           ELSE 'no_absence'
+                       END as absence_status
+                FROM operators o
+                LEFT JOIN absences a ON o.id = a.operator_id
+                    AND (
+                        %s BETWEEN a.start_date AND a.end_date
+                        OR a.start_date BETWEEN %s AND %s
+                    )
+                GROUP BY o.id, o.name, o.arabic_name, o.status, o.last_shift_id
+            """, (holiday_date, holiday_date,
+                  week_dates['week_start'], week_dates['week_end'],
+                  holiday_date,
+                  week_dates['week_start'], week_dates['week_end']))
+            all_operators = cursor.fetchall()
+
+            shifts = get_shifts()
+            base_assignments = get_base_assignments_for_date(cursor, holiday_date)
+            holiday_assignments = get_holiday_schedule_assignments(cursor, holiday_date)
+            cleared_keys = get_holiday_cleared_keys(cursor, holiday_date)
+            extra_visible_keys = get_holiday_visible_keys(cursor, holiday_date)
+            assignments, modified_machines = merge_weekend_with_production(
+                base_assignments, holiday_assignments, cleared_keys
+            )
+            visible_keys = extra_visible_keys | modified_machines | cleared_keys
+            assignments = [
+                assignment for assignment in assignments
+                if (int(assignment['machine_id']), int(assignment['production_id'])) in visible_keys
+            ]
+
+            machines = filter_weekend_visible_machines(all_program_machines, visible_keys)
+            available_program_machines = [
+                machine for machine in all_program_machines
+                if (int(machine['id']), int(machine['production_id'])) not in visible_keys
+            ]
+
+            cursor.execute(
+                "SELECT id FROM holiday_program WHERE holiday_date = %s",
+                (holiday_date,)
+            )
+            has_holiday_program = cursor.fetchone() is not None
+
+            cursor.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM holiday_schedule WHERE holiday_date = %s)
+                  + (SELECT COUNT(*) FROM holiday_cleared_machines WHERE holiday_date = %s)
+                  + (SELECT COUNT(*) FROM holiday_visible_machines WHERE holiday_date = %s) AS cnt
+            """, (holiday_date, holiday_date, holiday_date))
+            has_day_modifications = cursor.fetchone()['cnt'] > 0
+
+            prev_date, next_date = get_holiday_nav_dates(cursor, holiday_date)
+            all_holiday_dates = get_holiday_dates(cursor)
+            copy_source_dates = [
+                {
+                    'iso': d.isoformat(),
+                    'display': f"{HOLIDAY_DAY_LABELS[d.weekday()]['fr']} {_format_notification_date_value(d)}",
+                }
+                for d in all_holiday_dates
+                if d != holiday_date
+            ]
+
+            current_access = get_user_accessible_pages(current_user.id)
+            can_edit = current_access.get('holiday_program', True) if current_user.role != 'admin' else True
+
+    return {
+        'holiday_date': holiday_date,
+        'holiday_date_iso': holiday_date.isoformat(),
+        'week': week,
+        'year': year,
+        'day_label_fr': day_labels['fr'],
+        'day_label_ar': day_labels['ar'],
+        'week_dates': week_dates,
+        'selected_day_date': f"{holiday_date.day}/{holiday_date.month}/{holiday_date.year}",
+        'machines': machines,
+        'all_program_machines': all_program_machines,
+        'available_program_machines': available_program_machines,
+        'all_machines': all_machines,
+        'operators': operators,
+        'all_operators': all_operators,
+        'shifts': shifts,
+        'assignments': assignments,
+        'modified_machines': modified_machines,
+        'has_holiday_program': has_holiday_program,
+        'has_day_modifications': has_day_modifications,
+        'prev_holiday_date': prev_date.isoformat() if prev_date else '',
+        'next_holiday_date': next_date.isoformat() if next_date else '',
+        'copy_source_dates': copy_source_dates,
+        'can_edit': can_edit,
+        'articles': articles,
+    }
+
+def save_holiday_assignments(holiday_date, submitted_assignments):
+    week, year = _holiday_iso_week_year(holiday_date)
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            base_assignments = get_base_assignments_for_date(cursor, holiday_date)
+            production_by_machine = _group_assignments_by_machine(base_assignments)
+
+            submitted_by_machine = defaultdict(list)
+            for item in submitted_assignments:
+                if not item.get('operator_id'):
+                    continue
+                key = (int(item['machine_id']), int(item['production_id']))
+                submitted_by_machine[key].append(item)
+
+            visible_keys = get_holiday_visible_keys(cursor, holiday_date)
+            visible_keys |= set(submitted_by_machine.keys())
+            for assignment in get_holiday_schedule_assignments(cursor, holiday_date):
+                visible_keys.add((int(assignment['machine_id']), int(assignment['production_id'])))
+            visible_keys |= get_holiday_cleared_keys(cursor, holiday_date)
+
+            all_machine_keys = visible_keys
+            has_modifications = False
+
+            for machine_key in all_machine_keys:
+                production_group = production_by_machine.get(machine_key, [])
+                submitted_group = submitted_by_machine.get(machine_key, [])
+                machine_id, production_id = machine_key
+                other_operator_ids = _operator_ids_from_submitted_by_machine(
+                    submitted_by_machine, exclude_key=machine_key
+                )
+                effective_production = _effective_production_group(
+                    production_group, other_operator_ids
+                )
+
+                cursor.execute("""
+                    DELETE FROM holiday_schedule
+                    WHERE holiday_date = %s
+                      AND machine_id = %s AND production_id = %s
+                """, (holiday_date, machine_id, production_id))
+                cursor.execute("""
+                    DELETE FROM holiday_cleared_machines
+                    WHERE holiday_date = %s
+                      AND machine_id = %s AND production_id = %s
+                """, (holiday_date, machine_id, production_id))
+
+                if _assignments_equal(effective_production, submitted_group):
+                    continue
+
+                has_modifications = True
+                if submitted_group:
+                    for assignment in submitted_group:
+                        cursor.execute("""
+                            INSERT INTO holiday_schedule
+                                (holiday_date, machine_id, production_id,
+                                 operator_id, shift_id, position)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (
+                            holiday_date,
+                            machine_id, production_id,
+                            assignment['operator_id'],
+                            assignment['shift_id'],
+                            assignment.get('position', 1),
+                        ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO holiday_cleared_machines
+                            (holiday_date, machine_id, production_id)
+                        VALUES (%s, %s, %s)
+                    """, (holiday_date, machine_id, production_id))
+
+            if visible_keys:
+                _persist_holiday_visible_machines(cursor, holiday_date, visible_keys)
+            if has_modifications or visible_keys:
+                _ensure_holiday_program_header(cursor, holiday_date)
+            _cleanup_holiday_program_header(cursor, holiday_date)
+            conn.commit()
+
+def get_merged_holiday_export_rows(cursor, holiday_date, name_field='o.name'):
+    cursor.execute(f"""
+        SELECT
+            m.name AS machine_name,
+            m.type AS machine_type,
+            p.id as production_id,
+            a.name as article_name,
+            a.abbreviation as article_abbreviation,
+            hs.machine_id,
+            hs.shift_id,
+            hs.position,
+            {name_field} as operator_name
+        FROM holiday_schedule hs
+        INNER JOIN machines m ON hs.machine_id = m.id
+        INNER JOIN production p ON hs.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        LEFT JOIN operators o ON hs.operator_id = o.id
+        WHERE hs.holiday_date = %s
+          AND m.status != 'broken'
+        ORDER BY m.type, m.name, p.start_date, hs.shift_id, hs.position
+    """, (holiday_date,))
+    rows = cursor.fetchall()
+
+    grouped = {}
+    for row in rows:
+        key = (row['machine_name'], row['production_id'], row.get('article_name'), row.get('article_abbreviation'), row.get('machine_type'))
+        if key not in grouped:
+            grouped[key] = {
+                'machine_name': row['machine_name'],
+                'machine_type': row['machine_type'],
+                'production_id': row['production_id'],
+                'article_name': row.get('article_name'),
+                'article_abbreviation': row.get('article_abbreviation'),
+                'shift_1': None, 'shift_2': None, 'shift_3': None,
+                'shift_4': None, 'shift_5': None, 'shift_6': None,
+            }
+        shift_col = f"shift_{row['shift_id']}"
+        if shift_col in grouped[key]:
+            existing = grouped[key][shift_col]
+            if existing and row['operator_name']:
+                grouped[key][shift_col] = f"{existing},{row['operator_name']}"
+            elif row['operator_name']:
+                grouped[key][shift_col] = row['operator_name']
+
+    cursor.execute("""
+        SELECT hc.machine_id, hc.production_id,
+               m.name AS machine_name, m.type AS machine_type,
+               a.name as article_name, a.abbreviation as article_abbreviation
+        FROM holiday_cleared_machines hc
+        INNER JOIN machines m ON hc.machine_id = m.id
+        INNER JOIN production p ON hc.production_id = p.id
+        LEFT JOIN articles a ON p.article_id = a.id
+        WHERE hc.holiday_date = %s
+          AND m.status != 'broken'
+    """, (holiday_date,))
+    for row in cursor.fetchall():
+        key = (row['machine_name'], row['production_id'], row.get('article_name'), row.get('article_abbreviation'), row.get('machine_type'))
+        if key not in grouped:
+            grouped[key] = {
+                'machine_name': row['machine_name'],
+                'machine_type': row['machine_type'],
+                'production_id': row['production_id'],
+                'article_name': row.get('article_name'),
+                'article_abbreviation': row.get('article_abbreviation'),
+                'shift_1': None, 'shift_2': None, 'shift_3': None,
+                'shift_4': None, 'shift_5': None, 'shift_6': None,
+            }
+
+    return list(grouped.values())
+
+@app.route('/holiday-program')
+@login_required
+def holiday_program():
+    ensure_today_history()
+    if not has_page_access('holiday_program'):
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
+
+    date_str = request.args.get('date')
+    holiday_date = None
+    try:
+        if date_str:
+            holiday_date = _parse_holiday_date(date_str)
+    except ValueError:
+        flash('Date de jour férié invalide', 'error')
+        holiday_date = None
+
+    if not holiday_date:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                dates = get_holiday_dates(cursor)
+                prev_date = dates[-1] if dates else None
+        return render_template(
+            'holiday_program.html',
+            holiday_date_iso='',
+            week=datetime.now().isocalendar()[1],
+            year=datetime.now().year,
+            day_label_fr='',
+            machines=[],
+            available_program_machines=[],
+            operators=[],
+            shifts=[],
+            assignments=[],
+            can_edit=has_page_access('holiday_program', require_edit=True) or current_user.role == 'admin',
+            modified_machines=set(),
+            has_holiday_program=False,
+            has_day_modifications=False,
+            selected_day_date='',
+            prev_holiday_date=prev_date.isoformat() if prev_date else '',
+            next_holiday_date='',
+            copy_source_dates=[],
+            articles=[],
+            all_machines=[],
+            all_operators=[],
+            needs_date_selection=True,
+        )
+
+    try:
+        page_data = load_holiday_program_page_data(holiday_date)
+    except Exception as e:
+        flash(str(e), 'error')
+        return render_template(
+            'holiday_program.html',
+            holiday_date_iso=holiday_date.isoformat(),
+            week=holiday_date.isocalendar()[1],
+            year=holiday_date.year,
+            day_label_fr=HOLIDAY_DAY_LABELS[holiday_date.weekday()]['fr'],
+            machines=[],
+            available_program_machines=[],
+            operators=[],
+            shifts=[],
+            assignments=[],
+            can_edit=False,
+            modified_machines=set(),
+            has_holiday_program=False,
+            has_day_modifications=False,
+            selected_day_date=f"{holiday_date.day}/{holiday_date.month}/{holiday_date.year}",
+            prev_holiday_date='',
+            next_holiday_date='',
+            copy_source_dates=[],
+            articles=[],
+            all_machines=[],
+            all_operators=[],
+            needs_date_selection=False,
+        )
+
+    return render_template(
+        'holiday_program.html',
+        holiday_date_iso=page_data['holiday_date_iso'],
+        week=page_data['week'],
+        year=page_data['year'],
+        day_label_fr=page_data['day_label_fr'],
+        machines=page_data['machines'],
+        available_program_machines=page_data['available_program_machines'],
+        all_machines=page_data['all_machines'],
+        operators=page_data['operators'],
+        all_operators=page_data['all_operators'],
+        shifts=page_data['shifts'],
+        assignments=page_data['assignments'],
+        can_edit=page_data['can_edit'],
+        modified_machines=page_data['modified_machines'],
+        has_holiday_program=page_data['has_holiday_program'],
+        has_day_modifications=page_data['has_day_modifications'],
+        selected_day_date=page_data['selected_day_date'],
+        prev_holiday_date=page_data['prev_holiday_date'],
+        next_holiday_date=page_data['next_holiday_date'],
+        copy_source_dates=page_data['copy_source_dates'],
+        articles=page_data['articles'],
+        needs_date_selection=False,
+    )
+
+@app.route('/api/holiday-schedule', methods=['GET'])
+@login_required
+def get_holiday_schedule_api():
+    if not has_page_access('holiday_program'):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    try:
+        holiday_date = _parse_holiday_date(request.args.get('date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    if not holiday_date:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                base_assignments = get_base_assignments_for_date(cursor, holiday_date)
+                holiday_assignments = get_holiday_schedule_assignments(cursor, holiday_date)
+                cleared_keys = get_holiday_cleared_keys(cursor, holiday_date)
+                extra_visible_keys = get_holiday_visible_keys(cursor, holiday_date)
+                assignments, modified_machines = merge_weekend_with_production(
+                    base_assignments, holiday_assignments, cleared_keys
+                )
+                visible_keys = extra_visible_keys | modified_machines | cleared_keys
+                assignments = [
+                    assignment for assignment in assignments
+                    if (int(assignment['machine_id']), int(assignment['production_id'])) in visible_keys
+                ]
+                return jsonify({
+                    'success': True,
+                    'assignments': assignments,
+                    'modified_machines': [
+                        {'machine_id': k[0], 'production_id': k[1]} for k in modified_machines
+                    ],
+                })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/holiday-schedule/confirm', methods=['POST'])
+@login_required
+def confirm_holiday_assignments():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json or {}
+    assignments = data.get('assignments', [])
+    try:
+        holiday_date = _parse_holiday_date(data.get('date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    if not holiday_date:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    try:
+        save_holiday_assignments(holiday_date, assignments)
+        day_label = HOLIDAY_DAY_LABELS[holiday_date.weekday()]['fr']
+        date_display = _format_notification_date_value(holiday_date)
+        create_notification(
+            'holiday_confirmed',
+            f'Programme jour férié confirmé — {day_label} {date_display}',
+            f'Le programme du jour férié {day_label.lower()} {date_display} a été confirmé par {current_user.username}.',
+        )
+        return jsonify({'success': True, 'message': 'Holiday assignments confirmed successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/holiday-schedule', methods=['DELETE'])
+@login_required
+def delete_holiday_program():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    try:
+        holiday_date = _parse_holiday_date(request.args.get('date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    if not holiday_date:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM holiday_schedule WHERE holiday_date = %s", (holiday_date,))
+                cursor.execute("DELETE FROM holiday_cleared_machines WHERE holiday_date = %s", (holiday_date,))
+                cursor.execute("DELETE FROM holiday_visible_machines WHERE holiday_date = %s", (holiday_date,))
+                cursor.execute("DELETE FROM holiday_program WHERE holiday_date = %s", (holiday_date,))
+                conn.commit()
+        return jsonify({'success': True, 'message': 'Holiday program deleted successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/holiday-schedule/add-machine', methods=['POST'])
+@login_required
+def add_holiday_visible_machine():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json or {}
+    try:
+        holiday_date = _parse_holiday_date(data.get('date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Date is required'})
+    machine_id = data.get('machine_id')
+    production_id = data.get('production_id')
+    if not holiday_date or not machine_id or not production_id:
+        return jsonify({'success': False, 'message': 'Date, machine and production are required'})
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT p.id
+                    FROM production p
+                    JOIN machines m ON p.machine_id = m.id
+                    WHERE p.id = %s AND p.machine_id = %s AND p.status = 'active'
+                """, (production_id, machine_id))
+                if not cursor.fetchone():
+                    return jsonify({'success': False, 'message': 'Production introuvable pour cette machine'})
+
+                already_visible = get_holiday_visible_keys(cursor, holiday_date)
+                if (int(machine_id), int(production_id)) in already_visible:
+                    return jsonify({'success': False, 'message': 'Cette machine est déjà affichée'})
+
+                cursor.execute("""
+                    INSERT IGNORE INTO holiday_visible_machines
+                        (holiday_date, machine_id, production_id)
+                    VALUES (%s, %s, %s)
+                """, (holiday_date, machine_id, production_id))
+                _ensure_holiday_program_header(cursor, holiday_date)
+                conn.commit()
+        return jsonify({'success': True, 'message': 'Machine ajoutée au programme jour férié.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/holiday-schedule/random', methods=['POST'])
+@login_required
+def random_holiday_assignments():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    return random_assignments()
+
+@app.route('/api/holiday-schedule/change-date', methods=['POST'])
+@login_required
+def change_holiday_program_date():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json or {}
+    try:
+        from_date = _parse_holiday_date(data.get('from_date'))
+        to_date = _parse_holiday_date(data.get('to_date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Dates invalides'})
+    if not from_date or not to_date:
+        return jsonify({'success': False, 'message': 'Les deux dates sont requises'})
+    try:
+        move_holiday_program_data(from_date, to_date)
+        return jsonify({
+            'success': True,
+            'message': 'Date du jour férié mise à jour.',
+            'date': to_date.isoformat(),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/holiday-schedule/copy', methods=['POST'])
+@login_required
+def copy_holiday_program_route():
+    if not has_page_access('holiday_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json or {}
+    try:
+        from_date = _parse_holiday_date(data.get('from_date'))
+        to_date = _parse_holiday_date(data.get('to_date'))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Dates invalides'})
+    if not from_date or not to_date:
+        return jsonify({'success': False, 'message': 'Les deux dates sont requises'})
+    try:
+        copy_holiday_program_data(from_date, to_date)
+        return jsonify({
+            'success': True,
+            'message': 'Programme jour férié copié avec succès.',
+            'date': to_date.isoformat(),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/export_holiday_schedule', methods=['GET'])
+@login_required
+def export_holiday_schedule():
+    try:
+        holiday_date = _parse_holiday_date(request.args.get('date'))
+    except ValueError:
+        return jsonify({'error': 'Date parameter is required'}), 400
+    name_type = request.args.get('name_type', 'latin')
+    if not holiday_date:
+        return jsonify({'error': 'Date parameter is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        name_field = 'o.arabic_name' if name_type == 'arabic' else 'o.name'
+        schedule_data = get_merged_holiday_export_rows(cursor, holiday_date, name_field)
+        conn.close()
+        if not schedule_data:
+            return jsonify({'error': 'No schedule data found'}), 404
+        week, year = _holiday_iso_week_year(holiday_date)
+        name_suffix = 'ar' if name_type == 'arabic' else 'fr'
+        filename = f'emploi_jour_ferie_{holiday_date.isoformat()}_{name_suffix}.pdf'
+        return generate_schedule_pdf_response(
+            schedule_data, week, year, name_type, filename,
+            holiday_date=holiday_date
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 #PDF - Schedule Export
 @app.route('/export_schedule', methods=['GET'])
@@ -3427,7 +4317,7 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     LIMIT 30
                 ''')
             
-            dates = cursor.fetchall()
+            dates = list(cursor.fetchall())
 
             # Include Saturday/Sunday dates that have weekend modifications in the range
             if start_date and end_date:
@@ -3444,6 +4334,23 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     if weekend_date and start_date <= weekend_date <= end_date and weekend_date not in existing_dates:
                         dates.append({'date_recorded': weekend_date})
                         existing_dates.add(weekend_date)
+
+                cursor.execute("""
+                    SELECT DISTINCT holiday_date FROM (
+                        SELECT holiday_date FROM holiday_schedule
+                        UNION
+                        SELECT holiday_date FROM holiday_cleared_machines
+                        UNION
+                        SELECT holiday_date FROM holiday_program
+                    ) h
+                    WHERE holiday_date BETWEEN %s AND %s
+                """, (start_date, end_date))
+                for row in cursor.fetchall():
+                    holiday_date = row['holiday_date']
+                    if holiday_date not in existing_dates:
+                        dates.append({'date_recorded': holiday_date})
+                        existing_dates.add(holiday_date)
+
                 dates.sort(key=lambda d: d['date_recorded'], reverse=True)
 
             history = {}
@@ -3463,11 +4370,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 ''', (date_recorded,))
                 
                 historical_assignments = cursor.fetchall()
-                
-                # ===== DEBUG 1 =====
-                emballages_historical = [a for a in historical_assignments if a.get('machine_name') == 'EMBALLAGES']
-                print(f"\n{date_recorded}: Historical - EMBALLAGES count: {len(emballages_historical)}")
-                # ===== END DEBUG 1 =====
                 
                 # Determine if this date already has saved history entries
                 has_saved_history_for_date = bool(historical_assignments)
@@ -3508,11 +4410,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 
                 historical_assignments = filtered_historical_assignments
                 
-                # ===== DEBUG 2 =====
-                emballages_filtered = [a for a in historical_assignments if a.get('machine_name') == 'EMBALLAGES']
-                print(f"{date_recorded}: After filtering - EMBALLAGES count: {len(emballages_filtered)}")
-                # ===== END DEBUG 2 =====
-                
                 # Get current active assignments from schedule table (only active productions)
                 current_assignments = []
                 if not has_saved_history_for_date:
@@ -3534,11 +4431,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                     ''', (date_recorded.isocalendar()[1], date_recorded.year))
                     
                     current_assignments = cursor.fetchall()
-                
-                # ===== DEBUG 3 =====
-                emballages_current = [a for a in current_assignments if a.get('machine_name') == 'EMBALLAGES']
-                print(f"{date_recorded}: Current assignments - EMBALLAGES count: {len(emballages_current)}")
-                # ===== END DEBUG 3 =====
                 
                 # Get completed assignments from completed_productions table
                 cursor.execute('''
@@ -3566,11 +4458,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                                 and assignment.get('machine_name') not in completed_machine_names)
                         ]
                 
-                # ===== DEBUG 4 =====
-                emballages_current_after = [a for a in current_assignments if a.get('machine_name') == 'EMBALLAGES']
-                print(f"{date_recorded}: Current after completed filter - EMBALLAGES count: {len(emballages_current_after)}")
-                # ===== END DEBUG 4 =====
-                
                 # Combine all assignments with deduplication
                 assignments = []
                 seen_assignments = set()
@@ -3596,14 +4483,9 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                                 if assignment_list is completed_assignments:
                                     assignment['status'] = 'completed'
                                 assignments.append(assignment)
-                
-                # ===== DEBUG 5 =====
-                emballages_combined = [a for a in assignments if a.get('machine_name') == 'EMBALLAGES']
-                print(f"{date_recorded}: Combined assignments - EMBALLAGES count: {len(emballages_combined)}")
-                # ===== END DEBUG 5 =====
 
-                # Weekend program overrides production/history for Saturday and Sunday
-                assignments = apply_weekend_overrides_to_history_assignments(
+                # Priority: holiday > weekend > weekday/history
+                assignments = apply_day_program_overrides(
                     cursor, assignments, date_recorded
                 )
                 
@@ -3693,14 +4575,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                         'is_completed': is_completed
                     })
                 
-                # ===== DEBUG 6 =====
-                if 'EMBALLAGES' in day_data:
-                    print(f"✅ {date_recorded}: EMBALLAGES in day_data with {len(day_data['EMBALLAGES'])} items")
-                else:
-                    print(f"❌ {date_recorded}: EMBALLAGES NOT in day_data")
-                    print(f"   day_data keys: {list(day_data.keys())}")
-                # ===== END DEBUG 6 =====
-                
                 # Add non-functioning machines to the day data
                 for nfm in non_functioning_machines:
                     machine = nfm['machine_name']
@@ -3753,17 +4627,6 @@ def get_daily_schedule_history(start_date=None, end_date=None):
                 key = date_recorded.strftime('%Y-%m-%d')
                 history[key] = day_data
             
-            # ===== FINAL DEBUG =====
-            print(f"\n{'='*60}")
-            print(f"FINAL HISTORY - Total dates: {len(history)}")
-            for date_key, machines in history.items():
-                if 'EMBALLAGES' in machines:
-                    print(f"✅ {date_key}: EMBALLAGES with {len(machines['EMBALLAGES'])} assignments")
-                else:
-                    print(f"❌ {date_key}: EMBALLAGES NOT FOUND")
-            print(f"{'='*60}\n")
-            # ===== END FINAL DEBUG =====
-            
             return history
     finally:
         connection.close()
@@ -3775,39 +4638,44 @@ def get_schedule_history():
 @app.route('/history')
 @login_required
 def history():
-    ensure_today_history()
-    # Get date range from query parameters (default to last 30 days)
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=30)
-    
-    # Allow custom date range
-    if request.args.get('start_date'):
-        try:
-            start_date = datetime.strptime(request.args.get('start_date'), '%Y-%m-%d').date()
-        except ValueError:
-            pass
-    
-    if request.args.get('end_date'):
-        try:
-            end_date = datetime.strptime(request.args.get('end_date'), '%Y-%m-%d').date()
-        except ValueError:
-            pass
-    
-    history_data = get_daily_schedule_history(start_date, end_date)
-    # --- Add for modal ---
-    connection = get_db_connection()
     try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM articles ORDER BY name")
-            articles = cursor.fetchall()
-            cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
-            machines = cursor.fetchall()
-        current_access = get_user_accessible_pages(current_user.id)
-        can_edit = current_access.get('production', True) if current_user.role != 'admin' else True
-    finally:
-        connection.close()
-    # --- End add ---
-    return render_template('history.html', history=history_data, start_date=start_date, end_date=end_date, machines=machines, articles=articles, can_edit=can_edit)
+        ensure_today_history()
+        # Get date range from query parameters (default to last 30 days)
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=30)
+
+        # Allow custom date range
+        if request.args.get('start_date'):
+            try:
+                start_date = datetime.strptime(request.args.get('start_date'), '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        if request.args.get('end_date'):
+            try:
+                end_date = datetime.strptime(request.args.get('end_date'), '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        history_data = get_daily_schedule_history(start_date, end_date)
+        # --- Add for modal ---
+        connection = get_db_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT * FROM articles ORDER BY name")
+                articles = cursor.fetchall()
+                cursor.execute("SELECT * FROM machines WHERE status = 'operational' ORDER BY name")
+                machines = cursor.fetchall()
+            current_access = get_user_accessible_pages(current_user.id)
+            can_edit = current_access.get('production', True) if current_user.role != 'admin' else True
+        finally:
+            connection.close()
+        # --- End add ---
+        return render_template('history.html', history=history_data, start_date=start_date, end_date=end_date, machines=machines, articles=articles, can_edit=can_edit)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
 
 @app.route('/api/save_today_history', methods=['POST'])
 @login_required
@@ -4203,7 +5071,7 @@ def export_history():
             ''', (week, year))
             assignments = [row for row in cursor.fetchall() if row['machine_id'] not in all_non_functioning_ids]
 
-        assignments = apply_weekend_overrides_to_history_assignments(
+        assignments = apply_day_program_overrides(
             cursor,
             assignments,
             date_obj,
@@ -5202,22 +6070,73 @@ def get_report_assignments(operator_id=None, machine_id=None, start_date=None, e
                         'shift_end_time': row['shift_end_time'],
                         'source': 'weekend'
                     })
-            assignments.sort(key=lambda a: (a['assignment_date'], a.get('machine_name', '')), reverse=True)
 
-            seen = set()
-            deduped = []
+            holiday_sql = '''
+                SELECT
+                    hs.holiday_date,
+                    hs.machine_id, m.name as machine_name,
+                    hs.operator_id, o.name as operator_name,
+                    hs.shift_id, s.name as shift_name,
+                    s.start_time as shift_start_time, s.end_time as shift_end_time
+                FROM holiday_schedule hs
+                JOIN machines m ON hs.machine_id = m.id
+                JOIN operators o ON hs.operator_id = o.id
+                JOIN shifts s ON hs.shift_id = s.id
+                WHERE hs.holiday_date BETWEEN %s AND %s
+            '''
+            holiday_params = [start_date, end_date]
+            if operator_id:
+                holiday_sql += ' AND hs.operator_id = %s'
+                holiday_params.append(operator_id)
+            if machine_id:
+                holiday_sql += ' AND hs.machine_id = %s'
+                holiday_params.append(machine_id)
+            if search:
+                holiday_sql += ' AND (o.name LIKE %s OR m.name LIKE %s OR s.name LIKE %s)'
+                like = f'%{search}%'
+                holiday_params.extend([like, like, like])
+            cursor.execute(holiday_sql, holiday_params)
+            for row in cursor.fetchall():
+                assignments.append({
+                    'assignment_date': row['holiday_date'],
+                    'machine_id': row['machine_id'],
+                    'machine_name': row['machine_name'],
+                    'operator_id': row['operator_id'],
+                    'operator_name': row['operator_name'],
+                    'shift_id': row['shift_id'],
+                    'shift_name': row['shift_name'],
+                    'shift_start_time': row['shift_start_time'],
+                    'shift_end_time': row['shift_end_time'],
+                    'source': 'holiday'
+                })
+
+            source_priority = {'holiday': 0, 'weekend': 1, 'history': 2}
+            assignments.sort(
+                key=lambda a: (
+                    a['assignment_date'],
+                    source_priority.get(a.get('source'), 9),
+                    a.get('machine_name', ''),
+                ),
+                reverse=False,
+            )
+            # Keep highest-priority source per date/machine/operator/shift (holiday > weekend > history)
+            best_by_key = {}
             for a in assignments:
                 key = (
                     str(a['assignment_date']),
                     a.get('machine_id'),
                     a.get('operator_id'),
                     a.get('shift_id'),
-                    str(a.get('shift_start_time', ''))
+                    str(a.get('shift_start_time', '')),
                 )
-                if key not in seen:
-                    seen.add(key)
-                    deduped.append(a)
-            assignments = deduped
+                existing = best_by_key.get(key)
+                if existing is None or source_priority.get(a.get('source'), 9) < source_priority.get(existing.get('source'), 9):
+                    best_by_key[key] = a
+            assignments = sorted(
+                best_by_key.values(),
+                key=lambda a: (a['assignment_date'], a.get('machine_name', '')),
+                reverse=True,
+            )
     finally:
         connection.close()
     return assignments
@@ -5935,6 +6854,152 @@ def export_report(report_type):
 # Notifications
 NOTIFICATION_EMAIL_STATUSES = ('pending', 'sent', 'failed', 'skipped')
 
+NOTIFICATION_TYPES = {
+    'nfm_reported': {'label': 'Machine en panne', 'icon': 'fa-exclamation-triangle'},
+    'nfm_fixed': {'label': 'Machine réparée', 'icon': 'fa-wrench'},
+    'absence_created': {'label': 'Absences', 'icon': 'fa-user-clock'},
+    'schedule_confirmed': {'label': 'Planning confirmé', 'icon': 'fa-calendar-check'},
+    'weekend_confirmed': {'label': 'Programme week-end', 'icon': 'fa-calendar-week'},
+    'holiday_confirmed': {'label': 'Programme jour férié', 'icon': 'fa-calendar-day'},
+    'rest_days_updated': {'label': 'Jours de repos', 'icon': 'fa-bed'},
+}
+
+NOTIFICATION_TYPE_ORDER = [
+    'nfm_reported',
+    'nfm_fixed',
+    'absence_created',
+    'schedule_confirmed',
+    'weekend_confirmed',
+    'holiday_confirmed',
+    'rest_days_updated',
+]
+
+
+def _ensure_user_notification_email_preferences(cursor, user_id):
+    for ntype in NOTIFICATION_TYPES:
+        cursor.execute(
+            """
+            INSERT IGNORE INTO user_notification_email_preferences
+                (user_id, type, email_enabled)
+            VALUES (%s, %s, TRUE)
+            """,
+            (user_id, ntype),
+        )
+
+
+def is_notification_email_enabled_for_user(user_id, notification_type):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            _ensure_user_notification_email_preferences(cursor, user_id)
+            connection.commit()
+            cursor.execute(
+                """
+                SELECT email_enabled FROM user_notification_email_preferences
+                WHERE user_id = %s AND type = %s
+                """,
+                (user_id, notification_type),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return True
+            return bool(row['email_enabled'])
+    except pymysql.Error:
+        return True
+    finally:
+        connection.close()
+
+
+def get_user_notification_email_preferences(user_id):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            _ensure_user_notification_email_preferences(cursor, user_id)
+            connection.commit()
+            cursor.execute(
+                """
+                SELECT type, email_enabled FROM user_notification_email_preferences
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            rows = {row['type']: bool(row['email_enabled']) for row in cursor.fetchall()}
+    finally:
+        connection.close()
+
+    settings = []
+    for ntype in NOTIFICATION_TYPE_ORDER:
+        meta = NOTIFICATION_TYPES[ntype]
+        settings.append({
+            'type': ntype,
+            'label': meta['label'],
+            'icon': meta['icon'],
+            'enabled': rows.get(ntype, True),
+        })
+    for ntype, enabled in rows.items():
+        if ntype not in NOTIFICATION_TYPES:
+            settings.append({
+                'type': ntype,
+                'label': ntype,
+                'icon': 'fa-bell',
+                'enabled': enabled,
+            })
+    return settings
+
+
+def update_user_notification_email_preference(user_id, notification_type, enabled):
+    if notification_type not in NOTIFICATION_TYPES:
+        return False, 'Type de notification invalide'
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            _ensure_user_notification_email_preferences(cursor, user_id)
+            cursor.execute(
+                """
+                INSERT INTO user_notification_email_preferences (user_id, type, email_enabled)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE email_enabled = VALUES(email_enabled)
+                """,
+                (user_id, notification_type, bool(enabled)),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+    return True, None
+
+
+def get_admin_emails_for_notification_type(notification_type):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT u.id, u.email
+                FROM users u
+                WHERE u.role = 'admin'
+                  AND u.email IS NOT NULL
+                  AND u.email != ''
+                """
+            )
+            admins = cursor.fetchall()
+            emails = []
+            for admin in admins:
+                _ensure_user_notification_email_preferences(cursor, admin['id'])
+                cursor.execute(
+                    """
+                    SELECT email_enabled FROM user_notification_email_preferences
+                    WHERE user_id = %s AND type = %s
+                    """,
+                    (admin['id'], notification_type),
+                )
+                pref = cursor.fetchone()
+                if pref is None or bool(pref['email_enabled']):
+                    emails.append(admin['email'])
+            connection.commit()
+            return emails
+    finally:
+        connection.close()
+
 
 def _parse_notification_datetime(value):
     if isinstance(value, datetime):
@@ -5962,8 +7027,8 @@ def get_admin_emails():
         connection.close()
 
 
-def send_notification_emails_to_admins(title, description, notification_date, notification_time):
-    admin_emails = get_admin_emails()
+def send_notification_emails_to_admins(notification_type, title, description, notification_date, notification_time):
+    admin_emails = get_admin_emails_for_notification_type(notification_type)
     if not admin_emails:
         return 'skipped'
 
@@ -6007,6 +7072,7 @@ def retry_notification_email(notification_id):
         return row, 'already_sent'
 
     final_email_status = send_notification_emails_to_admins(
+        row['type'],
         row['title'],
         row.get('description') or '',
         row['notification_date'],
@@ -6034,6 +7100,7 @@ def get_notification_display_title(notification_type, title):
         'nfm_reported': r'^Machine en panne\s*:\s*',
         'nfm_fixed': r'^Machine réparée\s*:\s*',
         'weekend_confirmed': r'^Programme week-end confirmé\s*[—\-]\s*',
+        'holiday_confirmed': r'^Programme jour férié confirmé\s*[—\-]\s*',
         'rest_days_updated': r'^Jours de repos mis à jour\s*[—\-]\s*',
     }
 
@@ -6057,6 +7124,11 @@ def get_notification_display_title(notification_type, title):
             day_date = _iso_week_to_weekend_date(week_number, year, day_key)
             if day_date:
                 return f"{day_label} {_format_notification_date_value(day_date)}"
+        if re.search(r'\d{2}/\d{2}/\d{4}', stripped):
+            return stripped
+
+    if notification_type == 'holiday_confirmed':
+        stripped = re.sub(prefixes['holiday_confirmed'], '', title, flags=re.I).strip()
         if re.search(r'\d{2}/\d{2}/\d{4}', stripped):
             return stripped
 
@@ -6086,8 +7158,24 @@ def _serialize_notification(row):
     }
 
 
+def _is_repos_absence_reason(reason):
+    return (reason or '').strip().lower() == 'repos'
+
+
+def _is_repos_absence_notification(notification_type, description):
+    if notification_type != 'absence_created':
+        return False
+    reason_match = re.search(r'Motif\s*:\s*(.+)$', description or '', re.I | re.M)
+    if reason_match and _is_repos_absence_reason(reason_match.group(1)):
+        return True
+    return False
+
+
 def create_notification(notification_type, title, description, notification_date=None, notification_time=None,
                         email_status='pending'):
+    if _is_repos_absence_notification(notification_type, description):
+        return None
+
     if notification_date is None:
         now = datetime.now()
         notification_date = now.date()
@@ -6125,7 +7213,7 @@ def create_notification(notification_type, title, description, notification_date
         connection.close()
 
     final_email_status = send_notification_emails_to_admins(
-        title, description or '', notification_date, notification_time
+        notification_type, title, description or '', notification_date, notification_time
     )
     if final_email_status != email_status:
         connection = get_db_connection()
@@ -6203,6 +7291,42 @@ def api_notifications_unread_count():
     finally:
         connection.close()
     return jsonify({'success': True, 'unread_count': unread_count})
+
+
+@app.route('/api/notifications/type-settings', methods=['GET'])
+@login_required
+@admin_required
+def api_get_notification_type_settings():
+    return jsonify({
+        'success': True,
+        'types': get_user_notification_email_preferences(current_user.id),
+    })
+
+
+@app.route('/api/notifications/type-settings', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_notification_type_settings():
+    data = request.get_json() or {}
+    notification_type = data.get('type', '').strip()
+    if not notification_type:
+        return jsonify({'success': False, 'message': 'Type requis'}), 400
+    if 'enabled' not in data:
+        return jsonify({'success': False, 'message': 'Statut requis'}), 400
+
+    ok, error = update_user_notification_email_preference(
+        current_user.id,
+        notification_type,
+        bool(data['enabled']),
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': error}), 400
+
+    return jsonify({
+        'success': True,
+        'message': 'Préférence email mise à jour',
+        'types': get_user_notification_email_preferences(current_user.id),
+    })
 
 
 @app.route('/api/notifications/<int:notification_id>')
