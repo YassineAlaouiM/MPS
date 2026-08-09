@@ -2298,6 +2298,8 @@ def load_weekend_program_page_data(week, year, day):
             """, (week, year, day, week, year, day, week, year, day))
             has_day_modifications = cursor.fetchone()['cnt'] > 0
 
+            copy_source_programs = get_weekend_copy_sources(cursor, week, year, day)
+
             current_access = get_user_accessible_pages(current_user.id)
             can_edit = current_access.get('weekend_program', True) if current_user.role != 'admin' else True
 
@@ -2322,6 +2324,7 @@ def load_weekend_program_page_data(week, year, day):
         'modified_machines': modified_machines,
         'has_weekend_program': has_weekend_program,
         'has_day_modifications': has_day_modifications,
+        'copy_source_programs': copy_source_programs,
         'can_edit': can_edit,
         'articles': articles,
     }
@@ -2345,6 +2348,96 @@ def _cleanup_weekend_program_header(cursor, week, year):
             "DELETE FROM weekend_program WHERE week_number = %s AND year = %s",
             (week, year)
         )
+
+def _clear_weekend_day_data(cursor, week, year, day):
+    cursor.execute(
+        "DELETE FROM weekend_schedule WHERE week_number = %s AND year = %s AND day = %s",
+        (week, year, day)
+    )
+    cursor.execute(
+        "DELETE FROM weekend_cleared_machines WHERE week_number = %s AND year = %s AND day = %s",
+        (week, year, day)
+    )
+    cursor.execute(
+        "DELETE FROM weekend_visible_machines WHERE week_number = %s AND year = %s AND day = %s",
+        (week, year, day)
+    )
+
+def _weekend_day_has_data(cursor, week, year, day):
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM weekend_schedule
+             WHERE week_number = %s AND year = %s AND day = %s)
+          + (SELECT COUNT(*) FROM weekend_cleared_machines
+             WHERE week_number = %s AND year = %s AND day = %s)
+          + (SELECT COUNT(*) FROM weekend_visible_machines
+             WHERE week_number = %s AND year = %s AND day = %s) AS cnt
+    """, (week, year, day, week, year, day, week, year, day))
+    return cursor.fetchone()['cnt'] > 0
+
+def get_weekend_copy_sources(cursor, week, year, day):
+    cursor.execute("""
+        SELECT DISTINCT week_number, year, day FROM (
+            SELECT week_number, year, day FROM weekend_schedule
+            UNION
+            SELECT week_number, year, day FROM weekend_cleared_machines
+            UNION
+            SELECT week_number, year, day FROM weekend_visible_machines
+        ) w
+        ORDER BY year DESC, week_number DESC, day ASC
+    """)
+    sources = []
+    for row in cursor.fetchall():
+        src_week = int(row['week_number'])
+        src_year = int(row['year'])
+        src_day = row['day']
+        if src_week == week and src_year == year and src_day == day:
+            continue
+        day_date = _iso_week_to_weekend_date(src_week, src_year, src_day)
+        day_label = WEEKEND_DAY_LABELS[src_day]['fr']
+        date_display = _format_notification_date_value(day_date) if day_date else ''
+        sources.append({
+            'week': src_week,
+            'year': src_year,
+            'day': src_day,
+            'display': f"{day_label} {date_display} (S{src_week}/{src_year})",
+        })
+    return sources
+
+def copy_weekend_program_data(from_week, from_year, from_day, to_week, to_year, to_day):
+    """Copy weekend overlays from one day onto another (replaces target)."""
+    if from_week == to_week and from_year == to_year and from_day == to_day:
+        raise ValueError('Le programme source et le programme cible doivent être différents')
+    if from_day not in WEEKEND_DAYS or to_day not in WEEKEND_DAYS:
+        raise ValueError('Jour de week-end invalide')
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            if not _weekend_day_has_data(cursor, from_week, from_year, from_day):
+                raise ValueError('Aucun programme week-end à copier pour cette sélection')
+            _clear_weekend_day_data(cursor, to_week, to_year, to_day)
+            cursor.execute("""
+                INSERT INTO weekend_schedule
+                    (week_number, year, day, machine_id, production_id, operator_id, shift_id, position)
+                SELECT %s, %s, %s, machine_id, production_id, operator_id, shift_id, position
+                FROM weekend_schedule
+                WHERE week_number = %s AND year = %s AND day = %s
+            """, (to_week, to_year, to_day, from_week, from_year, from_day))
+            cursor.execute("""
+                INSERT INTO weekend_cleared_machines
+                    (week_number, year, day, machine_id, production_id)
+                SELECT %s, %s, %s, machine_id, production_id
+                FROM weekend_cleared_machines
+                WHERE week_number = %s AND year = %s AND day = %s
+            """, (to_week, to_year, to_day, from_week, from_year, from_day))
+            cursor.execute("""
+                INSERT INTO weekend_visible_machines
+                    (week_number, year, day, machine_id, production_id)
+                SELECT %s, %s, %s, machine_id, production_id
+                FROM weekend_visible_machines
+                WHERE week_number = %s AND year = %s AND day = %s
+            """, (to_week, to_year, to_day, from_week, from_year, from_day))
+            _ensure_weekend_program_header(cursor, to_week, to_year)
+            conn.commit()
 
 def save_weekend_assignments(week, year, day, submitted_assignments):
     with get_db_connection() as conn:
@@ -2825,6 +2918,7 @@ def weekend_program(day):
             articles=[],
             all_machines=[],
             all_operators=[],
+            copy_source_programs=[],
         )
 
     return render_template(
@@ -2845,6 +2939,7 @@ def weekend_program(day):
         has_day_modifications=page_data['has_day_modifications'],
         selected_day_date=page_data['selected_day_date'],
         articles=page_data['articles'],
+        copy_source_programs=page_data['copy_source_programs'],
     )
 
 @app.route('/api/weekend-schedule', methods=['GET'])
@@ -2950,6 +3045,34 @@ def delete_weekend_program():
                 _cleanup_weekend_program_header(cursor, week, year)
                 conn.commit()
         return jsonify({'success': True, 'message': 'Weekend program deleted successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/weekend-schedule/copy', methods=['POST'])
+@login_required
+def copy_weekend_program_route():
+    if not has_page_access('weekend_program', require_edit=True):
+        return jsonify({'success': False, 'message': 'Access denied'})
+    data = request.json or {}
+    from_week = data.get('from_week_number')
+    from_year = data.get('from_year')
+    from_day = data.get('from_day')
+    to_week = data.get('to_week_number')
+    to_year = data.get('to_year')
+    to_day = data.get('to_day')
+    if not all([from_week, from_year, from_day, to_week, to_year, to_day]):
+        return jsonify({'success': False, 'message': 'Semaine, année et jour source/cible requis'})
+    if from_day not in WEEKEND_DAYS or to_day not in WEEKEND_DAYS:
+        return jsonify({'success': False, 'message': 'Jour de week-end invalide'})
+    try:
+        copy_weekend_program_data(
+            int(from_week), int(from_year), from_day,
+            int(to_week), int(to_year), to_day,
+        )
+        return jsonify({
+            'success': True,
+            'message': 'Programme week-end copié avec succès.',
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

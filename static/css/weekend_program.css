@@ -24,20 +24,27 @@
     display: flex;
     gap: 8px;
     justify-content: center;
+    align-items: center;
 }
 
 .weekend-day-tab {
-    padding: 8px 16px;
+    height: 40px;
+    padding: 0 16px;
     border-radius: 10px;
     border: 2px solid #1461d4;
     font-weight: 600;
     font-size: 14px;
+    line-height: 1;
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background-color: transparent;
     color: #1461d4;
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
     cursor: pointer;
+    box-sizing: border-box;
 }
 
 .weekend-day-tab:hover {
@@ -52,6 +59,33 @@
 }
 
 .weekend-day-tab.active:hover {
+    background-color: #1461d4;
+    color: #fff;
+    transform: translateY(-3px);
+}
+
+.weekend-copy-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 10px;
+    border: 2px solid #1461d4;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    color: #1461d4;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(215, 221, 228, 0.5);
+    cursor: pointer;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.weekend-copy-btn:hover {
     background-color: #1461d4;
     color: #fff;
     transform: translateY(-3px);
@@ -179,9 +213,18 @@
 
     .weekend-day-tab {
         flex: 1;
-        text-align: center;
-        padding: 10px 8px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0 8px;
         font-size: 14px;
+    }
+
+    .weekend-copy-btn {
+        flex: 0 0 40px;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
     }
 
     .weekend-program-page .week-dates {
@@ -376,7 +419,9 @@
     }
 
     .weekend-day-tab {
-        padding: 9px 6px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0 6px;
         font-size: 13px;
     }
 

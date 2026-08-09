@@ -46,6 +46,11 @@
                                class="weekend-day-tab{% if day == 'saturday' %} active{% endif %}">Samedi</a>
                             <a href="{{ url_for('weekend_program', day='sunday', week=week, year=year) }}"
                                class="weekend-day-tab{% if day == 'sunday' %} active{% endif %}">Dimanche</a>
+                            {% if can_edit %}
+                            <button type="button" class="weekend-copy-btn" data-bs-toggle="modal" data-bs-target="#copyWeekendProgramModal" title="Copier" aria-label="Copier">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            {% endif %}
                         </div>
                         <div class="week-dates" id="weekDatesDisplay"></div>
                     </div>
@@ -225,6 +230,44 @@
 </div>
 
 {% if can_edit %}
+<!-- Copy Weekend Program Modal -->
+<div class="modal fade" id="copyWeekendProgramModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Copier un programme week-end</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Copie machines et affectations depuis un week-end existant vers
+                    <strong>{{ 'Samedi' if day == 'saturday' else 'Dimanche' }} {{ selected_day_date }}</strong>.
+                    Le programme actuel sera remplacé.
+                </p>
+                {% if copy_source_programs %}
+                <div class="mb-3">
+                    <label for="copyWeekendSourceSelect" class="form-label">Copier depuis</label>
+                    <select class="form-select" id="copyWeekendSourceSelect">
+                        <option value="">Sélectionner un programme</option>
+                        {% for source in copy_source_programs %}
+                        <option value="{{ source.week }}|{{ source.year }}|{{ source.day }}">{{ source.display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Aucun autre programme week-end enregistré pour l’instant.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                {% if copy_source_programs %}
+                <button type="button" class="btn btn-primary" onclick="submitCopyWeekendProgram()">Copier</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Add Machine From Program Modal -->
 <div class="modal fade" id="addProgramMachineModal" tabindex="-1">
     <div class="modal-dialog">
@@ -1128,6 +1171,47 @@ function updateNavigation(year, week) {
     currentUrl.searchParams.set('year', year);
     currentUrl.searchParams.set('week', week);
     window.location.href = currentUrl.toString();
+}
+
+function submitCopyWeekendProgram() {
+    const select = document.getElementById('copyWeekendSourceSelect');
+    const sourceValue = select ? select.value : '';
+    if (!sourceValue) {
+        alert('Veuillez sélectionner un programme source.');
+        return;
+    }
+    const parts = sourceValue.split('|');
+    if (parts.length !== 3) {
+        alert('Sélection invalide.');
+        return;
+    }
+    const [fromWeek, fromYear, fromDay] = parts;
+    if (!confirm('Remplacer le programme actuel par une copie du week-end sélectionné ?')) {
+        return;
+    }
+    fetch('/api/weekend-schedule/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from_week_number: parseInt(fromWeek, 10),
+            from_year: parseInt(fromYear, 10),
+            from_day: fromDay,
+            to_week_number: {{ week }},
+            to_year: {{ year }},
+            to_day: WEEKEND_DAY
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            sessionStorage.removeItem(WEEKEND_STORAGE_PREFIX);
+            sessionStorage.removeItem(`${WEEKEND_STORAGE_PREFIX}_confirmed`);
+            window.location.reload();
+        } else {
+            alert(data.message || 'Erreur lors de la copie.');
+        }
+    })
+    .catch(() => alert('Erreur lors de la copie.'));
 }
 
 function addMachineFromProgram() {
