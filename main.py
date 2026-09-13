@@ -36,6 +36,15 @@ from config import db_config, is_smtp_configured, smtp_config
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 
+# Temporary: hide Holiday (Jours fériés) from the UI. Backend, data, and overlays stay intact.
+# Set to True to restore the Holiday page, nav link, and permission checkboxes.
+HOLIDAY_UI_ENABLED = False
+
+
+@app.context_processor
+def inject_feature_flags():
+    return {'holiday_ui_enabled': HOLIDAY_UI_ENABLED}
+
 # Login manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -3665,6 +3674,8 @@ def get_merged_holiday_export_rows(cursor, holiday_date, name_field='o.name'):
 @app.route('/holiday-program')
 @login_required
 def holiday_program():
+    if not HOLIDAY_UI_ENABLED:
+        return redirect(url_for('dashboard'))
     ensure_today_history()
     if not has_page_access('holiday_program'):
         flash('Access denied')
@@ -3945,6 +3956,8 @@ def copy_holiday_program_route():
 @app.route('/export_holiday_schedule', methods=['GET'])
 @login_required
 def export_holiday_schedule():
+    if not HOLIDAY_UI_ENABLED:
+        return redirect(url_for('dashboard'))
     try:
         holiday_date = _parse_holiday_date(request.args.get('date'))
     except ValueError:
@@ -4860,6 +4873,72 @@ def get_daily_history_api():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+def copy_previous_weekday_program_to_week(cursor, this_week, this_year, today):
+    """Seed the current week's weekday program from the previous ISO week's schedule.
+
+    Only fills the given week when it has no assignments. Does not touch weekend/holiday
+    tables and never writes into future weeks.
+    Returns True if at least one assignment was inserted.
+    """
+    cursor.execute('''
+        SELECT COUNT(*) AS cnt
+        FROM schedule
+        WHERE week_number = %s AND year = %s
+    ''', (this_week, this_year))
+    if (cursor.fetchone() or {}).get('cnt', 0) > 0:
+        return False
+
+    monday = today - timedelta(days=today.weekday())
+    prev_monday = monday - timedelta(days=7)
+    prev_week = prev_monday.isocalendar()[1]
+    prev_year = prev_monday.year
+    week_end = monday + timedelta(days=6)
+
+    # Previous week's schedule table is the weekday program (not Sat/Sun/holiday)
+    cursor.execute('''
+        SELECT s.machine_id, s.production_id, s.operator_id, s.shift_id, s.position, p.status
+        FROM schedule s
+        JOIN production p ON s.production_id = p.id
+        WHERE s.week_number = %s AND s.year = %s
+    ''', (prev_week, prev_year))
+    source_rows = cursor.fetchall() or []
+    if not source_rows:
+        return False
+
+    inserted = 0
+    for row in source_rows:
+        machine_id = row['machine_id']
+        production_id = row['production_id']
+        operator_id = row['operator_id']
+        shift_id = row['shift_id']
+        position = row.get('position', 1)
+
+        if row['status'] != 'active':
+            cursor.execute('''
+                SELECT id FROM production
+                WHERE machine_id = %s AND status = 'active'
+                AND start_date <= %s
+                AND (end_date IS NULL OR end_date >= %s)
+                ORDER BY start_date DESC
+                LIMIT 1
+            ''', (machine_id, week_end, monday))
+            replacement = cursor.fetchone()
+            if not replacement:
+                continue
+            production_id = replacement['id']
+
+        if not operator_id or not shift_id or not production_id:
+            continue
+
+        cursor.execute('''
+            INSERT INTO schedule (machine_id, production_id, operator_id, shift_id, position, week_number, year)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (machine_id, production_id, operator_id, shift_id, position, this_week, this_year))
+        inserted += 1
+
+    return inserted > 0
+
+
 #Ensure Today History is saved in the database
 def ensure_today_history():
     today = datetime.now().date()
@@ -4889,7 +4968,8 @@ def ensure_today_history():
                             cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
                         connection.commit()
                     else:
-                        # New week: if a program exists for the new week, snapshot it; otherwise copy the last day's active rows
+                        # New week: if a program exists for the new week, snapshot it; otherwise
+                        # seed weekday program from previous week (once, current week only), then history.
                         cursor.execute('''
                             SELECT COUNT(*) AS cnt
                             FROM schedule sch
@@ -4903,17 +4983,32 @@ def ensure_today_history():
                             connection.commit()
                             save_daily_schedule_history(today)
                         else:
-                            # No program for the new week yet → copy active rows from last recorded day (typically Sunday)
-                            cursor.execute("SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'", (last_date,))
-                            rows = cursor.fetchall()
-                            for row in rows:
-                                row_data = dict(row)
-                                row_data['date_recorded'] = today
-                                row_data.pop('id', None)
-                                columns = ', '.join(row_data.keys())
-                                placeholders = ', '.join(['%s'] * len(row_data))
-                                cursor.execute(f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})", tuple(row_data.values()))
+                            # No program for the new week yet → copy last weekday program into schedule
+                            seeded = copy_previous_weekday_program_to_week(
+                                cursor, this_week, this_year, today
+                            )
                             connection.commit()
+                            if seeded:
+                                # History follows the newly seeded weekday program
+                                save_daily_schedule_history(today)
+                            else:
+                                # Fallback: copy active rows from last recorded day (typically Sunday)
+                                cursor.execute(
+                                    "SELECT * FROM daily_schedule_history WHERE date_recorded = %s AND status = 'active'",
+                                    (last_date,)
+                                )
+                                rows = cursor.fetchall()
+                                for row in rows:
+                                    row_data = dict(row)
+                                    row_data['date_recorded'] = today
+                                    row_data.pop('id', None)
+                                    columns = ', '.join(row_data.keys())
+                                    placeholders = ', '.join(['%s'] * len(row_data))
+                                    cursor.execute(
+                                        f"INSERT INTO daily_schedule_history ({columns}) VALUES ({placeholders})",
+                                        tuple(row_data.values())
+                                    )
+                                connection.commit()
                 
                 # Also ensure today has any non-functioning machine events that were saved directly
                 # Check if there are any non-functioning machine events for today that weren't copied

@@ -44,9 +44,11 @@
                                 <li><a class="dropdown-item" href="{{ url_for('weekend_program', day='sunday') }}">Dimanche</a></li>
                             </ul>
                         </li>
+                        {% if holiday_ui_enabled %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('holiday_program') }}">Fériés</a>
                         </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('history') }}">Historique</a>
                         </li>
