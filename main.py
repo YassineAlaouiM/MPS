@@ -2647,11 +2647,11 @@ def generate_schedule_pdf_response(schedule_data, week, year, name_type, filenam
     text_color = colors.HexColor('#000000')
 
     shift_headers = {
-        'shift_1': '7h à 15h',
-        'shift_2': '15h à 23h',
-        'shift_3': '23h à 7h',
-        'shift_4': '7h à 19h',
-        'shift_5': '19h à 7h',
+        'shift_1': '6h à 14h',
+        'shift_2': '14h à 22h',
+        'shift_3': '22h à 6h',
+        'shift_4': '6h à 18h',
+        'shift_5': '18h à 6h',
         'shift_6': '9h à 17h'
     }
 
